@@ -179,8 +179,8 @@ export default function ProfilePage() {
             { id:'seasons',   label:'Seasons',   fn:()=>{router.push('/season');}, svg:<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/> },
             { id:'deposit',   label:'Deposit',   fn:()=>{router.push('/deposit');}, svg:<><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></> },
             { id:'withdraw',  label:'Withdraw',  fn:()=>{router.push('/withdraw');}, svg:<><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></> },
-            { id:'referral',  label:'Referral',  fn:()=>{router.push('referral');}, svg:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></> },
-            { id:'support',   label:'Support',   fn:()=>{router.push('support');}, svg:<><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></> },
+            { id:'referral',  label:'Referral',  fn:()=>{router.push('/referral');}, svg:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></> },
+            { id:'support',   label:'Support',   fn:()=>{router.push('/support');}, svg:<><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></> },
           ] as { id:string; label:string; fn:()=>void; svg:React.ReactNode }[]).map(n => (
             <button key={n.id} className={`pf-nav-item${activeNav===n.id?' active':''}`} onClick={n.fn}>
               <svg fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">{n.svg}</svg>

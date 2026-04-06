@@ -205,8 +205,8 @@ export default function DashboardPage() {
             {id:'seasons',  svg:<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>,label:'Seasons',fn:()=>{router.push('/season');}},
             {id:'deposit',  svg:<><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></>,label:'Deposit',fn:()=>router.push('/deposit')},
             {id:'withdraw', svg:<><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></>,label:'Withdraw',fn:()=>router.push('/withdraw')},
-            {id:'referral', svg:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>,label:'Referral',fn:()=>{setActiveNav('referral');setSidebarOpen(false);showToast('Referral view');}},
-            {id:'support',  svg:<><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></>,label:'Support',fn:()=>{setActiveNav('support');setSidebarOpen(false);showToast('Support view');}},
+            {id:'referral', svg:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>,label:'Referral',fn:()=>router.push('/referral')},
+            {id:'support',  svg:<><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></>,label:'Support',fn:()=>router.push('/support')},
           ] as {id:string;svg:React.ReactNode;label:string;fn:()=>void}[]).map(n=>(
             <button key={n.id} className={`db-nav-item${activeNav===n.id?' active':''}`} onClick={n.fn}>
               <svg fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">{n.svg}</svg>
@@ -402,7 +402,7 @@ export default function DashboardPage() {
                 <div style={{fontSize:'.68rem',letterSpacing:'.16em',textTransform:'uppercase',color:'rgba(246,241,233,0.35)',marginBottom:5}}>Season 4 · Entry Closing</div>
                 <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.15rem',fontWeight:400,color:'var(--cream)'}}>18 days remain to join Season 4. Pool at 62% capacity.</div>
               </div>
-              <button className="db-btn db-btn-dark" style={{whiteSpace:'nowrap',flexShrink:0}} onClick={()=>router.push('/deposit')}><span>Invest Now</span></button>
+              <button className="db-btn db-btn-dark" style={{whiteSpace:'nowrap',flexShrink:0}} onClick={()=>router.push('/season')}><span>Invest Now</span></button>
             </div>
 
           </div>

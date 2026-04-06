@@ -126,8 +126,8 @@ export default function WithdrawPage() {
     {id:'seasons',  label:'Seasons',  fn:()=>router.push('/season'),   svg:<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>},
     {id:'deposit',  label:'Deposit',  fn:()=>router.push('/deposit'),  svg:<><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></>},
     {id:'withdraw', label:'Withdraw', fn:()=>{setActiveNav('withdraw');setSidebarOpen(false);setHamburgerOpen(false);},svg:<><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></>},
-    {id:'referral', label:'Referral', fn:()=>{setActiveNav('referral');setSidebarOpen(false);showToast('Referral view');},svg:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
-    {id:'support',  label:'Support',  fn:()=>{setActiveNav('support');setSidebarOpen(false);showToast('Support view');}, svg:<><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></>},
+    {id:'referral', label:'Referral', fn:()=>router.push('/referral'),svg:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
+    {id:'support',  label:'Support',  fn:()=>router.push('/support'), svg:<><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></>},
   ] as {id:string;label:string;fn:()=>void;svg:React.ReactNode}[];
 
   return (

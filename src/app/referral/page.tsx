@@ -46,7 +46,6 @@ export default function ReferralPage() {
   const [milestoneWidth, setMilestoneWidth] = useState('0%');
   const [ringOffset, setRingOffset] = useState(188);
   const toastTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
-  const ringRef = useRef<SVGCircleElement>(null);
 
   const showToast = useCallback((msg: string, cls = '') => {
     setToastMsg(msg); setToastCls(cls); setToastShow(true);
@@ -54,68 +53,69 @@ export default function ReferralPage() {
     toastTimer.current = setTimeout(() => setToastShow(false), 2800);
   }, []);
 
-  /* scroll reveal */
   useEffect(() => {
     const obs = new IntersectionObserver(entries => {
       entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('vis'); });
-    }, { threshold: 0.08 });
+    }, { threshold: 0.06 });
     document.querySelectorAll<HTMLElement>('.rf-reveal').forEach(el => obs.observe(el));
     return () => obs.disconnect();
   }, []);
 
-  /* milestone animation */
   useEffect(() => {
     const t = setTimeout(() => {
       setMilestoneWidth('48%');
-      const circ = 2 * Math.PI * 30;
-      setRingOffset(circ * (1 - 24/50));
-    }, 400);
+      setRingOffset(2 * Math.PI * 30 * (1 - 24/50));
+    }, 500);
     return () => clearTimeout(t);
   }, []);
 
-  /* body scroll lock */
   useEffect(() => {
     document.body.style.overflow = sidebarOpen ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [sidebarOpen]);
 
-  /* ESC */
   useEffect(() => {
     const h = (e: KeyboardEvent) => { if (e.key === 'Escape') { setSidebarOpen(false); setHamOpen(false); } };
     document.addEventListener('keydown', h);
     return () => document.removeEventListener('keydown', h);
   }, []);
 
-  /* responsive info-grid */
+  /* Responsive info-grid */
   useEffect(() => {
     const apply = () => {
       const ig = document.getElementById('rf-info-grid');
       const sp = document.getElementById('rf-side-panels');
       if (!ig || !sp) return;
-      if (window.innerWidth >= 1100) { ig.style.gridTemplateColumns='1.6fr 1fr'; sp.style.gridTemplateColumns='1fr'; }
-      else if (window.innerWidth >= 640) { ig.style.gridTemplateColumns='1fr'; sp.style.gridTemplateColumns='1fr 1fr'; }
-      else { ig.style.gridTemplateColumns='1fr'; sp.style.gridTemplateColumns='1fr'; }
+      if (window.innerWidth >= 1100) {
+        ig.style.gridTemplateColumns = '1.6fr 1fr';
+        sp.style.gridTemplateColumns = '1fr';
+      } else if (window.innerWidth >= 640) {
+        ig.style.gridTemplateColumns = '1fr';
+        sp.style.gridTemplateColumns = '1fr 1fr';
+      } else {
+        ig.style.gridTemplateColumns = '1fr';
+        sp.style.gridTemplateColumns = '1fr';
+      }
     };
-    apply(); window.addEventListener('resize', apply);
+    apply();
+    window.addEventListener('resize', apply);
     return () => window.removeEventListener('resize', apply);
   }, []);
 
   const copyRef = (type: 'link'|'code') => {
     const text = type === 'link' ? 'https://vaultx.io/ref/JSDRT-2024' : 'JSDRT-2024';
-    const fb = () => {};
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).catch(fb);
-    else fb();
-    if (type === 'link') { setLinkCopied(true); setTimeout(()=>setLinkCopied(false),2200); }
-    else { setCodeCopied(true); setTimeout(()=>setCodeCopied(false),2200); }
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).catch(() => {});
+    if (type === 'link') { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2200); }
+    else { setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2200); }
     showToast(type === 'link' ? '🔗 Referral link copied!' : '📋 Referral code copied!', 'ok');
   };
 
   const shareVia = (platform: string) => {
     const link = 'https://vaultx.io/ref/JSDRT-2024';
-    const msg = `Join VaultX and invest with me! Use my referral link: ${link}`;
+    const msg = `Join VaultX and invest with me! ${link}`;
     const urls: Record<string,string> = {
       WhatsApp: `https://wa.me/?text=${encodeURIComponent(msg)}`,
-      Telegram: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join VaultX with my referral!')}`,
+      Telegram: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join VaultX!')}`,
       Twitter:  `https://twitter.com/intent/tweet?text=${encodeURIComponent(msg)}`,
       Email:    `mailto:?subject=Join%20VaultX&body=${encodeURIComponent(msg)}`,
     };
@@ -128,8 +128,6 @@ export default function ReferralPage() {
   const totalPages = Math.ceil(filtered.length / PER_PAGE);
   const start = (page - 1) * PER_PAGE;
   const slice = filtered.slice(start, start + PER_PAGE);
-
-  const filterTable = (f: string) => { setFilter(f); setPage(1); };
   const goPage = (n: number) => { if (n >= 1 && n <= totalPages) setPage(n); };
 
   const navItems = [
@@ -141,11 +139,15 @@ export default function ReferralPage() {
     {id:'support',  label:'Support',  fn:()=>router.push('/support'),  svg:<><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></>},
   ] as {id:string;label:string;fn:()=>void;svg:React.ReactNode}[];
 
+  const BadgeComp = ({status}:{status:string}) => (
+    <span className={`rf-badge rf-b-${status}`}>{status}</span>
+  );
+
   return (
     <>
       <div className={`rf-toast${toastShow?' show':''}${toastCls?' '+toastCls:''}`}>{toastMsg}</div>
 
-      {/* SIDEBAR */}
+      {/* SIDEBAR — outside layout */}
       <aside className={`rf-sidebar${sidebarOpen?' open':''}`}>
         <div className="rf-sidebar-logo">
           <a href="/" style={{textDecoration:'none',display:'flex',alignItems:'center'}}>
@@ -154,8 +156,9 @@ export default function ReferralPage() {
         </div>
         <nav className="rf-sidebar-nav">
           {navItems.map(n=>(
-            <button key={n.id} className={`rf-nav-item${n.id==='referral'?' active':''}`} onClick={()=>{n.fn();setSidebarOpen(false);setHamOpen(false);}}>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6">{n.svg}</svg>
+            <button key={n.id} className={`rf-nav-item${n.id==='referral'?' active':''}`}
+              onClick={()=>{n.fn();setSidebarOpen(false);setHamOpen(false);}}>
+              <svg fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">{n.svg}</svg>
               {n.label}
             </button>
           ))}
@@ -170,24 +173,25 @@ export default function ReferralPage() {
       <div className={`rf-sb-overlay${sidebarOpen?' show':''}`} onClick={()=>{setSidebarOpen(false);setHamOpen(false);}}/>
 
       <div className="rf-layout">
-        {/* TOPBAR */}
-        <header className="rf-topbar">
+
+        {/* MOBILE TOPBAR */}
+        <div className="rf-topbar">
           <button className={`rf-ham-btn${hamOpen?' is-open':''}`} onClick={()=>{setSidebarOpen(o=>!o);setHamOpen(o=>!o);}}>
             <span/><span/><span/>
           </button>
-          <div style={{position:'absolute',left:'50%',transform:'translateX(-50%)',display:'flex',alignItems:'center',gap:7,textDecoration:'none'}} onClick={()=>router.push('/')} role="button">
+          <div style={{position:'absolute',left:'50%',transform:'translateX(-50%)',display:'flex',alignItems:'center',gap:8,cursor:'pointer'}} onClick={()=>router.push('/')}>
             <div className="rf-logo-mark" style={{width:26,height:26}}/>
             <span className="rf-logo-text" style={{fontSize:'1.15rem'}}>Vault<span>X</span></span>
           </div>
           <div className="rf-topbar-avatar" onClick={()=>router.push('/profile')}>RK</div>
-        </header>
+        </div>
 
         {/* MAIN */}
-        <div className="rf-main-area">
-          <div className="rf-content">
+        <main className="rf-main">
+          <div style={{maxWidth:1100,margin:'0 auto'}}>
 
             {/* PAGE TITLE */}
-            <div className="rf-reveal" style={{marginBottom:24}}>
+            <div className="rf-reveal" style={{marginBottom:22}}>
               <span className="rf-sec-label">My Account</span>
               <h1 className="rf-sec-title">Referral Program</h1>
               <p className="rf-sec-sub">Invite friends and earn 5% commission on every investment they make.</p>
@@ -195,17 +199,16 @@ export default function ReferralPage() {
 
             {/* REFERRAL HERO */}
             <div className="rf-hero rf-reveal" style={{marginBottom:14}}>
-              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:12,marginBottom:18}}>
+              <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:10,marginBottom:16}}>
                 <div>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.15rem',fontWeight:400,color:'var(--ink)',marginBottom:3}}>Your Unique Referral Details</div>
-                  <div style={{fontSize:'.72rem',color:'var(--text-sec)'}}>Share your link or code — both lead to the same reward</div>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.1rem',fontWeight:400,color:'var(--ink)',marginBottom:3}}>Your Unique Referral Details</div>
+                  <div style={{fontSize:'.7rem',color:'var(--text-sec)'}}>Share your link or code — both lead to the same reward</div>
                 </div>
-                <span className="rf-badge rf-b-active" style={{fontSize:'.6rem',alignSelf:'flex-start'}}>
-                  <span className="rf-live-dot" style={{width:5,height:5,marginRight:3}}/>Active
+                <span className="rf-badge rf-b-active" style={{alignSelf:'flex-start'}}>
+                  <span className="rf-live-dot"/>Active
                 </span>
               </div>
 
-              {/* Tabs */}
               <div className="rf-tabs">
                 <button className={`rf-tab${refTab==='link'?' active':''}`} onClick={()=>setRefTab('link')}>Referral Link</button>
                 <button className={`rf-tab${refTab==='code'?' active':''}`} onClick={()=>setRefTab('code')}>Referral Code</button>
@@ -219,7 +222,7 @@ export default function ReferralPage() {
                       {linkCopied?'✓ Copied!':'Copy Link'}
                     </button>
                   </div>
-                  <div style={{fontSize:'.65rem',color:'var(--text-sec)',marginTop:8}}>
+                  <div style={{fontSize:'.63rem',color:'var(--text-sec)',marginTop:7}}>
                     🔒 This link is unique to your account. Do not share with untrusted parties.
                   </div>
                 </div>
@@ -231,15 +234,14 @@ export default function ReferralPage() {
                       {codeCopied?'✓ Copied!':'Copy Code'}
                     </button>
                   </div>
-                  <div style={{fontSize:'.65rem',color:'var(--text-sec)',marginTop:8}}>
+                  <div style={{fontSize:'.63rem',color:'var(--text-sec)',marginTop:7}}>
                     Share this code anywhere — your referrals can enter it during registration.
                   </div>
                 </div>
               )}
 
-              {/* Share row */}
-              <div className="rf-share-row" style={{marginTop:16}}>
-                <span style={{fontSize:'.68rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-sec)'}}>Share via:</span>
+              <div className="rf-share-row">
+                <span style={{fontSize:'.65rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-sec)',flexShrink:0}}>Share via:</span>
                 {['WhatsApp','Telegram','Twitter','Email'].map(p=>(
                   <button key={p} className="rf-share-btn" onClick={()=>shareVia(p)}>
                     {p==='WhatsApp'&&<svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 01-.9 3.8 8.5 8.5 0 01-7.6 4.7 8.38 8.38 0 01-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 01-.9-3.8 8.5 8.5 0 014.7-7.6 8.38 8.38 0 013.8-.9h.5a8.48 8.48 0 018 8v.5z"/></svg>}
@@ -254,60 +256,38 @@ export default function ReferralPage() {
 
             {/* STAT CARDS */}
             <div className="rf-stats-grid rf-reveal" style={{marginBottom:14}}>
-              <div className="rf-stat-card">
-                <div className="rf-stat-icon" style={{background:'rgba(184,147,90,.1)'}}>
-                  <svg viewBox="0 0 24 24" style={{stroke:'var(--gold)'}}><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+              {[
+                {icon:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>,bg:'rgba(184,147,90,.1)',sc:'var(--gold)',val:'24',lbl:'Total Referred',ch:<>+3 this month</>,cup:true},
+                {icon:<path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>,bg:'rgba(74,103,65,.1)',sc:'var(--sage)',val:'$1,248',lbl:'Total Commission',ch:<>+$186 this month</>,cup:true,vc:'var(--sage)'},
+                {icon:<><circle cx="12" cy="12" r="10"/><path d="M15 9.354a4 4 0 10-4 6.292"/></>,bg:'rgba(184,147,90,.08)',sc:'var(--gold-d)',val:'5%',lbl:'Commission Rate',ch:'Per referral investment',cup:false,vc:'var(--gold)'},
+                {icon:<><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,bg:'rgba(155,58,58,.07)',sc:'#9b6a3a',val:'$74',lbl:'Pending Commission',ch:'Processing · 2–3 days',cup:false,vc:'#9b6a3a'},
+              ].map((s,i)=>(
+                <div key={i} className="rf-stat-card">
+                  <div className="rf-stat-icon" style={{background:s.bg}}>
+                    <svg viewBox="0 0 24 24" style={{stroke:s.sc}}>{s.icon}</svg>
+                  </div>
+                  <div className="rf-stat-val" style={s.vc?{color:s.vc}:{}}>{s.val}</div>
+                  <div className="rf-stat-lbl">{s.lbl}</div>
+                  <div className={`rf-stat-change ${s.cup?'rf-ch-up':'rf-ch-neu'}`} style={!s.cup&&s.vc?{color:s.vc}:{}}>
+                    {s.cup&&<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15"/></svg>}
+                    {s.ch}
+                  </div>
                 </div>
-                <div className="rf-stat-val">24</div>
-                <div className="rf-stat-lbl">Total Referred</div>
-                <div className="rf-stat-change rf-ch-up">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15"/></svg>
-                  +3 this month
-                </div>
-              </div>
-              <div className="rf-stat-card">
-                <div className="rf-stat-icon" style={{background:'rgba(74,103,65,.1)'}}>
-                  <svg viewBox="0 0 24 24" style={{stroke:'var(--sage)'}}><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                </div>
-                <div className="rf-stat-val" style={{color:'var(--sage)'}}>$1,248</div>
-                <div className="rf-stat-lbl">Total Commission (USDT)</div>
-                <div className="rf-stat-change rf-ch-up">
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="18 15 12 9 6 15"/></svg>
-                  +$186 this month
-                </div>
-              </div>
-              <div className="rf-stat-card">
-                <div className="rf-stat-icon" style={{background:'rgba(184,147,90,.08)'}}>
-                  <svg viewBox="0 0 24 24" style={{stroke:'var(--gold-d)'}}><circle cx="12" cy="12" r="10"/><path d="M15 9.354a4 4 0 10-4 6.292"/></svg>
-                </div>
-                <div className="rf-stat-val" style={{color:'var(--gold)'}}>5%</div>
-                <div className="rf-stat-lbl">Commission Rate</div>
-                <div className="rf-stat-change rf-ch-neu">Per referral investment</div>
-              </div>
-              <div className="rf-stat-card">
-                <div className="rf-stat-icon" style={{background:'rgba(155,58,58,.07)'}}>
-                  <svg viewBox="0 0 24 24" style={{stroke:'#9b6a3a'}}><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                </div>
-                <div className="rf-stat-val" style={{color:'#9b6a3a'}}>$74</div>
-                <div className="rf-stat-lbl">Pending Commission</div>
-                <div className="rf-stat-change" style={{color:'#9b6a3a'}}>
-                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-                  Processing · 2–3 days
-                </div>
-              </div>
+              ))}
             </div>
 
             {/* INFO GRID */}
             <div style={{display:'grid',gridTemplateColumns:'1fr',gap:14,marginBottom:14}} className="rf-reveal" id="rf-info-grid">
+
               {/* HOW IT WORKS */}
               <div className="rf-how-card">
                 <span className="rf-sec-label" style={{marginBottom:4}}>Program Details</span>
-                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.1rem',color:'var(--ink)'}}>How the Referral Program Works</div>
+                <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.05rem',color:'var(--ink)'}}>How the Referral Program Works</div>
                 <div className="rf-steps-grid">
                   {[
                     {n:'1',t:'Share Your Link',d:'Copy your unique referral link or code and share it with friends, colleagues, or your audience.'},
                     {n:'2',t:'They Register & Invest',d:'Your referral signs up using your link and makes their first investment into any active season.'},
-                    {n:'3',t:'You Earn Commission',d:'Receive 5% of every USDT amount your referral invests, credited to your account within 2–3 business days.'},
+                    {n:'3',t:'You Earn Commission',d:'Receive 5% of every USDT amount your referral invests, credited within 2–3 business days.'},
                   ].map(s=>(
                     <div key={s.n} className="rf-step-item">
                       <div className="rf-step-num">{s.n}</div>
@@ -318,7 +298,7 @@ export default function ReferralPage() {
                 <div className="rf-comm-strip">
                   <div className="rf-comm-strip-icon"><svg viewBox="0 0 24 24"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
                   <div>
-                    <div style={{display:'flex',alignItems:'center',gap:8}}>
+                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                       <span className="rf-comm-rate">5% Commission</span>
                       <span className="rf-badge rf-b-active" style={{fontSize:'.55rem'}}>Lifetime</span>
                     </div>
@@ -329,42 +309,40 @@ export default function ReferralPage() {
 
               {/* SIDE PANELS */}
               <div style={{display:'grid',gridTemplateColumns:'1fr',gap:14}} id="rf-side-panels">
+
                 {/* Milestone */}
-                <div className="rf-how-card" style={{padding:20}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.05rem',color:'var(--ink)',marginBottom:14}}>Referral Milestone</div>
-                  <div style={{display:'flex',alignItems:'center',gap:16}}>
+                <div className="rf-how-card" style={{padding:'18px 16px'}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.02rem',color:'var(--ink)',marginBottom:14}}>Referral Milestone</div>
+                  <div style={{display:'flex',alignItems:'center',gap:14}}>
                     <div className="rf-milestone-ring">
                       <svg viewBox="0 0 70 70">
                         <circle className="rf-ring-bg" cx="35" cy="35" r="30"/>
-                        <circle ref={ringRef} className="rf-ring-fill" cx="35" cy="35" r="30"
-                          style={{strokeDasharray:`${2*Math.PI*30}`,strokeDashoffset:ringOffset}}/>
+                        <circle className="rf-ring-fill" cx="35" cy="35" r="30" style={{strokeDashoffset:ringOffset}}/>
                       </svg>
-                      <div className="rf-ring-label">
-                        <span>24</span>
-                        <span className="rf-ring-sublabel">of 50</span>
-                      </div>
+                      <div className="rf-ring-label"><span>24</span><span className="rf-ring-sublabel">of 50</span></div>
                     </div>
-                    <div style={{flex:1}}>
-                      <div style={{fontSize:'.78rem',fontWeight:500,color:'var(--ink)',marginBottom:4}}>Next Reward at 50 Referrals</div>
-                      <div style={{fontSize:'.7rem',color:'var(--text-sec)',marginBottom:10}}>26 more referrals to unlock a bonus 1% rate increase.</div>
+                    <div style={{flex:1,minWidth:0}}>
+                      <div style={{fontSize:'.76rem',fontWeight:500,color:'var(--ink)',marginBottom:3}}>Next Reward at 50 Referrals</div>
+                      <div style={{fontSize:'.68rem',color:'var(--text-sec)',marginBottom:8}}>26 more to unlock +1% bonus rate.</div>
                       <div className="rf-prog-bar"><div className="rf-prog-fill" style={{width:milestoneWidth}}/></div>
-                      <div style={{fontSize:'.64rem',color:'var(--text-sec)',marginTop:4}}>48% complete</div>
+                      <div style={{fontSize:'.62rem',color:'var(--text-sec)',marginTop:4}}>48% complete</div>
                     </div>
                   </div>
                   <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:14}}>
                     <div style={{background:'var(--cream)',border:'1px solid var(--border)',borderRadius:6,padding:'10px 12px'}}>
-                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.05rem',color:'var(--ink)'}}>$48,920</div>
-                      <div style={{fontSize:'.6rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-sec)'}}>Total Invested by Refs</div>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1rem',color:'var(--ink)'}}>$48,920</div>
+                      <div style={{fontSize:'.58rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-sec)'}}>Total Invested by Refs</div>
                     </div>
                     <div style={{background:'var(--cream)',border:'1px solid var(--border)',borderRadius:6,padding:'10px 12px'}}>
-                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.05rem',color:'var(--sage)'}}>$2,446</div>
-                      <div style={{fontSize:'.6rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-sec)'}}>Lifetime Earnings</div>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1rem',color:'var(--sage)'}}>$2,446</div>
+                      <div style={{fontSize:'.58rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-sec)'}}>Lifetime Earnings</div>
                     </div>
                   </div>
                 </div>
+
                 {/* Monthly earnings */}
-                <div className="rf-how-card" style={{padding:20}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.05rem',color:'var(--ink)',marginBottom:14}}>Monthly Earnings</div>
+                <div className="rf-how-card" style={{padding:'18px 16px'}}>
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.02rem',color:'var(--ink)',marginBottom:14}}>Monthly Earnings</div>
                   {[['April 2025','+$186.40'],['March 2025','+$241.80'],['February 2025','+$318.20'],['January 2025','+$274.00'],['December 2024','+$228.50']].map(([m,v])=>(
                     <div key={m} className="rf-earn-row">
                       <span className="rf-earn-label">{m}</span>
@@ -387,57 +365,84 @@ export default function ReferralPage() {
                 <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
                   <div className="rf-filter-row">
                     {[['all','All (24)'],['active','Active'],['pending','Pending'],['inactive','Inactive']].map(([f,lbl])=>(
-                      <button key={f} className={`rf-filter-pill${filter===f?' active':''}`} onClick={()=>filterTable(f)}>{lbl}</button>
+                      <button key={f} className={`rf-filter-pill${filter===f?' active':''}`} onClick={()=>{setFilter(f);setPage(1);}}>{lbl}</button>
                     ))}
                   </div>
                   <button className="rf-btn-ghost" onClick={()=>showToast('Exporting referral report…')}>Export CSV</button>
                 </div>
               </div>
 
+              {/* Desktop table */}
               <div className="rf-tbl-wrap">
                 <table className="rf-dtbl">
                   <thead>
-                    <tr><th>User</th><th>Joined Date</th><th>Total Invested (USDT)</th><th>Commission Earned</th><th>Status</th></tr>
+                    <tr><th>User</th><th>Joined Date</th><th>Total Invested</th><th>Commission</th><th>Status</th></tr>
                   </thead>
                   <tbody>
                     {slice.length===0 ? (
                       <tr><td colSpan={5}>
                         <div className="rf-empty-state">
                           <div className="rf-empty-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg></div>
-                          <div className="rf-empty-title">No {filter} referrals yet</div>
+                          <div className="rf-empty-title">No {filter} referrals</div>
                           <div className="rf-empty-desc">Share your referral link to grow your network.</div>
                         </div>
                       </td></tr>
                     ) : slice.map((r,i)=>(
                       <tr key={i}>
-                        <td className="rf-td-user-cell">
+                        <td>
                           <div className="rf-td-user">
                             <div className="rf-td-av">{r.init}</div>
                             <div><div className="rf-td-name">{r.name}</div><div className="rf-td-sub">{r.un}</div></div>
                           </div>
                         </td>
-                        <td data-label="Joined"><span className="rf-td-sub">{r.joined}</span></td>
-                        <td data-label="Invested">
-                          {r.invested>0
-                            ? <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1rem',color:'var(--ink)',fontWeight:500}}>${r.invested.toLocaleString()}</span>
-                            : <span className="rf-td-sub">—</span>}
-                        </td>
-                        <td data-label="Commission">
-                          {r.comm>0
-                            ? <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1rem',color:'var(--sage)',fontWeight:500}}>+${r.comm.toFixed(2)}</span>
-                            : <span className="rf-td-sub">—</span>}
-                        </td>
-                        <td data-label="Status">
-                          <span className={`rf-badge rf-b-${r.status}`}>{r.status}</span>
-                        </td>
+                        <td><span className="rf-td-sub">{r.joined}</span></td>
+                        <td>{r.invested>0 ? <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1rem',color:'var(--ink)',fontWeight:500}}>${r.invested.toLocaleString()}</span> : <span className="rf-td-sub">—</span>}</td>
+                        <td>{r.comm>0 ? <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1rem',color:'var(--sage)',fontWeight:500}}>+${r.comm.toFixed(2)}</span> : <span className="rf-td-sub">—</span>}</td>
+                        <td><BadgeComp status={r.status}/></td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
+              {/* Mobile cards */}
+              <div className="rf-mob-cards">
+                {slice.length===0 ? (
+                  <div className="rf-empty-state" style={{padding:'32px 16px'}}>
+                    <div className="rf-empty-icon"><svg viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+                    <div className="rf-empty-title">No {filter} referrals</div>
+                  </div>
+                ) : slice.map((r,i)=>(
+                  <div key={i} className="rf-mob-card">
+                    <div className="rf-mob-card-top">
+                      <div className="rf-mob-card-user">
+                        <div className="rf-td-av">{r.init}</div>
+                        <div><div className="rf-td-name">{r.name}</div><div className="rf-td-sub">{r.un}</div></div>
+                      </div>
+                      <BadgeComp status={r.status}/>
+                    </div>
+                    <div className="rf-mob-row">
+                      <span className="rf-mob-key">Joined</span>
+                      <span style={{fontSize:'.74rem',color:'var(--text-sec)'}}>{r.joined}</span>
+                    </div>
+                    <div className="rf-mob-row">
+                      <span className="rf-mob-key">Invested</span>
+                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'.95rem',fontWeight:500,color:'var(--ink)'}}>
+                        {r.invested>0?`$${r.invested.toLocaleString()}`:'—'}
+                      </span>
+                    </div>
+                    <div className="rf-mob-row">
+                      <span className="rf-mob-key">Commission</span>
+                      <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'.95rem',color:r.comm>0?'var(--sage)':'var(--text-sec)'}}>
+                        {r.comm>0?`+$${r.comm.toFixed(2)}`:'—'}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
               <div className="rf-pagination">
-                <div className="rf-page-info">Showing {start+1}–{Math.min(start+PER_PAGE,filtered.length)} of {filtered.length} user{filtered.length!==1?'s':''}</div>
+                <div className="rf-page-info">Showing {start+1}–{Math.min(start+PER_PAGE,filtered.length)} of {filtered.length} users</div>
                 <div className="rf-page-btns">
                   <button className="rf-page-btn" onClick={()=>goPage(page-1)}>
                     <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
@@ -453,7 +458,7 @@ export default function ReferralPage() {
             </div>
 
           </div>
-        </div>
+        </main>
       </div>
     </>
   );

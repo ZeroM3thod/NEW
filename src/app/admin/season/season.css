@@ -1,0 +1,259 @@
+/* ═══════════════════════════════════
+   PAGE CONTENT
+═══════════════════════════════════ */
+.sm-page-wrapper {
+  flex: 1;
+  max-width: 1200px;
+  padding: 28px 20px 60px;
+}
+@media(min-width:640px)  { .sm-page-wrapper { padding: 32px 28px 60px } }
+@media(min-width:1024px) { .sm-page-wrapper { padding: 36px 40px 80px } }
+
+.sm-sec-label {
+  font-size: .67rem; letter-spacing: .2em; text-transform: uppercase;
+  color: var(--gold); display: block; margin-bottom: 6px;
+}
+.sm-sec-title {
+  font-family: 'Cormorant Garamond', serif;
+  font-size: clamp(1.4rem, 3vw, 2rem); font-weight: 400; line-height: 1.15; color: var(--ink);
+}
+.sm-sec-sub { font-size: .8rem; color: var(--text-sec); font-weight: 300; margin-top: 4px }
+
+/* ── CARDS ── */
+.sm-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; transition: border-color .25s;
+}
+.sm-card-head {
+  padding: 18px 20px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px;
+}
+.sm-card-title { font-family: 'Cormorant Garamond', serif; font-size: 1.1rem; font-weight: 400; color: var(--ink) }
+.sm-card-sub { font-size: .7rem; color: var(--text-sec); margin-top: 2px }
+.sm-card-body { padding: 20px }
+
+/* ── FORM ── */
+.sm-form-grid {
+  display: grid; gap: 16px; grid-template-columns: 1fr;
+}
+@media(min-width:540px) { .sm-form-grid { grid-template-columns: 1fr 1fr } }
+.sm-form-grid-2col { display: grid; gap: 16px; grid-template-columns: 1fr 1fr }
+@media(max-width:480px) { .sm-form-grid-2col { grid-template-columns: 1fr } }
+
+.sm-form-group { display: flex; flex-direction: column; gap: 5px }
+.sm-form-label {
+  font-size: .65rem; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--text-sec); font-weight: 400;
+}
+.sm-form-input {
+  width: 100%; padding: 9px 12px;
+  background: var(--cream); border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-family: 'DM Sans', sans-serif; font-size: .83rem; color: var(--ink);
+  outline: none; transition: border-color .2s, box-shadow .2s;
+  -webkit-appearance: none;
+}
+.sm-form-input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(184,147,90,.08) }
+.sm-form-input::placeholder { color: #c0b8ae }
+.sm-form-input::-webkit-calendar-picker-indicator {
+  opacity: .5; cursor: pointer;
+  filter: invert(60%) sepia(30%) saturate(400%) hue-rotate(10deg);
+}
+.sm-period-display {
+  width: 100%; padding: 9px 12px;
+  background: rgba(184,147,90,.05); border: 1px dashed var(--border-h);
+  border-radius: var(--radius);
+  font-family: 'Cormorant Garamond', serif; font-size: .9rem; color: var(--gold);
+  min-height: 38px; display: flex; align-items: center;
+}
+
+/* ── BUTTONS ── */
+.sm-btn-primary {
+  padding: 9px 22px; background: var(--ink); color: var(--cream);
+  border: 1px solid var(--ink); font-family: 'DM Sans', sans-serif;
+  font-size: .75rem; letter-spacing: .1em; text-transform: uppercase;
+  cursor: pointer; border-radius: var(--radius); transition: all .22s; white-space: nowrap;
+}
+.sm-btn-primary:hover { background: var(--charcoal); border-color: var(--charcoal); box-shadow: 0 4px 14px rgba(28,28,28,.15) }
+
+.sm-btn-ghost {
+  padding: 7px 16px; background: transparent; color: var(--charcoal);
+  border: 1px solid var(--border); font-family: 'DM Sans', sans-serif;
+  font-size: .72rem; letter-spacing: .08em; text-transform: uppercase;
+  cursor: pointer; border-radius: var(--radius); transition: all .22s; white-space: nowrap;
+}
+.sm-btn-ghost:hover { border-color: var(--gold); color: var(--gold) }
+
+.sm-btn-danger {
+  padding: 7px 14px; background: rgba(155,58,58,.07);
+  border: 1px solid rgba(155,58,58,.18); color: var(--error);
+  font-family: 'DM Sans', sans-serif; font-size: .68rem;
+  letter-spacing: .08em; text-transform: uppercase;
+  cursor: pointer; border-radius: var(--radius); transition: all .2s; white-space: nowrap;
+}
+.sm-btn-danger:hover { background: rgba(155,58,58,.15); border-color: rgba(155,58,58,.35) }
+
+.sm-btn-sage {
+  padding: 7px 14px; background: rgba(74,103,65,.08);
+  border: 1px solid rgba(74,103,65,.2); color: var(--sage);
+  font-family: 'DM Sans', sans-serif; font-size: .68rem;
+  letter-spacing: .08em; text-transform: uppercase;
+  cursor: pointer; border-radius: var(--radius); transition: all .2s; white-space: nowrap;
+}
+.sm-btn-sage:hover { background: rgba(74,103,65,.18); border-color: rgba(74,103,65,.35) }
+
+.sm-btn-sm { padding: 5px 11px !important; font-size: .63rem !important; letter-spacing: .07em !important }
+
+.sm-roi-quick-btn {
+  padding: 5px 11px; background: var(--cream);
+  border: 1px solid var(--border); color: var(--charcoal);
+  font-family: 'DM Sans', sans-serif; font-size: .7rem;
+  cursor: pointer; border-radius: var(--radius); transition: all .2s;
+}
+.sm-roi-quick-btn:hover { border-color: var(--gold); color: var(--gold) }
+.sm-roi-quick-btn.active-roi { background: var(--ink); color: var(--cream); border-color: var(--ink) }
+
+/* ── BADGES ── */
+.sm-badge { display: inline-block; padding: 3px 10px; border-radius: 100px; font-size: .6rem; letter-spacing: .08em; text-transform: uppercase }
+.sm-b-running   { background: rgba(74,103,65,.1);  color: var(--sage);     border: 1px solid rgba(74,103,65,.2) }
+.sm-b-paused    { background: rgba(184,147,90,.1); color: var(--gold);     border: 1px solid var(--border) }
+.sm-b-closed    { background: rgba(28,28,28,.07);  color: var(--text-sec); border: 1px solid rgba(28,28,28,.12) }
+.sm-b-autoclose { background: rgba(74,103,65,.08); color: var(--sage);     border: 1px solid rgba(74,103,65,.18) }
+
+/* ── SEASON CARDS ── */
+.sm-season-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 10px; padding: 20px;
+  transition: border-color .25s, box-shadow .25s;
+  position: relative; overflow: hidden;
+}
+.sm-season-card::before {
+  content: ''; position: absolute; top: 0; left: 0;
+  width: 2px; height: 0; background: var(--gold); transition: height .4s;
+}
+.sm-season-card:hover { border-color: rgba(184,147,90,.3); box-shadow: 0 6px 24px rgba(184,147,90,.07) }
+.sm-season-card:hover::before { height: 100% }
+.sm-season-card.paused { border-color: rgba(184,147,90,.25); opacity: .85 }
+.sm-season-card.paused::before { background: var(--gold); height: 100%; opacity: .4 }
+
+.sm-season-meta-grid {
+  display: grid; gap: 10px; grid-template-columns: repeat(2,1fr); margin: 14px 0;
+}
+@media(min-width:540px) { .sm-season-meta-grid { grid-template-columns: repeat(3,1fr) } }
+@media(min-width:900px) { .sm-season-meta-grid { grid-template-columns: repeat(6,1fr) } }
+
+.sm-meta-lbl { font-size: .58rem; letter-spacing: .12em; text-transform: uppercase; color: var(--text-sec); margin-bottom: 3px }
+.sm-meta-val { font-family: 'Cormorant Garamond', serif; font-size: 1rem; font-weight: 400; color: var(--ink) }
+.sm-meta-val.gold { color: var(--gold) }
+.sm-meta-val.sage { color: var(--sage) }
+
+.sm-pool-bar  { height: 3px; background: rgba(184,147,90,.12); border-radius: 100px; overflow: hidden; margin-top: 5px }
+.sm-pool-fill { height: 100%; background: linear-gradient(90deg,var(--gold-d),var(--gold-l)); border-radius: 100px; transition: width 1.4s ease }
+
+.sm-season-actions {
+  display: flex; gap: 8px; flex-wrap: wrap;
+  padding-top: 14px; border-top: 1px solid var(--border);
+}
+
+.sm-autoclose-banner {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  margin-top: 10px; padding: 9px 12px;
+  background: rgba(74,103,65,.06); border: 1px solid rgba(74,103,65,.2);
+  border-radius: var(--radius); font-size: .7rem; color: var(--sage);
+}
+.sm-autoclose-banner svg { width: 13px; height: 13px; stroke: var(--sage); fill: none; stroke-width: 2; flex-shrink: 0 }
+
+/* ── PREVIOUS SEASONS TABLE ── */
+.sm-tbl-wrap { overflow-x: auto }
+.sm-tbl-wrap::-webkit-scrollbar { height: 3px }
+.sm-tbl-wrap::-webkit-scrollbar-thumb { background: var(--gold) }
+table.sm-dtbl { width: 100%; border-collapse: collapse; font-size: .78rem; min-width: 580px }
+.sm-dtbl th {
+  padding: 10px 14px; background: var(--parchment);
+  color: var(--text-sec); font-size: .62rem; letter-spacing: .12em;
+  text-transform: uppercase; font-weight: 400;
+  border-bottom: 1px solid var(--border); text-align: left; white-space: nowrap;
+}
+.sm-dtbl td { padding: 12px 14px; border-bottom: 1px solid rgba(184,147,90,.07); color: var(--ink); vertical-align: middle }
+.sm-dtbl tbody tr:last-child td { border-bottom: none }
+.sm-dtbl tbody tr:hover td { background: rgba(184,147,90,.025) }
+
+/* ── MODALS ── */
+.sm-modal-overlay {
+  position: fixed; inset: 0; z-index: 800;
+  background: rgba(28,28,28,.45); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  display: flex; align-items: center; justify-content: center; padding: 20px;
+  opacity: 0; pointer-events: none; transition: opacity .3s;
+}
+.sm-modal-overlay.open { opacity: 1; pointer-events: all }
+.sm-modal-box {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; width: 100%; max-width: 560px; max-height: 90vh; overflow-y: auto;
+  transform: translateY(24px) scale(.97); transition: transform .3s cubic-bezier(.16,1,.3,1);
+  position: relative;
+}
+.sm-modal-overlay.open .sm-modal-box { transform: none }
+.sm-modal-header {
+  padding: 18px 22px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  position: sticky; top: 0; background: var(--surface); z-index: 1;
+}
+.sm-modal-title { font-family: 'Cormorant Garamond', serif; font-size: 1.15rem; font-weight: 400; color: var(--ink) }
+.sm-modal-close {
+  width: 30px; height: 30px; border-radius: 50%;
+  background: transparent; border: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all .2s; flex-shrink: 0;
+}
+.sm-modal-close:hover { border-color: var(--gold); background: rgba(184,147,90,.07) }
+.sm-modal-close svg { width: 13px; height: 13px; stroke: var(--charcoal); fill: none; stroke-width: 2 }
+.sm-modal-body { padding: 20px 22px 24px }
+
+/* ── TOAST ── */
+.sm-toast {
+  position: fixed; top: 20px; left: 50%;
+  transform: translateX(-50%) translateY(-90px);
+  background: rgba(28,28,28,.97); border: 1px solid rgba(184,147,90,.3); border-radius: 10px;
+  padding: 11px 24px; z-index: 9000; color: var(--gold);
+  font-size: .75rem; letter-spacing: .06em;
+  box-shadow: 0 8px 28px rgba(0,0,0,.15);
+  transition: transform .4s cubic-bezier(.16,1,.3,1);
+  white-space: nowrap; pointer-events: none;
+}
+.sm-toast.show { transform: translateX(-50%) translateY(0) }
+.sm-toast.ok   { border-color: rgba(74,103,65,.4); color: var(--sage-l, #6a8c60) }
+.sm-toast.err  { border-color: rgba(155,58,58,.4); color: #c97070 }
+
+/* ── MISC ── */
+.sm-reveal { opacity: 0; transform: translateY(16px); transition: opacity .5s ease, transform .5s ease }
+.sm-reveal.vis { opacity: 1; transform: none }
+.sm-divider { height: 1px; background: var(--border); margin: 28px 0 }
+.sm-live-dot {
+  width: 7px; height: 7px; border-radius: 50%; background: var(--sage);
+  display: inline-block; margin-right: 4px;
+  animation: sm-blink 1.8s ease-in-out infinite;
+}
+@keyframes sm-blink { 0%,100%{opacity:1} 50%{opacity:.3} }
+.sm-empty-state { text-align: center; padding: 44px 20px; color: var(--text-sec); font-size: .8rem }
+.sm-empty-icon  { font-size: 2rem; margin-bottom: 10px; opacity: .5; display: block }
+
+/* ── CHECKBOX ── */
+.sm-check-wrap  { display: flex; align-items: center; gap: 9px; cursor: pointer }
+.sm-check-box {
+  width: 16px; height: 16px; border-radius: 3px;
+  border: 1px solid var(--border); background: var(--cream);
+  flex-shrink: 0; display: flex; align-items: center; justify-content: center;
+  transition: all .2s;
+}
+.sm-check-box.checked { background: var(--ink); border-color: var(--ink) }
+.sm-check-label { font-size: .78rem; color: var(--charcoal) }
+
+/* ── AUTOCLOSE INFO ── */
+.sm-autoclose-info {
+  margin-top: 8px; padding: 10px 12px;
+  background: rgba(74,103,65,.06); border: 1px solid rgba(74,103,65,.2);
+  border-radius: var(--radius); font-size: .7rem; color: var(--sage); line-height: 1.55;
+}
+.sm-autoclose-info.warn {
+  background: rgba(155,58,58,.05); border-color: rgba(155,58,58,.2); color: var(--error);
+}

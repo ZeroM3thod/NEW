@@ -20,7 +20,7 @@ const refCards = [
         <path d="M19 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2V5a2 2 0 00-2-2zm-7 3a2 2 0 110 4 2 2 0 010-4zm4 12H8v-.75C8 15.45 10 14 12 14s4 1.45 4 3.25V18z" />
       </svg>
     ),
-    title: 'They make a withdrawal',
+    title: 'They make Profits',
     sub: 'At the end of their investment season',
     badge: null,
   },
@@ -31,8 +31,8 @@ const refCards = [
       </svg>
     ),
     title: 'You earn instantly',
-    sub: '5% of their withdrawal, auto-credited',
-    badge: '5%',
+    sub: '7% of their Profits, auto-credited',
+    badge: '7%',
   },
 ];
 
@@ -52,13 +52,13 @@ export default function Referral() {
               others grow
             </h2>
             <p className="section-sub">
-              Every time someone you referred makes a withdrawal, you earn 5% of
+              Every time someone you referred makes a profit, you earn 7% of
               that amount — automatically, with no limits.
             </p>
             <br />
             <p style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.8 }}>
-              Share your unique referral code. When your referee withdraws their
-              profits, 5% is credited to your VaultX wallet instantly. Stack
+              Share your unique referral code. When your referee make
+              profits, 7% is credited to your VaultX wallet instantly. Stack
               referrals with no cap — the more you refer, the more you passively
               earn.
             </p>
@@ -84,9 +84,9 @@ export default function Referral() {
               </div>
             ))}
             <div className="commission-box">
-              <div className="commission-num">5%</div>
+              <div className="commission-num">7%</div>
               <div className="commission-text">
-                <strong>Commission Per Withdrawal</strong>
+                <strong>Commission Per Referral</strong>
                 <span>
                   No cap. No delays. Paid automatically
                   <br />

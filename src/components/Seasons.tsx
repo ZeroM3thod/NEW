@@ -28,11 +28,11 @@ const pastSeasons = [
     ],
   },
   {
-    tag: 'Completed',
+    tag: 'Runing',
     name: 'Season Three',
     period: 'Nov 2023 — Feb 2024',
-    roi: '+28.4%',
-    roiLabel: 'Final ROI',
+    roi: '+24–32%',
+    roiLabel: 'Expected ROI',
     details: [
       { label: 'Total Pool', value: '$57M' },
       { label: 'Investors', value: '34,800' },

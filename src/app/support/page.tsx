@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import UserSidebar from '@/components/UserSidebar';
+import { createClient } from '@/utils/supabase/client';
 
 interface Ticket { id:string;subject:string;category:string;priority:string;date:string;status:'open'|'pending'|'closed' }
 
@@ -34,6 +35,7 @@ const PRI_BD:    Record<string,string>  = { low:'rgba(74,103,65,.2)', medium:'va
 
 export default function SupportPage() {
   const router = useRouter();
+  const supabase = createClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
   const [toastCls, setToastCls] = useState('');
@@ -41,25 +43,47 @@ export default function SupportPage() {
   const [faqCat, setFaqCat] = useState('all');
   const [faqSearch, setFaqSearch] = useState('');
   const [openFaq, setOpenFaq] = useState<number|null>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [tickets, setTickets] = useState<Ticket[]>(INIT_TICKETS);
+  
   const [fCategory, setFCategory] = useState('');
-  const [fSubject, setFSubject] = useState('');
-  const [fMessage, setFMessage] = useState('');
+  const [catErr, setCatErr]       = useState(false);
+  const [fSubject, setFSubject]   = useState('');
+  const [subErr, setSubErr]       = useState(false);
   const [fPriority, setFPriority] = useState('low');
-  const [formSuccess, setFormSuccess] = useState(false);
-  const [ticketId, setTicketId] = useState('');
+  const [fMessage, setFMessage]   = useState('');
+  const [msgErr, setMsgErr]       = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [catErr, setCatErr] = useState(false);
-  const [subErr, setSubErr] = useState(false);
-  const [msgErr, setMsgErr] = useState(false);
+  const [formSuccess, setFormSuccess] = useState(false);
+  const [ticketId, setTicketId]   = useState('');
+
   const toastTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
-  const ticketRef = useRef<HTMLDivElement>(null);
+  const ticketRef  = useRef<HTMLDivElement>(null);
+
+  const resetForm = () => {
+    setFCategory(''); setCatErr(false);
+    setFSubject(''); setSubErr(false);
+    setFPriority('low');
+    setFMessage(''); setMsgErr(false);
+    setFormSuccess(false); setTicketId('');
+  };
 
   const showToast = useCallback((msg: string, cls = '') => {
     setToastMsg(msg); setToastCls(cls); setToastShow(true);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToastShow(false), 2800);
   }, []);
+
+  useEffect(() => {
+    async function fetchProfile() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        setProfile(data);
+      }
+    }
+    fetchProfile();
+  }, [supabase]);
 
   useEffect(() => {
     const obs = new IntersectionObserver(entries => {
@@ -74,12 +98,6 @@ export default function SupportPage() {
     return () => { document.body.style.overflow = ''; };
   }, [sidebarOpen]);
 
-  useEffect(() => {
-    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setSidebarOpen(false); };
-    document.addEventListener('keydown', h);
-    return () => document.removeEventListener('keydown', h);
-  }, []);
-
   const visibleFaqs = FAQS.filter(f => {
     const catMatch = faqCat === 'all' || f.cat === faqCat;
     const q = faqSearch.toLowerCase();
@@ -87,36 +105,8 @@ export default function SupportPage() {
   });
 
   const submitForm = () => {
-    let ok = true;
-    if (!fCategory) { setCatErr(true); ok = false; } else setCatErr(false);
-    if (!fSubject.trim()) { setSubErr(true); ok = false; } else setSubErr(false);
-    if (fMessage.trim().length < 20) { setMsgErr(true); ok = false; } else setMsgErr(false);
-    if (!ok) { showToast('Please fill in all required fields.', 'err'); return; }
-    setSubmitting(true);
-    setTimeout(() => {
-      const tid = 'TKT-' + Math.random().toString(36).slice(2,8).toUpperCase();
-      setTicketId('#'+tid);
-      setFormSuccess(true);
-      setSubmitting(false);
-      showToast('✓ Support ticket submitted!', 'ok');
-      const catLabel = fCategory.charAt(0).toUpperCase()+fCategory.slice(1).replace('-',' ');
-      setTickets(prev => [{ id:'#'+tid, subject:fSubject, category:catLabel, priority:fPriority, date:'Just now', status:'open' }, ...prev]);
-    }, 1600);
+    showToast('Support tickets are temporarily disabled. Please use Telegram.', 'err');
   };
-
-  const resetForm = () => {
-    setFCategory(''); setFSubject(''); setFMessage(''); setFPriority('low');
-    setFormSuccess(false); setCatErr(false); setSubErr(false); setMsgErr(false);
-  };
-
-  const navItems = [
-    {id:'dashboard',label:'Dashboard',fn:()=>router.push('/dashboard'),svg:<><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></>},
-    {id:'seasons',  label:'Seasons',  fn:()=>router.push('/season'),   svg:<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>},
-    {id:'deposit',  label:'Deposit',  fn:()=>router.push('/deposit'),  svg:<><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></>},
-    {id:'withdraw', label:'Withdraw', fn:()=>router.push('/withdraw'), svg:<><circle cx="12" cy="12" r="10"/><line x1="8" y1="12" x2="16" y2="12"/></>},
-    {id:'referral', label:'Referral', fn:()=>router.push('/referral'), svg:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>},
-    {id:'support',  label:'Support',  fn:()=>{},                       svg:<><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 015.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></>},
-  ] as {id:string;label:string;fn:()=>void;svg:React.ReactNode}[];
 
   return (
     <>
@@ -137,7 +127,9 @@ export default function SupportPage() {
             <div className="sp-logo-mark" style={{width:26,height:26}}/>
             <span className="sp-logo-text" style={{fontSize:'1.15rem'}}>Vault<span>X</span></span>
           </div>
-          <div className="sp-mob-avatar" onClick={()=>router.push('/profile')}>RK</div>
+          <div className="sp-mob-avatar" onClick={()=>router.push('/profile')}>
+            {profile ? `${profile.first_name[0]}${profile.last_name[0]}` : '...'}
+          </div>
         </div>
 
         {/* MAIN */}
@@ -347,73 +339,9 @@ export default function SupportPage() {
               </div>
             </div>
 
-            <div className="sp-divider sp-reveal"/>
-
-            {/* TICKET HISTORY */}
-            <div className="sp-reveal" ref={ticketRef}>
-              <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:14,flexWrap:'wrap',gap:10}}>
-                <div>
-                  <span className="sp-sec-label" style={{marginBottom:2}}>My Requests</span>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.15rem',color:'var(--ink)'}}>Ticket History</div>
-                </div>
-                <button className="sp-btn-ghost" onClick={()=>showToast('Exporting ticket history…')}>Export</button>
-              </div>
-              <div className="sp-card">
-                {/* Desktop table */}
-                <div className="sp-tbl-wrap">
-                  <table className="sp-dtbl">
-                    <thead>
-                      <tr><th>Ticket ID</th><th>Subject</th><th>Category</th><th>Priority</th><th>Date</th><th>Status</th><th>Action</th></tr>
-                    </thead>
-                    <tbody>
-                      {tickets.map((t,i)=>(
-                        <tr key={i}>
-                          <td><span style={{fontFamily:'monospace',fontSize:'.7rem',color:'var(--gold)'}}>{t.id}</span></td>
-                          <td><span style={{fontSize:'.77rem',fontWeight:500,color:'var(--ink)'}}>{t.subject}</span></td>
-                          <td><span className="sp-td-sub">{t.category}</span></td>
-                          <td>
-                            <span style={{display:'inline-block',padding:'2px 8px',borderRadius:'100px',fontSize:'.58rem',letterSpacing:'.08em',textTransform:'uppercase' as const,background:PRI_BG[t.priority],color:PRI_COLOR[t.priority],border:`1px solid ${PRI_BD[t.priority]}`}}>
-                              {t.priority}
-                            </span>
-                          </td>
-                          <td><span className="sp-td-sub">{t.date}</span></td>
-                          <td><span className={`sp-badge sp-b-${t.status}`}>{t.status}</span></td>
-                          <td>
-                            <button className="sp-btn-ghost" style={{padding:'4px 12px',fontSize:'.62rem'}} onClick={()=>showToast(`Opening ${t.id}…`)}>View</button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-                {/* Mobile cards */}
-                <div className="sp-ticket-cards">
-                  {tickets.map((t,i)=>(
-                    <div key={i} className="sp-ticket-card">
-                      <div className="sp-ticket-card-top">
-                        <span className="sp-ticket-card-id">{t.id}</span>
-                        <span className={`sp-badge sp-b-${t.status}`}>{t.status}</span>
-                      </div>
-                      <div className="sp-ticket-card-subject">{t.subject}</div>
-                      <div className="sp-ticket-card-meta">
-                        <span>{t.category}</span>
-                        <span>·</span>
-                        <span style={{display:'inline-block',padding:'1px 7px',borderRadius:'100px',fontSize:'.58rem',textTransform:'uppercase' as const,background:PRI_BG[t.priority],color:PRI_COLOR[t.priority],border:`1px solid ${PRI_BD[t.priority]}`}}>{t.priority}</span>
-                        <span>·</span>
-                        <span>{t.date}</span>
-                      </div>
-                      <div className="sp-ticket-card-actions">
-                        <button className="sp-btn-ghost" style={{padding:'5px 14px',fontSize:'.62rem'}} onClick={()=>showToast(`Opening ${t.id}…`)}>View</button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
             </div>
-
-          </div>
-        </main>
-      </div>
-    </>
-  );
-}
+            </main>
+            </div>
+            </>
+            );
+            }

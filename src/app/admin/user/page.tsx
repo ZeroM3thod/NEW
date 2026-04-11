@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminSidebar from '../AdminSidebar';
+import { createClient } from '@/utils/supabase/client';
 
 /* ══════════════════════════════
    HELPERS
@@ -12,14 +13,14 @@ function fmtU(n: number) {
   return '$' + parseFloat(String(n)).toFixed(2);
 }
 function fmtDate(d: string) {
+  if (!d) return '—';
   return new Date(d).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
 }
 function fmtDT(d: string) {
+  if (!d) return '—';
   return fmtDate(d) + ' · ' + new Date(d).toLocaleTimeString('en-GB', { hour:'2-digit', minute:'2-digit' });
 }
-function initials(name: string) { return name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase(); }
-function txid() { return 'TXN-' + Math.random().toString(36).slice(2,10).toUpperCase(); }
-function hashAddr() { return '0x' + Array.from({length:40}, () => '0123456789abcdef'[Math.floor(Math.random()*16)]).join(''); }
+function initials(name: string) { return name ? name.split(' ').map(w => w[0]).join('').slice(0,2).toUpperCase() : '??'; }
 
 /* ══════════════════════════════
    TYPES
@@ -35,54 +36,7 @@ interface User {
   referredBy:string|null;
 }
 
-/* ══════════════════════════════
-   DATA FACTORIES
-══════════════════════════════ */
-const SEASONS = ['Season 4','Season 5','Season 6','Season 7'];
-const NETWORKS = ['TRC-20','ERC-20','BEP-20'];
-
-function makeTx(type:'deposit'|'withdrawal', userId:string): TxEntry {
-  const statuses=['Completed','Completed','Completed','Approved','Pending','Rejected'];
-  const status=statuses[Math.floor(Math.random()*statuses.length)];
-  const d=new Date(Date.now()-Math.floor(Math.random()*90)*86400000-Math.random()*86400000);
-  return { id:txid(), type, amount:parseFloat((Math.random()*49900+100).toFixed(2)), status, date:d.toISOString(), wallet:hashAddr(), network:NETWORKS[Math.floor(Math.random()*3)], userId };
-}
-function makeSeasonEntry(): SeasonEntry {
-  const s=SEASONS[Math.floor(Math.random()*SEASONS.length)];
-  const amt=parseFloat((Math.random()*29900+1000).toFixed(2));
-  const roi=parseFloat(((Math.random()-.2)*35).toFixed(2));
-  return { season:s, amount:amt, roi, profit:parseFloat((amt*roi/100).toFixed(2)) };
-}
-function makeUser(i: number): User {
-  const firstNames=['Arash','Fatima','Rohan','Elena','James','Mei','Carlos','Nadia','Ivan','Sara','Lena','Omar','Priya','Felix','Yuki'];
-  const lastNames=['Karimi','Al-Hassan','Mehta','Vostrikova','Okafor','Lin','Ibáñez','Fournier','Petrov','Williams','Hoffmann','Shaikh','Patel','Schmidt','Tanaka'];
-  const countries=['Iran','UAE','India','Russia','Nigeria','China','Spain','France','Ukraine','USA','Germany','Pakistan','India','Germany','Japan'];
-  const fn=firstNames[i%firstNames.length], ln=lastNames[i%lastNames.length];
-  const name=fn+' '+ln;
-  const username=(fn.toLowerCase()+ln.toLowerCase().replace(/[^a-z]/g,'').slice(0,4)+Math.floor(Math.random()*99));
-  const email=fn.toLowerCase()+'.'+ln.toLowerCase().replace(/[^a-z]/g,'')+'@email.com';
-  const phone='+'+Math.floor(Math.random()*9+1)+''+Math.floor(Math.random()*9000000000+1000000000);
-  const balance=parseFloat((Math.random()*99000+500).toFixed(2));
-  const invested=parseFloat((Math.random()*149000+1000).toFixed(2));
-  const withdrawn=parseFloat((Math.random()*40000).toFixed(2));
-  const pnl=parseFloat(((Math.random()-.3)*invested*0.3).toFixed(2));
-  const refCount=Math.floor(Math.random()*15);
-  const statuses=['Active','Active','Active','Active','Suspended','Pending'];
-  const status=statuses[Math.floor(Math.random()*statuses.length)];
-  const daysAgo=Math.floor(Math.random()*730+30);
-  const joined=new Date(Date.now()-daysAgo*86400000).toISOString().split('T')[0];
-  const uid_='USR-'+String(1000+i).padStart(4,'0');
-  const refCode='REF'+fn.slice(0,3).toUpperCase()+Math.floor(Math.random()*999);
-  const refUsers=Array.from({length:refCount},(_,j)=>firstNames[(i+j+3)%firstNames.length].toLowerCase()+Math.floor(Math.random()*99));
-  const refEarn=parseFloat((refCount*Math.random()*120).toFixed(2));
-  const seasonsJoined=Array.from({length:Math.floor(Math.random()*3)+1},()=>makeSeasonEntry());
-  const deposits=Array.from({length:Math.floor(Math.random()*5)+2},()=>makeTx('deposit',uid_));
-  const withdrawals=Array.from({length:Math.floor(Math.random()*3)+1},()=>makeTx('withdrawal',uid_));
-  return { uid:uid_, name, username, email, phone, country:countries[i%countries.length], balance, invested, withdrawn, pnl, refCount, refCode, refUsers, refEarn, status, joined, seasonsJoined, deposits, withdrawals, referredBy:i>2?firstNames[(i-2)%firstNames.length].toLowerCase()+'99':null };
-}
-
-const INITIAL_USERS: User[] = Array.from({length:12},(_,i)=>makeUser(i));
-const PER_PAGE = 8;
+const PER_PAGE = 10;
 
 /* ══════════════════════════════
    STATUS BADGE
@@ -97,14 +51,16 @@ function StatusBadge({ s }: { s:string }) {
 ══════════════════════════════ */
 export default function AdminUserPage() {
   const router = useRouter();
+  const supabase = createClient();
   const [sidebarOpen, setSidebarOpen]   = useState(false);
   const [toastMsg,    setToastMsg]       = useState('');
   const [toastType,   setToastType]      = useState('');
   const [toastShow,   setToastShow]      = useState(false);
-  const [users,       setUsers]          = useState<User[]>(INITIAL_USERS);
+  const [users,       setUsers]          = useState<User[]>([]);
   const [searchQ,     setSearchQ]        = useState('');
   const [statusFilter,setStatusFilter]   = useState('all');
   const [currentPage, setCurrentPage]    = useState(1);
+  const [totalCount,  setTotalCount]     = useState(0);
   const [activeUser,  setActiveUser]     = useState<User|null>(null);
   const [modalOpen,   setModalOpen]      = useState(false);
   const [activeTab,   setActiveTab]      = useState('basic');
@@ -113,6 +69,60 @@ export default function AdminUserPage() {
   const [newRefInput, setNewRefInput]    = useState('');
   const bgCanvasRef = useRef<HTMLCanvasElement>(null);
   const toastTimer  = useRef<ReturnType<typeof setTimeout>|null>(null);
+
+  const [loading, setLoading] = useState(true);
+
+  /* ── Fetch Users ── */
+  const fetchUsers = useCallback(async () => {
+    setLoading(true);
+    let query = supabase.from('profiles').select('*', { count: 'exact' });
+
+    if (statusFilter !== 'all') {
+      query = query.eq('status', statusFilter);
+    }
+    
+    if (searchQ.trim()) {
+      query = query.or(`first_name.ilike.%${searchQ}%,last_name.ilike.%${searchQ}%,username.ilike.%${searchQ}%`);
+    }
+
+    const { data, count, error } = await query
+      .order('created_at', { ascending: false })
+      .range((currentPage - 1) * PER_PAGE, currentPage * PER_PAGE - 1);
+
+    if (error) {
+      console.error(error);
+      showToast('✕ Error fetching users', 'err');
+    } else if (data) {
+      setUsers(data.map(u => ({
+        uid: u.id,
+        name: `${u.first_name} ${u.last_name}`,
+        username: u.username,
+        email: u.username + '@email.com',
+        phone: u.phone_number || '—',
+        country: u.country || '—',
+        balance: Number(u.balance),
+        invested: Number(u.invested_total),
+        withdrawn: Number(u.withdrawable_total),
+        pnl: Number(u.profits_total),
+        refCount: 0,
+        refCode: u.referral_code,
+        refUsers: [],
+        refEarn: 0,
+        status: u.status || 'Active',
+        joined: u.created_at,
+        seasonsJoined: [],
+        deposits: [],
+        withdrawals: [],
+        referredBy: u.referred_by
+      })));
+      setTotalCount(count || 0);
+    }
+    setLoading(false);
+  }, [supabase, searchQ, statusFilter, currentPage]);
+
+  useEffect(() => {
+    fetchUsers();
+  }, [fetchUsers]);
 
   /* ── Toast ── */
   const showToast = useCallback((msg: string, cls = '') => {
@@ -129,7 +139,7 @@ export default function AdminUserPage() {
     );
     document.querySelectorAll<HTMLElement>('.adm-reveal').forEach(el => obs.observe(el));
     return () => obs.disconnect();
-  }, []);
+  }, [users]);
 
   /* ── Body scroll lock ── */
   useEffect(() => {
@@ -150,67 +160,114 @@ export default function AdminUserPage() {
     return ()=>{ cancelAnimationFrame(rafId); window.removeEventListener('resize',resize); };
   }, []);
 
-  /* ── Derived data ── */
-  const filtered = users.filter(u => {
-    const q = searchQ.trim().toLowerCase();
-    if (statusFilter !== 'all' && u.status !== statusFilter) return false;
-    if (q) return (u.name + u.username + u.email + u.uid).toLowerCase().includes(q);
-    return true;
-  });
-  const totalPages = Math.max(1, Math.ceil(filtered.length / PER_PAGE));
-  const pageRows   = filtered.slice((currentPage-1)*PER_PAGE, currentPage*PER_PAGE);
-
-  const totalActive    = users.filter(u => u.status === 'Active').length;
-  const totalSuspended = users.filter(u => u.status === 'Suspended').length;
-  const totalPool      = users.reduce((s, u) => s + u.balance, 0);
-
   /* ── Open modal ── */
-  const openModal = (u: User) => {
-    setActiveUser({ ...u });
-    setFormState({ ...u });
+  const openModal = async (u: User) => {
+    setLoading(true);
+    const { data: deposits } = await supabase.from('deposits').select('*').eq('user_id', u.uid);
+    const { data: withdrawals } = await supabase.from('withdrawals').select('*').eq('user_id', u.uid);
+    const { data: investments } = await supabase.from('investments').select('*, seasons(name)').eq('user_id', u.uid);
+    const { data: referrals } = await supabase.from('profiles').select('username').eq('referred_by', u.uid);
+
+    const fullUser = {
+      ...u,
+      deposits: deposits?.map(d => ({ id: d.id, type: 'deposit', amount: Number(d.amount), status: d.status, date: d.created_at, wallet: d.tx_hash, network: d.network, userId: d.user_id })) || [],
+      withdrawals: withdrawals?.map(w => ({ id: w.id, type: 'withdrawal', amount: Number(w.amount), status: w.status, date: w.created_at, wallet: w.address, network: w.network, userId: w.user_id })) || [],
+      seasonsJoined: investments?.map((i: any) => ({ season: i.seasons?.name || 'Unknown', amount: Number(i.amount), roi: 0, profit: 0 })) || [],
+      refUsers: referrals?.map(r => r.username) || [],
+      refCount: referrals?.length || 0
+    } as User;
+
+    setActiveUser(fullUser);
+    setFormState(fullUser);
     setActiveTab('basic');
     setTxFilter('all');
     setNewRefInput('');
     setModalOpen(true);
+    setLoading(false);
   };
   const closeModal = () => { setModalOpen(false); setActiveUser(null); };
 
   /* ── Save ── */
-  const saveUser = () => {
-    if (!activeUser) return;
-    const updated = { ...activeUser, ...formState } as User;
-    setUsers(prev => prev.map(u => u.uid === updated.uid ? updated : u));
-    setActiveUser(updated);
-    showToast('✓ Changes saved for ' + updated.name, 'ok');
+  const saveUser = async () => {
+    if (!activeUser || !formState) return;
+    
+    const [firstName, ...lastNameParts] = (formState.name || '').split(' ');
+    const lastName = lastNameParts.join(' ');
+
+    const { error } = await supabase.from('profiles').update({
+      first_name: firstName,
+      last_name: lastName,
+      username: formState.username,
+      phone_number: formState.phone,
+      country: formState.country,
+      balance: formState.balance,
+      invested_total: formState.invested,
+      profits_total: formState.pnl,
+      status: formState.status,
+      created_at: formState.joined
+    }).eq('id', activeUser.uid);
+
+    if (error) {
+      showToast('✕ Error saving changes', 'err');
+    } else {
+      const updated = { ...activeUser, ...formState } as User;
+      setUsers(prev => prev.map(u => u.uid === updated.uid ? updated : u));
+      setActiveUser(updated);
+      showToast('✓ Changes saved for ' + updated.name, 'ok');
+    }
   };
 
   /* ── Toggle suspend ── */
-  const toggleSuspend = () => {
+  const toggleSuspend = async () => {
     if (!activeUser) return;
     const wasSusp = activeUser.status === 'Suspended';
     const newStatus = wasSusp ? 'Active' : 'Suspended';
-    const updated = { ...activeUser, status: newStatus };
-    setActiveUser(updated);
-    setFormState(f => ({ ...f, status: newStatus }));
-    setUsers(prev => prev.map(u => u.uid === updated.uid ? updated : u));
-    showToast(wasSusp ? `✓ ${updated.name} reactivated` : `⚠ ${updated.name} suspended`, wasSusp ? 'ok' : 'err');
+    
+    const { error } = await supabase.from('profiles').update({ status: newStatus }).eq('id', activeUser.uid);
+    
+    if (error) {
+      showToast('✕ Error updating status', 'err');
+    } else {
+      const updated = { ...activeUser, status: newStatus };
+      setActiveUser(updated);
+      setFormState(f => ({ ...f, status: newStatus }));
+      setUsers(prev => prev.map(u => u.uid === updated.uid ? updated : u));
+      showToast(wasSusp ? `✓ ${updated.name} reactivated` : `⚠ ${updated.name} suspended`, wasSusp ? 'ok' : 'err');
+    }
   };
 
   /* ── Ref user helpers ── */
-  const removeRefUser = (idx: number) => {
+  const removeRefUser = async (idx: number) => {
     if (!activeUser) return;
-    const newRefs = activeUser.refUsers.filter((_,i) => i !== idx);
-    const u2 = { ...activeUser, refUsers: newRefs, refCount: newRefs.length };
-    setActiveUser(u2); setFormState(f => ({ ...f, refUsers: newRefs, refCount: newRefs.length }));
+    const usernameToRemove = activeUser.refUsers[idx];
+    const { error } = await supabase.from('profiles').update({ referred_by: null }).eq('username', usernameToRemove);
+    
+    if (error) {
+      showToast('✕ Error removing referral', 'err');
+    } else {
+      const newRefs = activeUser.refUsers.filter((_,i) => i !== idx);
+      const u2 = { ...activeUser, refUsers: newRefs, refCount: newRefs.length };
+      setActiveUser(u2); setFormState(f => ({ ...f, refUsers: newRefs, refCount: newRefs.length }));
+    }
   };
-  const addRefUser = () => {
+  const addRefUser = async () => {
     if (!activeUser || !newRefInput.trim()) { showToast('⚠ Enter a username','err'); return; }
     const val = newRefInput.trim().replace('@','');
     if (activeUser.refUsers.includes(val)) { showToast('⚠ Already in list','err'); return; }
-    const newRefs = [...activeUser.refUsers, val];
-    const u2 = { ...activeUser, refUsers: newRefs, refCount: newRefs.length };
-    setActiveUser(u2); setFormState(f => ({ ...f, refUsers: newRefs, refCount: newRefs.length }));
-    setNewRefInput('');
+    
+    const { data: refUser } = await supabase.from('profiles').select('id').eq('username', val).single();
+    if (!refUser) { showToast('⚠ User not found', 'err'); return; }
+
+    const { error } = await supabase.from('profiles').update({ referred_by: activeUser.uid }).eq('id', refUser.id);
+    
+    if (error) {
+      showToast('✕ Error adding referral', 'err');
+    } else {
+      const newRefs = [...activeUser.refUsers, val];
+      const u2 = { ...activeUser, refUsers: newRefs, refCount: newRefs.length };
+      setActiveUser(u2); setFormState(f => ({ ...f, refUsers: newRefs, refCount: newRefs.length }));
+      setNewRefInput('');
+    }
   };
 
   /* ── TX list ── */
@@ -223,7 +280,7 @@ export default function AdminUserPage() {
   /* ── Export CSV ── */
   const exportCSV = () => {
     const headers=['UID','Name','Username','Email','Phone','Country','Balance','Invested','PnL','Withdrawn','Referrals','Status','Joined'];
-    const rows=filtered.map(u=>[u.uid,u.name,u.username,u.email,u.phone,u.country,u.balance.toFixed(2),u.invested.toFixed(2),u.pnl.toFixed(2),u.withdrawn.toFixed(2),u.refCount,u.status,u.joined]);
+    const rows=users.map(u=>[u.uid,u.name,u.username,u.email,u.phone,u.country,u.balance.toFixed(2),u.invested.toFixed(2),u.pnl.toFixed(2),u.withdrawn.toFixed(2),u.refCount,u.status,u.joined]);
     const csv=[headers,...rows].map(r=>r.map(v=>`"${String(v).replace(/"/g,'""')}"`).join(',')).join('\n');
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));
@@ -248,6 +305,8 @@ export default function AdminUserPage() {
     ['Total Deposits',    String(activeUser.deposits.length),    'var(--charcoal)'],
     ['Total Withdrawals', String(activeUser.withdrawals.length), '#9b3a3a'],
   ] : [];
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / PER_PAGE));
 
   return (
     <>
@@ -303,7 +362,7 @@ export default function AdminUserPage() {
                 </div>
                 <div className="adm-form-group">
                   <label className="adm-form-label">Joined Date</label>
-                  <input className="adm-form-input" type="date" value={formState.joined ?? ''} style={{ maxWidth:220 }} onChange={e => setFormState(f => ({ ...f, joined: e.target.value }))} />
+                  <input className="adm-form-input" type="date" value={formState.joined?.split('T')[0] ?? ''} style={{ maxWidth:220 }} onChange={e => setFormState(f => ({ ...f, joined: e.target.value }))} />
                 </div>
                 <div style={{ padding:14, background:'rgba(184,147,90,.04)', border:'1px solid var(--border)', borderRadius:'var(--radius)', marginTop:4 }}>
                   <div style={{ fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--text-sec)', marginBottom:4 }}>User ID</div>
@@ -349,7 +408,7 @@ export default function AdminUserPage() {
                     <input className="adm-form-input" type="text" value={formState.refCode ?? ''} onChange={e => setFormState(f => ({ ...f, refCode: e.target.value }))} />
                   </div>
                   <div className="adm-form-group">
-                    <label className="adm-form-label">Referred By (Username)</label>
+                    <label className="adm-form-label">Referred By (UID)</label>
                     <input className="adm-form-input" type="text" placeholder="— none —" value={formState.referredBy ?? ''} onChange={e => setFormState(f => ({ ...f, referredBy: e.target.value || null }))} />
                   </div>
                   <div className="adm-form-group">
@@ -494,23 +553,12 @@ export default function AdminUserPage() {
               <div>
                 <span className="adm-sec-label">Admin · SeasonRise Platform</span>
                 <h1 className="adm-sec-title">User Management</h1>
-                <p className="adm-sec-sub"><span className="adm-live-dot"/>{users.length} registered users · {totalActive} active</p>
+                <p className="adm-sec-sub"><span className="adm-live-dot"/>{totalCount} registered users</p>
               </div>
               <div style={{ display:'flex', gap:8, alignSelf:'flex-end', flexWrap:'wrap' }}>
                 <button className="adm-btn-ghost" onClick={exportCSV}>↓ Export CSV</button>
                 <button className="adm-btn-primary" onClick={() => showToast('Create user — coming soon')}>+ Add User</button>
               </div>
-            </div>
-
-            {/* Stats */}
-            <div className="adm-reveal" style={{ display:'grid', gap:10, gridTemplateColumns:'repeat(2,1fr)', marginBottom:22 }}>
-              <style>{`@media(min-width:640px){.adm-stats-sm-grid{grid-template-columns:repeat(4,1fr)!important}}`}</style>
-              {[['Total Users',String(users.length),'var(--ink)'],['Active',String(totalActive),'var(--sage)'],['Suspended',String(totalSuspended),'var(--error)'],['Total Balance Pool',fmtU(totalPool),'var(--gold)']].map(([lbl,val,col]) => (
-                <div key={lbl} className="adm-stat-card-sm">
-                  <div className="adm-stat-lbl-sm">{lbl}</div>
-                  <div className="adm-stat-val-sm" style={{ color:col }}>{val}</div>
-                </div>
-              ))}
             </div>
 
             {/* Filter bar */}
@@ -524,7 +572,7 @@ export default function AdminUserPage() {
                     <input className="adm-form-input" type="text" placeholder="Search by name, username, or email…" style={{ paddingLeft:34 }}
                       value={searchQ} onChange={e => { setSearchQ(e.target.value); setCurrentPage(1); }} />
                   </div>
-                  <span style={{ fontSize:'.7rem', color:'var(--text-sec)', whiteSpace:'nowrap', flexShrink:0 }}>{filtered.length} of {users.length} users</span>
+                  <span style={{ fontSize:'.7rem', color:'var(--text-sec)', whiteSpace:'nowrap', flexShrink:0 }}>{totalCount} total users</span>
                 </div>
                 <div style={{ display:'flex', gap:6, flexWrap:'wrap', alignItems:'center' }}>
                   {[['all','All'],['Active','Active'],['Suspended','Suspended'],['Pending','Pending']].map(([val,lbl]) => (
@@ -541,14 +589,16 @@ export default function AdminUserPage() {
                 <table className="adm-dtbl" style={{ minWidth:860 }}>
                   <thead>
                     <tr>
-                      <th>User</th><th>User ID</th><th>Username</th><th>Email</th><th>Phone</th>
-                      <th>Balance (USDT)</th><th>Total Invested</th><th>Referrals</th><th>Joined</th><th>Status</th><th>Action</th>
+                      <th>User</th><th>User ID</th><th>Username</th><th>Phone</th>
+                      <th>Balance (USDT)</th><th>Total Invested</th><th>Joined</th><th>Status</th><th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {pageRows.length === 0 ? (
-                      <tr><td colSpan={11} style={{ textAlign:'center', padding:44, color:'var(--text-sec)', fontSize:'.8rem' }}>🔍 No users match your search.</td></tr>
-                    ) : pageRows.map((u,i) => (
+                    {loading ? (
+                      <tr><td colSpan={9} style={{ textAlign:'center', padding:44 }}>Loading users...</td></tr>
+                    ) : users.length === 0 ? (
+                      <tr><td colSpan={9} style={{ textAlign:'center', padding:44, color:'var(--text-sec)', fontSize:'.8rem' }}>🔍 No users match your search.</td></tr>
+                    ) : users.map((u,i) => (
                       <tr key={i}>
                         <td>
                           <div style={{ display:'flex', alignItems:'center', gap:10 }}>
@@ -559,13 +609,11 @@ export default function AdminUserPage() {
                             </div>
                           </div>
                         </td>
-                        <td style={{ fontFamily:'monospace', fontSize:'.72rem', color:'var(--text-sec)' }}>{u.uid}</td>
+                        <td style={{ fontFamily:'monospace', fontSize:'.72rem', color:'var(--text-sec)' }}>{u.uid.slice(0,8)}...</td>
                         <td style={{ fontSize:'.78rem', color:'var(--charcoal)' }}>@{u.username}</td>
-                        <td style={{ fontSize:'.75rem', color:'var(--text-sec)' }}>{u.email}</td>
                         <td style={{ fontSize:'.75rem', color:'var(--text-sec)' }}>{u.phone}</td>
                         <td><div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1rem', color:'var(--ink)' }}>{fmtU(u.balance)}</div></td>
                         <td style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'.95rem', color:'var(--text-sec)' }}>{fmtU(u.invested)}</td>
-                        <td style={{ fontSize:'.78rem', color:'var(--charcoal)' }}>{u.refCount}</td>
                         <td style={{ fontSize:'.72rem', color:'var(--text-sec)', whiteSpace:'nowrap' }}>{fmtDate(u.joined)}</td>
                         <td><StatusBadge s={u.status} /></td>
                         <td><button className="adm-btn-gold adm-btn-sm" onClick={() => openModal(u)}>View</button></td>
@@ -580,9 +628,13 @@ export default function AdminUserPage() {
                 <span style={{ fontSize:'.7rem', color:'var(--text-sec)' }}>Page {currentPage} of {totalPages}</span>
                 <div style={{ display:'flex', gap:6 }}>
                   <button className="adm-page-btn" onClick={() => setCurrentPage(p => Math.max(1,p-1))}>‹</button>
-                  {Array.from({length:totalPages},(_,i)=>i+1).map(n => (
-                    <button key={n} className={`adm-page-btn${currentPage===n?' active':''}`} onClick={() => setCurrentPage(n)}>{n}</button>
-                  ))}
+                  {Array.from({length:Math.min(5, totalPages)},(_,i)=> {
+                    const pageNum = currentPage > 3 ? currentPage - 2 + i : i + 1;
+                    if (pageNum > totalPages) return null;
+                    return (
+                      <button key={pageNum} className={`adm-page-btn${currentPage===pageNum?' active':''}`} onClick={() => setCurrentPage(pageNum)}>{pageNum}</button>
+                    );
+                  })}
                   <button className="adm-page-btn" onClick={() => setCurrentPage(p => Math.min(totalPages,p+1))}>›</button>
                 </div>
               </div>
@@ -594,3 +646,5 @@ export default function AdminUserPage() {
     </>
   );
 }
+
+

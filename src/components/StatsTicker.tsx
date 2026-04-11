@@ -1,3 +1,5 @@
+'use client';
+
 const stats = [
   { label: 'Active Investors', value: '50,000+' },
   { label: 'USDT Invested', value: '100M+' },

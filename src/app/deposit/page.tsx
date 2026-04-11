@@ -2,6 +2,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
+import { createClient } from '@/utils/supabase/client'
+import React from 'react'
 
 const ADDRESSES: Record<string, string> = {
   'TRC-20': 'TXkPqV9sZbUmWHvCaZLfwBgY3qNxR8eKdM',
@@ -36,63 +38,10 @@ interface DepState {
   receive: number
 }
 
-const INIT_HISTORY: DepHistory[] = [
-  {
-    id: 'DEP-2841',
-    date: 'Mar 28, 2025',
-    amount: 1000,
-    network: 'TRC-20',
-    txnId: 'f3b7c2a1d9e84f0b6c5a3d2e1f9b7c4a',
-    status: 'approved',
-    fee: 1,
-    receive: 999,
-  },
-  {
-    id: 'DEP-2790',
-    date: 'Mar 12, 2025',
-    amount: 500,
-    network: 'BEP-20',
-    txnId: '0x8fa3bc9e12cd4f7a5b2e63d1c84a0f9e',
-    status: 'approved',
-    fee: 0.5,
-    receive: 499.5,
-  },
-  {
-    id: 'DEP-2744',
-    date: 'Feb 25, 2025',
-    amount: 2000,
-    network: 'ERC-20',
-    txnId: '0xc7d2e5b8a4f1093de6c2b7a1e5f8d3b9',
-    status: 'rejected',
-    fee: 5,
-    receive: 1995,
-    reason:
-      'Transaction hash not found on chain. Please verify your TXN ID and resubmit.',
-  },
-  {
-    id: 'DEP-2701',
-    date: 'Feb 10, 2025',
-    amount: 250,
-    network: 'TRC-20',
-    txnId: 'a9c3e7f1b5d2086ca4e8f3b1d7c9a5e2',
-    status: 'approved',
-    fee: 1,
-    receive: 249,
-  },
-  {
-    id: 'DEP-2659',
-    date: 'Jan 30, 2025',
-    amount: 750,
-    network: 'BEP-20',
-    txnId: '0x4b8d1f6c3a9e07b2d5c8a4f1e6b3d9c7',
-    status: 'pending',
-    fee: 0.5,
-    receive: 749.5,
-  },
-]
-
 export default function DepositPage() {
   const router = useRouter()
+  const supabase = createClient()
+
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [hamburgerOpen, setHamburgerOpen] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
@@ -111,9 +60,18 @@ export default function DepositPage() {
   const [selectedNet, setSelectedNet] = useState('')
   const [netInfoVisible, setNetInfoVisible] = useState(false)
   const [txnId, setTxnId] = useState('')
-  const [history, setHistory] = useState<DepHistory[]>(INIT_HISTORY)
+  const [history, setHistory] = useState<DepHistory[]>([])
   const [modalOpen, setModalOpen] = useState(false)
   const [modalEntry, setModalEntry] = useState<DepHistory | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [user, setUser] = useState<any>(null)
+  const [userProfile, setUserProfile] = useState<any>(null)
+  const [liveCount, setLiveCount] = useState(0)
+  const [wallets, setWallets] = useState<Record<string, string>>({
+    'USDT (BEP-20)': '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+    'USDT (TRC-20)': 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+  })
+
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bgRef = useRef<HTMLCanvasElement>(null)
   const qrRef = useRef<HTMLCanvasElement>(null)
@@ -125,6 +83,75 @@ export default function DepositPage() {
     if (toastTimer.current) clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToastShow(false), 3200)
   }, [])
+
+  /* ── fetch data ── */
+  const fetchData = useCallback(async () => {
+    const { data: { user: authUser } } = await supabase.auth.getUser()
+    if (!authUser) {
+      router.push('/auth/signin')
+      return
+    }
+    setUser(authUser)
+
+    // 1. Fetch Profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', authUser.id)
+      .single()
+    setUserProfile(profile)
+
+    // 2. Fetch Active Seasons Count
+    const { count } = await supabase
+      .from('seasons')
+      .select('*', { count: 'exact', head: true })
+      .eq('status', 'running')
+    setLiveCount(count || 0)
+
+    // 3. Fetch Settings for wallets
+    const { data: settings } = await supabase
+      .from('settings')
+      .select('usdt_bep20_address, usdt_trc20_address')
+      .eq('id', 1)
+      .maybeSingle()
+    
+    if (settings) {
+      setWallets({
+        'USDT (BEP-20)': settings.usdt_bep20_address || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
+        'USDT (TRC-20)': settings.usdt_trc20_address || 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
+      })
+    }
+
+    const { data: depHistory } = await supabase
+      .from('deposits')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: false })
+    
+    if (depHistory) {
+      const mapped: DepHistory[] = depHistory.map(d => ({
+        id: d.id.slice(0, 8).toUpperCase(),
+        date: new Date(d.created_at).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        amount: d.amount,
+        network: d.network,
+        txnId: d.tx_hash,
+        status: d.status,
+        fee: NET_FEES[d.network]?.fee || 0,
+        receive: d.amount - (NET_FEES[d.network]?.fee || 0),
+        reason: d.rejection_reason
+      }))
+      setHistory(mapped)
+    }
+    setLoading(false)
+  }, [router, supabase])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   /* ── bg canvas ── */
   useEffect(() => {
@@ -346,7 +373,7 @@ export default function DepositPage() {
     setStep(4)
   }
 
-  const confirmDeposit = () => {
+  const confirmDeposit = async () => {
     if (!txnId.trim()) {
       showToast('Please enter your transaction ID')
       return
@@ -355,30 +382,35 @@ export default function DepositPage() {
       showToast('Transaction ID seems too short')
       return
     }
-    const newEntry: DepHistory = {
-      id: 'DEP-' + (2900 + Math.floor(Math.random() * 99)),
-      date: new Date().toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      }),
-      amount: depState.amount,
-      network: depState.network,
-      txnId: txnId.trim(),
-      status: 'pending',
-      fee: depState.fee,
-      receive: depState.receive,
+
+    try {
+      const { error } = await supabase
+        .from('deposits')
+        .insert({
+          user_id: user.id,
+          amount: depState.amount,
+          network: depState.network,
+          tx_hash: txnId.trim(),
+          status: 'pending'
+        })
+      
+      if (error) throw error
+
+      showToast('Deposit submitted · Pending review')
+      fetchData() // Refresh history
+      
+      // Reset state
+      setDepState({ amount: 0, network: '', address: '', fee: 0, receive: 0 })
+      setCustomAmt('')
+      setTxnId('')
+      setAmtDisplay('—')
+      setSelectedChip(null)
+      setSelectedNet('')
+      setNetInfoVisible(false)
+      setTimeout(() => setStep(1), 600)
+    } catch (err: any) {
+      showToast(`⚠ Error: ${err.message || 'Submission failed'}`)
     }
-    setHistory((h) => [newEntry, ...h])
-    showToast('Deposit submitted · Pending review')
-    setDepState({ amount: 0, network: '', address: '', fee: 0, receive: 0 })
-    setCustomAmt('')
-    setTxnId('')
-    setAmtDisplay('—')
-    setSelectedChip(null)
-    setSelectedNet('')
-    setNetInfoVisible(false)
-    setTimeout(() => setStep(1), 600)
   }
 
   const copyAddress = () => {
@@ -393,6 +425,8 @@ export default function DepositPage() {
 
   const stepLabels = ['Amount', 'Network', 'Payment', 'Confirm']
   const info = selectedNet ? NET_FEES[selectedNet] : null
+
+  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--txt2)', background: 'var(--cream)' }}>Loading...</div>
 
   return (
     <>
@@ -455,7 +489,7 @@ export default function DepositPage() {
             }}
             onClick={() => router.push('/profile')}
           >
-            RK
+            {userProfile ? `${userProfile.first_name?.[0]}${userProfile.last_name?.[0]}` : '...'}
           </div>
         </div>
 
@@ -1045,7 +1079,6 @@ export default function DepositPage() {
                 </div>
               </div>
 
-              {/* ... rest of your history code stays exactly the same ... */}
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {history.length === 0 ? (
                   <div
@@ -1318,6 +1351,3 @@ export default function DepositPage() {
     </>
   )
 }
-
-// Need React import for Fragment
-import React from 'react'

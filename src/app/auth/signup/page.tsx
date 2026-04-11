@@ -2,16 +2,16 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/utils/supabase/client';
 
 type ToastType = 'ok' | 'err' | '';
 
-const TAKEN_NAMES = ['admin','rakib','test','user','investor','support','seasonrise'];
-const VALID_REFS  = ['RISE-RK-2025','RISE-AB-2025','VAULT-X-2025'];
-const EMAIL_RX    = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const PHONE_RX    = /^[0-9]{10,11}$/;
+const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const PHONE_RX = /^[0-9]{10,11}$/;
 
 export default function SignUpPage() {
   const router = useRouter();
+  const supabase = createClient();
   const canvasRef  = useRef<HTMLCanvasElement>(null);
   const animRef    = useRef<number>(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -58,14 +58,28 @@ export default function SignUpPage() {
   const [rLoading, setRLoading]   = useState(false);
 
   /* BG Canvas */
-  useEffect(()=>{
-    const cvs = canvasRef.current; if(!cvs) return;
-    const cx = cvs.getContext('2d')!;
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get('ref');
+    if (ref) {
+      setRRef(ref);
+      // Wait a bit for profile data to load if needed, but here we just trigger blur check
+      setTimeout(() => {
+        const input = document.getElementById('rRef') as HTMLInputElement;
+        if(input) input.focus();
+      }, 500);
+    }
+  }, []);
+
+  useEffect(() => {
+    const cv=canvasRef.current; if(!cv)return;
+
+    const cx = cv.getContext('2d')!;
     type Candle={x:number;y:number;w:number;h:number;wick:number;up:boolean;spd:number;ph:number};
     type Wave={pts:{x:number;y:number}[];spd:number;ph:number;amp:number;col:string;opa:string};
     let W=0,H=0,candles:Candle[]=[],waves:Wave[]=[],T=0;
     const setup=()=>{
-      W=cvs.width=window.innerWidth;H=cvs.height=window.innerHeight;
+      W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;
       const n=Math.max(6,Math.floor(W/50));
       candles=Array.from({length:n},(_,i)=>({x:(i/n)*W+10+Math.random()*18,y:H*.15+Math.random()*H*.68,w:8+Math.random()*9,h:14+Math.random()*72,wick:6+Math.random()*22,up:Math.random()>.42,spd:.15+Math.random()*.35,ph:Math.random()*Math.PI*2}));
       const pts=Math.ceil(W/36)+2;
@@ -106,17 +120,30 @@ export default function SignUpPage() {
     if(v.length<3){setRUnCls('fi-err');setRUnMsg('⚠ Must be at least 3 characters.');return;}
     if(!/^[a-z0-9._]+$/.test(v)){setRUnCls('fi-err');setRUnMsg('⚠ Only letters, numbers, dots and underscores.');return;}
     setRUnChecking(true); setRUnMsg('Checking availability…');
-    unTimer.current=setTimeout(()=>{
+    unTimer.current=setTimeout(async ()=>{
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('username')
+        .eq('username', v)
+        .maybeSingle();
+
       setRUnChecking(false);
-      if(TAKEN_NAMES.includes(v)){setRUnCls('fi-err');setRUnMsg('✕ Username taken. Try another.');}
+      if(data){setRUnCls('fi-err');setRUnMsg('✕ Username taken. Try another.');}
+      else if(error){setRUnCls('fi-err');setRUnMsg('✕ Error checking username.');}
       else{setRUnCls('fi-good');setRUnMsg('✓ Username available!');}
     },900);
   };
 
-  const handleRefBlur = ()=>{
-    const val=rRef.trim().toUpperCase();
+  const handleRefBlur = async ()=>{
+    const val=rRef.trim();
     if(!val){setRRefMsg('');return;}
-    if(VALID_REFS.includes(val)){setRRefCls('fi-good');setRRefMsg('✓ Valid referral code applied!');}
+    const { data } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('referral_code', val)
+      .maybeSingle();
+
+    if(data){setRRefCls('fi-good');setRRefMsg('✓ Valid referral code applied!');}
     else{setRRefCls('fi-err');setRRefMsg('✕ Invalid referral code.');}
   };
 
@@ -127,13 +154,12 @@ export default function SignUpPage() {
     else{setRCpwCls('fi-err');setRCpwMsg('✕ Passwords do not match.');setRCpwMsgType('err');}
   };
 
-  const handleRegister=(e:React.FormEvent)=>{
+  const handleRegister= async (e:React.FormEvent)=>{
     e.preventDefault();
     let valid=true;
     const name=rName.trim(),un=rUn.trim(),email=rEmail.trim(),phone=rPhone.trim(),pw=rPw,cpw=rCpw;
     if(!name||name.length<2){setRNameCls('fi-err');setRNameMsg('⚠ Please enter your full name.');valid=false;}else{setRNameCls('fi-good');setRNameMsg('');}
     if(!un||un.length<3){setRUnCls('fi-err');setRUnMsg('⚠ Username must be at least 3 characters.');valid=false;}
-    else if(TAKEN_NAMES.includes(un.toLowerCase())){setRUnCls('fi-err');setRUnMsg('✕ Username already taken.');valid=false;}
     if(!email){setREmailCls('fi-err');setREmailMsg('⚠ Email is required.');valid=false;}
     else if(!EMAIL_RX.test(email)){setREmailCls('fi-err');setREmailMsg('⚠ Enter a valid email address.');valid=false;}
     else{setREmailCls('fi-good');setREmailMsg('');}
@@ -144,11 +170,31 @@ export default function SignUpPage() {
     if(!rTerms){setRTermsMsg('⚠ You must accept the Terms & Conditions.');valid=false;}else setRTermsMsg('');
     if(!valid){showToast('⚠ Please fix the errors above.','err');return;}
     setRLoading(true);
-    setTimeout(()=>{
-      setRLoading(false);
-      showToast('✓ Account created! Please sign in.','ok');
-      setTimeout(()=>router.push('/auth/signin'),1800);
-    },1500);
+
+    const [firstName, ...lastNameParts] = name.split(' ');
+    const lastName = lastNameParts.join(' ');
+
+    const { error } = await supabase.auth.signUp({
+      email,
+      password: pw,
+      options: {
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+          username: un,
+          phone: phone,
+          referral_by_code: rRef.trim() || null,
+        }
+      }
+    });
+
+    setRLoading(false);
+    if (error) {
+      showToast('✕ ' + error.message, 'err');
+    } else {
+      showToast('✓ Account created! Please check your email.', 'ok');
+      setTimeout(() => router.push('/auth/signin'), 2500);
+    }
   };
 
   const EyeOpen=()=>(

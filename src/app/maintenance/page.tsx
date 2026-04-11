@@ -4,6 +4,7 @@
 // Also create:       src/app/maintenance/layout.tsx  (see bottom of file)
 
 import { useEffect, useRef, useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
 
 /* ─── types ─── */
 interface Candle { x:number;y:number;w:number;h:number;wick:number;up:boolean;spd:number;ph:number }
@@ -13,14 +14,9 @@ function pad(n: number){ return String(n).padStart(2,'0'); }
 
 export default function MaintenancePage() {
   const bgRef = useRef<HTMLCanvasElement>(null);
+  const supabase = createClient();
 
-  /* ── Read end-time from sessionStorage / env (set by admin toggle) ── */
-  const [endTime]  = useState<number>(() => {
-    if (typeof window === 'undefined') return Date.now() + 2 * 60 * 60 * 1000;
-    const stored = sessionStorage.getItem('maint_end');
-    return stored ? parseInt(stored) : Date.now() + 2 * 60 * 60 * 1000;
-  });
-
+  const [endTime, setEndTime] = useState<number | null>(null);
   const [h, setH] = useState('00');
   const [m, setM] = useState('00');
   const [s, setS] = useState('00');
@@ -30,10 +26,24 @@ export default function MaintenancePage() {
   const [progPct, setProgPct] = useState(0);
   const [done, setDone] = useState(false);
 
-  const totalDuration = endTime - (endTime - 2 * 60 * 60 * 1000); // 2h baseline
+  useEffect(() => {
+    async function fetchMaintenance() {
+      const { data } = await supabase
+        .from('settings')
+        .select('maintenance_ends_at')
+        .eq('id', 1)
+        .single();
+      
+      if (data?.maintenance_ends_at) {
+        setEndTime(new Date(data.maintenance_ends_at).getTime());
+      }
+    }
+    fetchMaintenance();
+  }, [supabase]);
 
   /* ── Countdown ── */
   useEffect(()=>{
+    if (!endTime) return;
     const tick = ()=>{
       const now  = Date.now();
       const diff = Math.max(0, endTime - now);
@@ -45,7 +55,9 @@ export default function MaintenancePage() {
       setM(prev => { if(prev !== pad(mm)){ setTickM(true); setTimeout(()=>setTickM(false),300); } return pad(mm); });
       setS(prev => { if(prev !== pad(ss)){ setTickS(true); setTimeout(()=>setTickS(false),300); } return pad(ss); });
 
-      const elapsed = Date.now() - (endTime - 2 * 60 * 60 * 1000);
+      // Mock progress based on a 2h window if we don't have start time
+      const startTime = endTime - 2 * 60 * 60 * 1000;
+      const elapsed = Date.now() - startTime;
       setProgPct(Math.min(100, Math.round(elapsed / (2 * 60 * 60 * 1000) * 100)));
 
       if(diff === 0){

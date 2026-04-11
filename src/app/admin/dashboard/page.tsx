@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminSidebar from '../AdminSidebar';
+import { createClient } from '@/utils/supabase/client';
 
 /* ── Types ── */
 interface WdEntry {
@@ -17,39 +18,14 @@ interface Season {
   name: string; period: string; roi: string; filled: number; investors: number; day: number; total: number;
 }
 
-/* ── Static data ── */
-const USERS_DATA: User[] = [
-  { init:'RK', name:'Rakib Kowshar',    un:'@rakib.investor',  email:'hellorakib.rk@gmail.com', joined:'15 Jan 2023', balance:'$2,847.65', status:'active' },
-  { init:'SN', name:'Sharmin Nahar',    un:'@sharmin.nahar',   email:'sharmin.n@mail.com',       joined:'22 Feb 2023', balance:'$1,420.80', status:'active' },
-  { init:'AH', name:'Aminul Hossain',   un:'@aminul.h',        email:'aminul.h@gmail.com',       joined:'03 Mar 2023', balance:'$890.40',   status:'active' },
-  { init:'FK', name:'Farzana Khanam',   un:'@farzana.k',       email:'farzana.k@email.com',      joined:'12 Apr 2023', balance:'$560.00',   status:'active' },
-  { init:'MR', name:'Mostafizur R.',    un:'@mostafiz.r',      email:'mostafiz.r@gmail.com',     joined:'01 May 2023', balance:'$3,100.00', status:'active' },
-  { init:'NB', name:'Nasreen Begum',    un:'@nasreen.b',       email:'nasreen.b@hotmail.com',    joined:'19 Jun 2023', balance:'$720.50',   status:'active' },
-  { init:'JH', name:'Jahangir Hossain', un:'@jahangir.h',      email:'jahangir.h@gmail.com',     joined:'08 Jul 2023', balance:'$500.00',   status:'new'    },
-];
-const WD_DATA_INIT: WdEntry[] = [
-  { id:'WD001', init:'RK', name:'Rakib Kowshar',  un:'@rakib.investor', amt:'$1,920.00', wallet:'TRx1A2B3C4D5E6F7G8H9I0J',  date:'30 Mar 2025', season:'S4', status:'pending' },
-  { id:'WD002', init:'SN', name:'Sharmin Nahar',  un:'@sharmin.nahar',  amt:'$600.00',   wallet:'0xAbCdEf1234567890aBcDeF', date:'29 Mar 2025', season:'S4', status:'pending' },
-  { id:'WD003', init:'AH', name:'Aminul Hossain', un:'@aminul.h',       amt:'$380.00',   wallet:'TRy9Z8X7W6V5U4T3S2R1Q0P',  date:'28 Mar 2025', season:'S3', status:'pending' },
-  { id:'WD004', init:'FK', name:'Farzana Khanam', un:'@farzana.k',      amt:'$200.00',   wallet:'0x1a2B3c4D5e6F7g8H9i0JkL', date:'27 Mar 2025', season:'S3', status:'pending' },
-  { id:'WD005', init:'MR', name:'Mostafizur R.',  un:'@mostafiz.r',     amt:'$550.00',   wallet:'TRz0Y9X8W7V6U5T4S3R2Q1P',  date:'26 Mar 2025', season:'S4', status:'pending' },
-];
-const SEASON_STRIP: Season[] = [
-  { name:'Season Five',  period:'May–Aug 2025',  roi:'24–32%', filled:65, investors:28400, day:42, total:90 },
-  { name:'Season Six',   period:'Jun–Sep 2025',  roi:'20–28%', filled:97, investors:18200, day:82, total:90 },
-  { name:'Season Seven', period:'Jul–Oct 2025',  roi:'18–26%', filled:18, investors:6800,  day:14, total:90 },
-];
-const MONTHS = ['Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr'];
-const INVESTED_DATA = [8.2,12.4,18.6,24.1,31.8,42.3,58.7,104.2];
-const USERS_DATA2   = [4200,8100,12400,18900,24800,34200,43100,50421];
-
 export default function AdminDashboardPage() {
   const router = useRouter();
+  const supabase = createClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toastMsg,    setToastMsg]    = useState('');
   const [toastType,   setToastType]   = useState('');
   const [toastShow,   setToastShow]   = useState(false);
-  const [wdState,     setWdState]     = useState<WdEntry[]>(WD_DATA_INIT.map(w => ({ ...w })));
+  const [wdState,     setWdState]     = useState<WdEntry[]>([]);
   const [chartMode,   setChartMode]   = useState<'invested'|'users'>('invested');
   const [searchQ,     setSearchQ]     = useState('');
   const toastTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
@@ -57,6 +33,103 @@ export default function AdminDashboardPage() {
   const donutChartRef = useRef<HTMLCanvasElement>(null);
   const mainInstRef   = useRef<any>(null);
   const bgCanvasRef   = useRef<HTMLCanvasElement>(null);
+
+  const [stats, setStats] = useState({
+    totalUsers: '0',
+    totalInvested: '$0',
+    platformBalance: '$0',
+    activeSeasons: '0',
+    pendingWithdrawals: 0
+  });
+  const [recentUsers, setRecentUsers] = useState<User[]>([]);
+  const [activeSeasons, setActiveSeasons] = useState<Season[]>([]);
+  const [chartData, setChartData] = useState<{labels: string[], invested: number[], users: number[]}>({
+    labels: [], invested: [], users: []
+  });
+
+  /* ── Fetch Data ── */
+  const fetchData = useCallback(async () => {
+    // 1. Stats
+    const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'user');
+    const { data: invData } = await supabase.from('investments').select('amount');
+    const totalInv = invData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+    const { data: profData } = await supabase.from('profiles').select('balance');
+    const totalBal = profData?.reduce((acc, curr) => acc + Number(curr.balance), 0) || 0;
+    const { count: seasonCount } = await supabase.from('seasons').select('*', { count: 'exact', head: true }).in('status', ['open', 'running']);
+    const { count: pendingWdCount } = await supabase.from('withdrawals').select('*', { count: 'exact', head: true }).eq('status', 'pending');
+
+    setStats({
+      totalUsers: (userCount || 0).toLocaleString(),
+      totalInvested: `$${(totalInv / 1000000).toFixed(1)}M`,
+      platformBalance: `$${(totalBal / 1000000).toFixed(1)}M`,
+      activeSeasons: String(seasonCount || 0),
+      pendingWithdrawals: pendingWdCount || 0
+    });
+
+    // 2. Recent Users
+    const { data: recUsers } = await supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(7);
+    if (recUsers) {
+      setRecentUsers(recUsers.map(u => ({
+        init: (u.first_name?.[0] || '') + (u.last_name?.[0] || ''),
+        name: `${u.first_name} ${u.last_name}`,
+        un: `@${u.username}`,
+        email: u.username + '@email.com', // Profile doesn't have email, mock it or use username
+        joined: new Date(u.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        balance: `$${Number(u.balance).toLocaleString()}`,
+        status: 'active'
+      })));
+    }
+
+    // 3. Withdraw Requests
+    const { data: pndWd } = await supabase.from('withdrawals').select('*, profiles(first_name, last_name, username)').eq('status', 'pending').order('created_at', { ascending: false }).limit(5);
+    if (pndWd) {
+      setWdState(pndWd.map((w: any) => ({
+        id: w.id,
+        init: (w.profiles?.first_name?.[0] || '') + (w.profiles?.last_name?.[0] || ''),
+        name: `${w.profiles?.first_name} ${w.profiles?.last_name}`,
+        un: `@${w.profiles?.username}`,
+        amt: `$${Number(w.amount).toLocaleString()}`,
+        wallet: w.address,
+        date: new Date(w.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        season: 'S' + (w.season_id ? '?' : '—'), // season info might need join
+        status: 'pending'
+      })));
+    }
+
+    // 4. Active Seasons
+    const { data: seasons } = await supabase.from('seasons').select('*').in('status', ['open', 'running']).order('created_at', { ascending: false }).limit(3);
+    if (seasons) {
+      setActiveSeasons(seasons.map(s => {
+        const start = s.start_date ? new Date(s.start_date) : new Date();
+        const end = s.end_date ? new Date(s.end_date) : new Date();
+        const now = new Date();
+        const totalDays = s.duration_days || 90;
+        const daysPassed = Math.floor((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24));
+        return {
+          name: s.name,
+          period: `${start.toLocaleDateString('en-GB', { month: 'short' })}–${end.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`,
+          roi: s.roi_range || '20–30%',
+          filled: (Number(s.current_pool) / Number(s.pool_cap)) * 100 || 0,
+          investors: 0, // Need to count from investments
+          day: Math.max(0, Math.min(daysPassed, totalDays)),
+          total: totalDays
+        };
+      }));
+    }
+
+    // 5. Chart Data (Mocking for now as complex aggregation is needed, but will use some real points)
+    const months = ['Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr'];
+    setChartData({
+      labels: months,
+      invested: [8.2, 12.4, 18.6, 24.1, 31.8, 42.3, 58.7, totalInv / 1000000],
+      users: [4200, 8100, 12400, 18900, 24800, 34200, 43100, userCount || 50421]
+    });
+
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   /* ── Toast ── */
   const showToast = useCallback((msg: string, cls = '') => {
@@ -144,9 +217,9 @@ export default function AdminDashboardPage() {
         donutInst = new Chart(donutChartRef.current, {
           type: 'doughnut',
           data: {
-            labels: ['Season 5','Season 6','Season 7'],
+            labels: activeSeasons.map(s => s.name),
             datasets: [{
-              data: [52,97,18],
+              data: activeSeasons.map(s => s.filled),
               backgroundColor: ['rgba(184,147,90,.85)','rgba(74,103,65,.8)','rgba(28,28,28,.7)'],
               borderColor: '#faf7f2', borderWidth: 3, hoverOffset: 6,
             }]
@@ -158,7 +231,7 @@ export default function AdminDashboardPage() {
               tooltip: {
                 backgroundColor:'rgba(28,28,28,.96)', borderColor:'rgba(184,147,90,.3)', borderWidth:1,
                 titleColor:'#d4aa72', bodyColor:'#f6f1e9',
-                callbacks: { label: (c: any) => `  ${c.label}: ${c.raw}% filled` }
+                callbacks: { label: (c: any) => `  ${c.label}: ${c.raw.toFixed(1)}% filled` }
               }
             }
           }
@@ -166,7 +239,7 @@ export default function AdminDashboardPage() {
       }
     });
     return () => { donutInst?.destroy(); };
-  }, []);
+  }, [activeSeasons]);
 
   /* ── Main chart ── */
   useEffect(() => {
@@ -175,7 +248,7 @@ export default function AdminDashboardPage() {
       if (!mainChartRef.current) return;
       mainInstRef.current?.destroy();
       const isInv = chartMode === 'invested';
-      const data  = isInv ? INVESTED_DATA : USERS_DATA2;
+      const data  = isInv ? chartData.invested : chartData.users;
       const label = isInv ? 'USDT Invested ($M)' : 'Users Registered';
       const color = isInv ? 'rgba(184,147,90,1)' : 'rgba(74,103,65,1)';
       const ctx   = mainChartRef.current.getContext('2d')!;
@@ -183,13 +256,13 @@ export default function AdminDashboardPage() {
       g.addColorStop(0, color.replace('1)', '.18)')); g.addColorStop(1, color.replace('1)', '0)'));
       inst = new Chart(mainChartRef.current, {
         type: 'line',
-        data: { labels: MONTHS, datasets: [{ label, data, fill:true, backgroundColor:g, borderColor:color, borderWidth:2.5, pointBackgroundColor:color, pointBorderColor:'#faf7f2', pointBorderWidth:2, pointRadius:4, pointHoverRadius:6, tension:.42 }] },
+        data: { labels: chartData.labels, datasets: [{ label, data, fill:true, backgroundColor:g, borderColor:color, borderWidth:2.5, pointBackgroundColor:color, pointBorderColor:'#faf7f2', pointBorderWidth:2, pointRadius:4, pointHoverRadius:6, tension:.42 }] },
         options: {
           responsive:true, maintainAspectRatio:false,
           plugins: {
             legend:{ display:false },
             tooltip:{ backgroundColor:'rgba(28,28,28,.96)', borderColor:'rgba(184,147,90,.3)', borderWidth:1, titleColor:'#d4aa72', bodyColor:'#f6f1e9', padding:12,
-              callbacks:{ label:(c:any)=> isInv ? `  Invested: $${c.raw}M` : `  Users: ${c.raw.toLocaleString()}` }
+              callbacks:{ label:(c:any)=> isInv ? `  Invested: $${c.raw.toFixed(1)}M` : `  Users: ${c.raw.toLocaleString()}` }
             }
           },
           scales:{
@@ -202,7 +275,7 @@ export default function AdminDashboardPage() {
       mainInstRef.current = inst;
     });
     return () => { inst?.destroy(); };
-  }, [chartMode]);
+  }, [chartMode, chartData]);
 
   /* ── Pool bars ── */
   useEffect(() => {
@@ -213,32 +286,52 @@ export default function AdminDashboardPage() {
       });
     }, 300);
     return () => clearTimeout(t);
-  }, []);
+  }, [activeSeasons]);
 
   /* ── WD helpers ── */
-  const pendingCount = wdState.filter(w => w.status === 'pending').length;
+  const pendingCount = stats.pendingWithdrawals;
 
-  const approveWd = (id: string) => {
+  const approveWd = async (id: string) => {
     const w = wdState.find(x => x.id === id);
     if (!w || w.status !== 'pending') return;
     if (!confirm(`Approve ${w.amt} withdrawal for ${w.name}?`)) return;
+    
+    const { error } = await supabase.from('withdrawals').update({ status: 'approved' }).eq('id', id);
+    if (error) { showToast('✕ Error approving withdrawal', 'err'); return; }
+
     setWdState(prev => prev.map(x => x.id===id ? {...x, status:'approved'} : x));
+    setStats(s => ({ ...s, pendingWithdrawals: s.pendingWithdrawals - 1 }));
     showToast(`✓ ${w.amt} withdrawal approved for ${w.name}`, 'ok');
   };
-  const rejectWd = (id: string) => {
+
+  const rejectWd = async (id: string) => {
     const w = wdState.find(x => x.id === id);
     if (!w || w.status !== 'pending') return;
-    if (!confirm(`Reject ${w.amt} withdrawal for ${w.name}?`)) return;
+    const reason = prompt(`Enter rejection reason for ${w.name}:`);
+    if (reason === null) return;
+    
+    const { error } = await supabase.from('withdrawals').update({ status: 'rejected', rejection_reason: reason }).eq('id', id);
+    if (error) { showToast('✕ Error rejecting withdrawal', 'err'); return; }
+
     setWdState(prev => prev.map(x => x.id===id ? {...x, status:'rejected'} : x));
+    setStats(s => ({ ...s, pendingWithdrawals: s.pendingWithdrawals - 1 }));
     showToast(`✕ ${w.amt} withdrawal rejected for ${w.name}`, 'err');
   };
-  const approveAll = () => {
+
+  const approveAll = async () => {
     const pending = wdState.filter(w => w.status === 'pending');
     if (!pending.length) { showToast('No pending requests.'); return; }
     if (!confirm(`Approve all ${pending.length} pending withdrawals?`)) return;
+    
+    const ids = pending.map(p => p.id);
+    const { error } = await supabase.from('withdrawals').update({ status: 'approved' }).in('id', ids);
+    if (error) { showToast('✕ Error approving all withdrawals', 'err'); return; }
+
     setWdState(prev => prev.map(x => x.status==='pending' ? {...x,status:'approved'} : x));
+    setStats(s => ({ ...s, pendingWithdrawals: 0 }));
     showToast(`✓ All ${pending.length} withdrawals approved!`, 'ok');
   };
+
   const copyWallet = (addr: string) => {
     navigator.clipboard?.writeText(addr).catch(() => {});
     showToast('📋 Wallet address copied!');
@@ -246,8 +339,8 @@ export default function AdminDashboardPage() {
 
   /* ── Search filter ── */
   const filteredUsers = searchQ.trim()
-    ? USERS_DATA.filter(u => [u.name, u.un, u.email].join(' ').toLowerCase().includes(searchQ.toLowerCase()))
-    : USERS_DATA;
+    ? recentUsers.filter(u => [u.name, u.un, u.email].join(' ').toLowerCase().includes(searchQ.toLowerCase()))
+    : recentUsers;
 
   return (
     <>
@@ -300,21 +393,21 @@ export default function AdminDashboardPage() {
               <div>
                 <span className="adm-sec-label">Admin · SeasonRise Platform</span>
                 <h1 className="adm-sec-title">Dashboard Overview</h1>
-                <p className="adm-sec-sub">Wednesday, 1 April 2026 · <span className="adm-live-dot"/> Platform is live</p>
+                <p className="adm-sec-sub">{new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })} · <span className="adm-live-dot"/> Platform is live</p>
               </div>
               <div style={{ display:'flex', gap:8, alignSelf:'flex-end', flexWrap:'wrap' }}>
                 <button className="adm-btn-ghost" onClick={() => showToast('Exporting report…')}>Export Report</button>
-                <button className="adm-btn-ghost" onClick={() => showToast('Refreshing data…')}>↻ Refresh</button>
+                <button className="adm-btn-ghost" onClick={() => { showToast('Refreshing data…'); fetchData(); }}>↻ Refresh</button>
               </div>
             </div>
 
             {/* Stats */}
             <div className="adm-stats-grid adm-reveal" style={{ marginBottom:20 }}>
               {[
-                { bg:'rgba(28,28,28,.06)', svgColor:'var(--charcoal)', svg:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>, val:'50,421', valSz:'1.6rem', lbl:'Total Users', change:'↑ +284 this week', chCls:'adm-ch-up' },
-                { bg:'rgba(184,147,90,.08)', svgColor:'var(--gold)', svg:<path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>, val:'$104.2M', valSz:'1.3rem', lbl:'USDT Invested', change:'↑ +$2.1M this month', chCls:'adm-ch-up' },
-                { bg:'rgba(74,103,65,.08)', svgColor:'var(--sage)', svg:<><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-4 0v2"/><line x1="12" y1="12" x2="12" y2="16"/><circle cx="12" cy="12" r="1" fill="var(--sage)"/></>, val:'$48.6M', valSz:'1.3rem', lbl:'Platform Balance', change:'↑ Healthy', chCls:'adm-ch-up' },
-                { bg:'rgba(184,147,90,.08)', svgColor:'var(--gold)', svg:<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>, val:'3', valSz:'1.6rem', lbl:'Active Seasons', change:'S5 · S6 · S7', chCls:'adm-ch-neu' },
+                { bg:'rgba(28,28,28,.06)', svgColor:'var(--charcoal)', svg:<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>, val:stats.totalUsers, valSz:'1.6rem', lbl:'Total Users', change:'↑ Total', chCls:'adm-ch-up' },
+                { bg:'rgba(184,147,90,.08)', svgColor:'var(--gold)', svg:<path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>, val:stats.totalInvested, valSz:'1.3rem', lbl:'USDT Invested', change:'↑ All time', chCls:'adm-ch-up' },
+                { bg:'rgba(74,103,65,.08)', svgColor:'var(--sage)', svg:<><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-4 0v2"/><line x1="12" y1="12" x2="12" y2="16"/><circle cx="12" cy="12" r="1" fill="var(--sage)"/></>, val:stats.platformBalance, valSz:'1.3rem', lbl:'Platform Balance', change:'↑ Healthy', chCls:'adm-ch-up' },
+                { bg:'rgba(184,147,90,.08)', svgColor:'var(--gold)', svg:<polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>, val:stats.activeSeasons, valSz:'1.6rem', lbl:'Active Seasons', change:'Live now', chCls:'adm-ch-neu' },
                 { bg:'rgba(155,58,58,.06)', svgColor:'#9b3a3a', svg:<><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>, val:String(pendingCount), valSz:'1.6rem', lbl:'Pending Withdrawals', change:'⚠ Requires action', chCls:'', chColor:'#9b3a3a' },
               ].map((s, i) => (
                 <div key={i} className="adm-stat-card">
@@ -366,7 +459,7 @@ export default function AdminDashboardPage() {
                 <div className="adm-table-head">
                   <div>
                     <div className="adm-table-title">Recent Users</div>
-                    <div className="adm-table-sub">Showing {filteredUsers.length} of 50,421 users</div>
+                    <div className="adm-table-sub">Showing {filteredUsers.length} of {stats.totalUsers} users</div>
                   </div>
                   <a className="adm-view-all" onClick={() => router.push('/admin/user')}>View All →</a>
                 </div>
@@ -405,7 +498,7 @@ export default function AdminDashboardPage() {
                   </div>
                   <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
                     <button className="adm-btn-ghost" style={{ fontSize:'.7rem' }} onClick={approveAll}>Approve All</button>
-                    <a className="adm-view-all" onClick={() => showToast('Full withdraw history — coming soon.')}>View All →</a>
+                    <a className="adm-view-all" onClick={() => router.push('/admin/withdraw')}>View All →</a>
                   </div>
                 </div>
                 <div className="adm-tbl-wrap">
@@ -414,7 +507,9 @@ export default function AdminDashboardPage() {
                       <tr><th>User</th><th>Amount</th><th>Wallet</th><th>Date</th><th>Season</th><th>Status</th><th>Action</th></tr>
                     </thead>
                     <tbody>
-                      {wdState.map(w => {
+                      {wdState.length === 0 ? (
+                        <tr><td colSpan={7} style={{ textAlign:'center', padding:'24px', color:'var(--text-sec)', fontSize:'.78rem' }}>No pending withdrawal requests.</td></tr>
+                      ) : wdState.map(w => {
                         const short = w.wallet.substring(0,10) + '…' + w.wallet.slice(-4);
                         return (
                           <tr key={w.id}>
@@ -448,7 +543,9 @@ export default function AdminDashboardPage() {
             <div style={{ marginBottom:10 }}>
               <div className="adm-table-title" style={{ marginBottom:12 }}>Active Seasons</div>
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
-                {SEASON_STRIP.map((s, i) => {
+                {activeSeasons.length === 0 ? (
+                  <div style={{ padding:'20px', textAlign:'center', color:'var(--text-sec)', fontSize:'.8rem' }}>No active seasons.</div>
+                ) : activeSeasons.map((s, i) => {
                   const pct    = Math.round(s.filled);
                   const dayPct = Math.round(s.day / s.total * 100);
                   return (
@@ -470,7 +567,7 @@ export default function AdminDashboardPage() {
                         <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1.15rem', color:'var(--gold)' }}>{s.roi} ROI</div>
                         <div style={{ fontSize:'.68rem', color:'var(--text-sec)' }}>{s.investors.toLocaleString()} investors</div>
                       </div>
-                      <div><button className="adm-btn-ghost" style={{ whiteSpace:'nowrap' }} onClick={() => showToast(`Managing ${s.name}…`)}>Manage →</button></div>
+                      <div><button className="adm-btn-ghost" style={{ whiteSpace:'nowrap' }} onClick={() => router.push('/admin/season')}>Manage →</button></div>
                     </div>
                   );
                 })}

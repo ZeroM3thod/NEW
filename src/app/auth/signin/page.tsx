@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/utils/supabase/client';
 
 type ToastType = 'ok' | 'err' | '';
 
 export default function SignInPage() {
   const router = useRouter();
+  const supabase = createClient();
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animRef   = useRef<number>(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -74,7 +76,7 @@ export default function SignInPage() {
   const EMAIL_RX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   const PHONE_RX = /^[0-9]{10,11}$/;
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLEmailCls(''); setLEmailMsg(''); setLPwCls(''); setLPwMsg('');
     let valid = true;
@@ -87,7 +89,21 @@ export default function SignInPage() {
     else { setLPwCls('fi-good'); }
     if (!valid) return;
     setLLoading(true);
-    setTimeout(()=>{ setLLoading(false); showToast('✓ Welcome back! Redirecting…','ok'); setTimeout(()=>router.push('/dashboard'),1600); },1400);
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email,
+      password: pw,
+    });
+
+    setLLoading(false);
+    if (error) {
+      showToast('✕ ' + error.message, 'err');
+      setLEmailCls('fi-err');
+      setLPwCls('fi-err');
+    } else {
+      showToast('✓ Welcome back! Redirecting…', 'ok');
+      setTimeout(() => router.push('/dashboard'), 1600);
+    }
   };
 
   const startCountdown = (seconds: number) => {
@@ -101,7 +117,7 @@ export default function SignInPage() {
     },1000);
   };
 
-  const handleForgot = (e: React.FormEvent) => {
+  const handleForgot = async (e: React.FormEvent) => {
     e.preventDefault();
     setFEmailCls(''); setFEmailMsg('');
     const email = fEmail.trim();
@@ -109,12 +125,23 @@ export default function SignInPage() {
     if (!EMAIL_RX.test(email)){setFEmailMsg('⚠ Enter a valid email address.');setFEmailCls('fi-err');return;}
     setFEmailCls('fi-good');
     setFLoading(true);
-    setTimeout(()=>{
-      setFLoading(false); setFSentTo(email); setFSuccess(true);
-      showToast('✓ Reset link sent to '+email,'ok');
-      startCountdown(15*60);
-    },1400);
+
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/forget/password`,
+    });
+
+    setFLoading(false);
+    if (error) {
+      showToast('✕ ' + error.message, 'err');
+      setFEmailCls('fi-err');
+    } else {
+      setFSentTo(email);
+      setFSuccess(true);
+      showToast('✓ Reset link sent to ' + email, 'ok');
+      startCountdown(15 * 60);
+    }
   };
+
 
   useEffect(()=>()=>{if(cdTimer.current)clearInterval(cdTimer.current)},[]);
 

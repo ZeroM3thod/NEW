@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Script from 'next/script'
 import UserSidebar from '@/components/UserSidebar'
+import { createClient } from '@/utils/supabase/client'
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -14,15 +15,26 @@ declare global {
 
 export default function DashboardPage() {
   const router = useRouter()
+  const supabase = createClient()
 
   /* ── State ── */
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
   const [toastShow, setToastShow] = useState(false)
-  const [displayBalance, setDisplayBalance] = useState('$2,847.65')
+  const [displayBalance, setDisplayBalance] = useState('$0.00')
   const [progWidth, setProgWidth] = useState('0%')
   const [chartMode, setChartMode] = useState<'roi' | 'usdt'>('roi')
   const [chartReady, setChartReady] = useState(false)
+
+  /* ── User & Data State ── */
+  const [profile, setProfile] = useState<any>(null)
+  const [activeInvestment, setActiveInvestment] = useState<any>(null)
+  const [historyInvestments, setHistoryInvestments] = useState<any[]>([])
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [allSeasons, setAllSeasons] = useState<any[]>([])
+  const [referralStats, setReferralStats] = useState({ count: 0, earned: 0 })
+  const [activeSeason, setActiveSeason] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
 
   /* ── Refs ── */
   const bgCanvasRef = useRef<HTMLCanvasElement>(null)
@@ -31,7 +43,88 @@ export default function DashboardPage() {
   const chartRef = useRef<HTMLCanvasElement>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const chartInstance = useRef<any>(null)
-  const balanceRef = useRef(2847.65)
+  const balanceRef = useRef(0)
+
+  /* ── Fetch Data ── */
+  useEffect(() => {
+    const fetchData = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/auth/signin')
+        return
+      }
+
+      // 1. Fetch Profile
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+      
+      if (profileData) {
+        setProfile(profileData)
+        balanceRef.current = profileData.balance || 0
+        setDisplayBalance('$' + balanceRef.current.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+      }
+
+      // 2. Fetch Active Investment & Season
+      const { data: investments } = await supabase
+        .from('investments')
+        .select('*, seasons(*)')
+        .eq('user_id', user.id)
+      
+      if (investments) {
+        const active = investments.find(inv => inv.status === 'active')
+        setActiveInvestment(active)
+        setHistoryInvestments(investments.filter(inv => inv.status === 'completed'))
+        
+        // Update progress bar if active investment exists
+        if (active && active.seasons) {
+          const start = new Date(active.seasons.start_date).getTime()
+          const now = new Date().getTime()
+          const diff = now - start
+          const days = Math.floor(diff / (1000 * 60 * 60 * 24))
+          const progress = Math.min(100, Math.max(0, (days / active.seasons.duration_days) * 100))
+          setProgWidth(progress.toFixed(1) + '%')
+        }
+      }
+
+      // 3. Fetch All Seasons (for the banner and stats)
+      const { data: seasons } = await supabase
+        .from('seasons')
+        .select('*')
+        .order('created_at', { ascending: false })
+      
+      if (seasons) {
+        setAllSeasons(seasons)
+        const current = seasons.find(s => s.status === 'running') || seasons.find(s => s.status === 'open')
+        setActiveSeason(current)
+      }
+
+      // 4. Fetch Referral Stats
+      const { data: referrals } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('referred_by', user.id)
+      
+      setReferralStats({
+        count: referrals?.length || 0,
+        earned: profileData?.profits_total || 0 // Re-using profits or similar if commission table not present
+      })
+
+      setLoading(false)
+    }
+
+    fetchData()
+  }, [router, supabase])
+
+  /* ── Helper for Days ── */
+  const getDaysElapsed = (startDate: string) => {
+    const start = new Date(startDate).getTime()
+    const now = new Date().getTime()
+    const diff = now - start
+    return Math.floor(diff / (1000 * 60 * 60 * 24))
+  }
 
   /* ── Toast ── */
   const showToast = useCallback((msg: string) => {
@@ -42,6 +135,7 @@ export default function DashboardPage() {
   }, [])
 
   /* ── Balance animation ── */
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const animBal = useCallback((target: number, dur = 1100) => {
     const from = balanceRef.current
     const t0 = performance.now()
@@ -167,27 +261,9 @@ export default function DashboardPage() {
     }
   }, [])
 
-  /* ── Progress bar ── */
-  useEffect(() => {
-    const t = setTimeout(() => setProgWidth('46.7%'), 350)
-    return () => clearTimeout(t)
-  }, [])
-
-  /* ── Balance ticker ── */
-  useEffect(() => {
-    const iv = setInterval(() => {
-      const n = Math.max(
-        2600,
-        balanceRef.current + (Math.random() - 0.48) * 0.6,
-      )
-      animBal(n, 700)
-    }, 4200)
-    return () => clearInterval(iv)
-  }, [animBal])
-
   /* ── Chart.js init ── */
   const initChart = useCallback(() => {
-    if (!chartRef.current || !window.Chart) return
+    if (!chartRef.current || !window.Chart || !profile) return
     const ctx = chartRef.current.getContext('2d')
     if (!ctx) return
     const grad = (c1: string, c2: string) => {
@@ -196,13 +272,21 @@ export default function DashboardPage() {
       g.addColorStop(1, c2)
       return g
     }
+
+    // Process real historical data for chart
+    const historicalData = [...historyInvestments].sort((a, b) => new Date(a.seasons.start_date).getTime() - new Date(b.seasons.start_date).getTime())
+    if (activeInvestment) historicalData.push(activeInvestment)
+
+    const labels = historicalData.map(inv => inv.seasons.name.split(' ').map((word: string) => word[0]).join('') + (inv.status === 'active' ? ' est' : ''))
+    const roiData = historicalData.map(inv => inv.status === 'active' ? parseFloat(inv.seasons.roi_range.split('–')[0]) : inv.seasons.final_roi || 0)
+
     chartInstance.current = new window.Chart(ctx, {
       type: 'line',
       data: {
-        labels: ['S1', 'S2', 'S3', 'S4 est'],
+        labels: labels.length ? labels : ['S1', 'S2', 'S3'],
         datasets: [
           {
-            data: [18.2, 23.7, 28.4, 14.8],
+            data: roiData.length ? roiData : [0, 0, 0],
             fill: true,
             backgroundColor: grad('rgba(74,103,65,0.15)', 'rgba(74,103,65,0)'),
             borderColor: '#4a6741',
@@ -250,7 +334,7 @@ export default function DashboardPage() {
         interaction: { intersect: false, mode: 'index' },
       },
     })
-  }, [])
+  }, [profile, activeInvestment, historyInvestments])
 
   useEffect(() => {
     if (chartReady) initChart()
@@ -267,12 +351,18 @@ export default function DashboardPage() {
       g.addColorStop(1, c2)
       return g
     }
+
+    const historicalData = [...historyInvestments].sort((a, b) => new Date(a.seasons.start_date).getTime() - new Date(b.seasons.start_date).getTime())
+    if (activeInvestment) historicalData.push(activeInvestment)
+
+    const roiData = historicalData.map(inv => inv.status === 'active' ? parseFloat(inv.seasons.roi_range.split('–')[0]) : inv.seasons.final_roi || 0)
+    const usdtData = historicalData.map(inv => inv.status === 'active' ? inv.amount * (parseFloat(inv.seasons.roi_range.split('–')[0]) / 100) : inv.amount * ((inv.seasons.final_roi || 0) / 100))
+
     const datasets = {
-      roi: [18.2, 23.7, 28.4, 14.8],
-      usdt: [1820, 2900, 3680, 1480],
+      roi: roiData.length ? roiData : [0,0,0],
+      usdt: usdtData.length ? usdtData : [0,0,0],
     }
-    const labels = ['S1', 'S2', 'S3', 'S4 est']
-    chartInstance.current.data.labels = labels
+    
     chartInstance.current.data.datasets[0].data = datasets[mode]
     if (mode === 'usdt') {
       chartInstance.current.data.datasets[0].borderColor = '#b8935a'
@@ -299,7 +389,7 @@ export default function DashboardPage() {
         : `  Profit: +$${c.raw.toLocaleString()}`
     chartInstance.current.update('active')
     setChartMode(mode)
-  }, [])
+  }, [activeInvestment, historyInvestments])
 
   /* ── ESC / scroll lock / reveal ── */
   useEffect(() => {
@@ -336,7 +426,7 @@ export default function DashboardPage() {
 
   /* ── Copy referral ── */
   const copyRef = () => {
-    const code = 'VAULT-X-RK2025'
+    const code = profile?.referral_code || 'VAULT-X'
     const fb = () => {
       const ta = document.createElement('textarea')
       ta.value = code
@@ -359,6 +449,8 @@ export default function DashboardPage() {
   }
 
   /* ════════════════════════════════════════════════ */
+  if (loading) return <div className="db-layout" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--txt2)', background: 'var(--cream)' }}>Loading Dashboard...</div>
+
   return (
     <>
       <Script
@@ -404,7 +496,7 @@ export default function DashboardPage() {
             }}
             onClick={() => router.push('/profile')}
           >
-            RK
+            {profile?.first_name?.[0]}{profile?.last_name?.[0]}
           </div>
         </div>
 
@@ -436,7 +528,7 @@ export default function DashboardPage() {
                   Good morning,
                   <br />
                   <em style={{ fontStyle: 'italic', color: 'var(--gold)' }}>
-                    Rafiqul
+                    {profile?.first_name}
                   </em>
                 </h1>
               </div>
@@ -450,7 +542,7 @@ export default function DashboardPage() {
               >
                 <div className='db-live-pill'>
                   <div className='db-live-dot' />
-                  Season 4 Live
+                  {activeInvestment ? `${activeInvestment.seasons.name} Live` : 'Not Joined'}
                 </div>
               </div>
             </div>
@@ -477,16 +569,16 @@ export default function DashboardPage() {
                   </div>
                   <div className='db-balance-num'>{displayBalance}</div>
                   <div className='db-balance-sub' style={{ marginTop: 8 }}>
-                    <span style={{ color: '#6a8c60' }}>↑ +$673.00</span>
+                    <span style={{ color: '#6a8c60' }}>↑ +${profile?.profits_total?.toLocaleString() || '0'}</span>
                     &nbsp;·&nbsp;all-time profit&nbsp;·&nbsp;
                     <span style={{ color: 'var(--gold-l)' }}>
-                      +23.4% avg ROI
+                      +{profile?.avg_roi || '0'}% avg ROI
                     </span>
                   </div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   <div className='db-balance-label' style={{ marginBottom: 6 }}>
-                    Season 4
+                    {activeInvestment?.seasons.name || 'No Active Season'}
                   </div>
                   <div
                     style={{
@@ -496,9 +588,9 @@ export default function DashboardPage() {
                       color: 'rgba(246,241,233,0.85)',
                     }}
                   >
-                    Day 42
+                    {activeInvestment ? `Day ${getDaysElapsed(activeInvestment.seasons.start_date)}` : '—'}
                   </div>
-                  <div className='db-balance-sub'>of 90 days</div>
+                  <div className='db-balance-sub'>{activeInvestment ? `of ${activeInvestment.seasons.duration_days} days` : 'Not joined yet'}</div>
                 </div>
               </div>
               <div style={{ marginTop: 24, position: 'relative', zIndex: 1 }}>
@@ -514,7 +606,7 @@ export default function DashboardPage() {
                   }}
                 >
                   <span>Season Progress</span>
-                  <span style={{ color: 'var(--gold-l)' }}>46.7%</span>
+                  <span style={{ color: 'var(--gold-l)' }}>{progWidth}</span>
                 </div>
                 <div className='db-prog-track'>
                   <div className='db-prog-fill' style={{ width: progWidth }} />
@@ -528,8 +620,8 @@ export default function DashboardPage() {
                     marginTop: 6,
                   }}
                 >
-                  <span>Entry $2,174.65</span>
-                  <span>Target +24–32%</span>
+                  <span>Entry ${activeInvestment?.amount.toLocaleString() || '0'}</span>
+                  <span>Target {activeInvestment?.seasons.roi_range || '...'}</span>
                 </div>
               </div>
             </div>
@@ -557,7 +649,7 @@ export default function DashboardPage() {
                       </>
                     ),
                     lbl: 'Invested',
-                    val: '$8,420',
+                    val: `$${profile?.invested_total?.toLocaleString() || '0'}`,
                     sub: 'all seasons',
                     cls: 'db-stat-gold',
                   },
@@ -568,7 +660,7 @@ export default function DashboardPage() {
                       <path d='M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6' />
                     ),
                     lbl: 'Withdrawable',
-                    val: '$1,920',
+                    val: `$${profile?.withdrawable_total?.toLocaleString() || '0'}`,
                     sub: 'available now',
                     cls: 'db-stat-up',
                   },
@@ -582,7 +674,7 @@ export default function DashboardPage() {
                       </>
                     ),
                     lbl: 'Total Profits',
-                    val: '+$673',
+                    val: `+$${profile?.profits_total?.toLocaleString() || '0'}`,
                     sub: 'all time',
                     cls: 'db-stat-up',
                   },
@@ -597,8 +689,8 @@ export default function DashboardPage() {
                       </>
                     ),
                     lbl: 'Avg ROI',
-                    val: '+23.4%',
-                    sub: '3 seasons',
+                    val: `+${profile?.avg_roi || '0'}%`,
+                    sub: `${historyInvestments.length} seasons`,
                     cls: 'db-stat-gold',
                   },
                 ] as {
@@ -748,9 +840,9 @@ export default function DashboardPage() {
                   style={{ display: 'flex', justifyContent: 'space-between' }}
                 >
                   {[
-                    { l: 'Best', v: 'S3 +28.4%', c: 'var(--sage)' },
-                    { l: 'Avg', v: '+23.4%', c: 'var(--gold)' },
-                    { l: 'Seasons', v: '4', c: 'var(--ink)' },
+                    { l: 'Best', v: historyInvestments.length ? `S${historyInvestments.reduce((max, inv) => Math.max(max, (inv.seasons?.final_roi || 0)), 0)}` : 'N/A', c: 'var(--sage)' },
+                    { l: 'Avg', v: `+${profile?.avg_roi || '0'}%`, c: 'var(--gold)' },
+                    { l: 'Seasons', v: historyInvestments.length + (activeInvestment ? 1 : 0), c: 'var(--ink)' },
                   ].map((x, i) => (
                     <div
                       key={i}
@@ -804,6 +896,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                   <button
+                    onClick={() => router.push('/season')}
                     style={{
                       fontSize: '.68rem',
                       letterSpacing: '.1em',
@@ -820,57 +913,7 @@ export default function DashboardPage() {
                 <div
                   style={{ display: 'flex', flexDirection: 'column', gap: 8 }}
                 >
-                  {(
-                    [
-                      {
-                        b: 'S1',
-                        bg: 'rgba(74,103,65,0.1)',
-                        bc: 'rgba(74,103,65,0.2)',
-                        bc2: 'var(--sage)',
-                        name: 'Season One',
-                        p: 'Jan–Apr 2023',
-                        r: '+18.2%',
-                        rc: 'var(--sage)',
-                        t: 'Done',
-                        tc: 'db-tag-sage',
-                      },
-                      {
-                        b: 'S2',
-                        bg: 'rgba(184,147,90,0.08)',
-                        bc: 'rgba(184,147,90,0.2)',
-                        bc2: 'var(--gold)',
-                        name: 'Season Two',
-                        p: 'Jun–Sep 2023',
-                        r: '+23.7%',
-                        rc: 'var(--gold)',
-                        t: 'Done',
-                        tc: 'db-tag-gold',
-                      },
-                      {
-                        b: 'S3',
-                        bg: 'rgba(74,103,65,0.1)',
-                        bc: 'rgba(74,103,65,0.25)',
-                        bc2: 'var(--sage-l)',
-                        name: 'Season Three',
-                        p: 'Nov 23–Feb 24',
-                        r: '+28.4%',
-                        rc: 'var(--sage)',
-                        t: 'Best',
-                        tc: 'db-tag-ink',
-                      },
-                    ] as {
-                      b: string
-                      bg: string
-                      bc: string
-                      bc2: string
-                      name: string
-                      p: string
-                      r: string
-                      rc: string
-                      t: string
-                      tc: string
-                    }[]
-                  ).map((s, i) => (
+                  {historyInvestments.map((s, i) => (
                     <div key={i} className='db-season-row'>
                       <div
                         style={{
@@ -882,12 +925,12 @@ export default function DashboardPage() {
                         <div
                           className='db-season-badge'
                           style={{
-                            background: s.bg,
-                            border: `1px solid ${s.bc}`,
-                            color: s.bc2,
+                            background: 'rgba(74,103,65,0.1)',
+                            border: '1px solid rgba(74,103,65,0.2)',
+                            color: 'var(--sage)',
                           }}
                         >
-                          {s.b}
+                          {s.seasons.name.split(' ').map((word: string) => word[0]).join('')}
                         </div>
                         <div>
                           <div
@@ -897,12 +940,12 @@ export default function DashboardPage() {
                               color: 'var(--ink)',
                             }}
                           >
-                            {s.name}
+                            {s.seasons.name}
                           </div>
                           <div
                             style={{ fontSize: '.68rem', color: 'var(--txt3)' }}
                           >
-                            {s.p}
+                            {s.seasons.period}
                           </div>
                         </div>
                       </div>
@@ -911,90 +954,99 @@ export default function DashboardPage() {
                           style={{
                             fontFamily: "'Cormorant Garamond',serif",
                             fontSize: '1.1rem',
-                            color: s.rc,
+                            color: 'var(--sage)',
                             fontWeight: 500,
                           }}
                         >
-                          {s.r}
+                          +{s.seasons.final_roi}%
                         </div>
                         <div
-                          className={`db-tag ${s.tc}`}
+                          className={`db-tag db-tag-sage`}
                           style={{ marginTop: 3 }}
                         >
-                          {s.t}
+                          Done
                         </div>
                       </div>
                     </div>
                   ))}
-                  {/* S4 Active */}
-                  <div
-                    className='db-season-row'
-                    style={{
-                      borderColor: 'rgba(184,147,90,0.25)',
-                      background: 'rgba(184,147,90,0.04)',
-                    }}
-                  >
+                  
+                  {/* Active Investment */}
+                  {activeInvestment && (
                     <div
-                      style={{ display: 'flex', alignItems: 'center', gap: 11 }}
+                      className='db-season-row'
+                      style={{
+                        borderColor: 'rgba(184,147,90,0.25)',
+                        background: 'rgba(184,147,90,0.04)',
+                      }}
                     >
                       <div
-                        className='db-season-badge'
-                        style={{
-                          background: 'rgba(184,147,90,0.12)',
-                          border: '1px solid rgba(184,147,90,0.35)',
-                          color: 'var(--gold)',
-                          position: 'relative',
-                        }}
+                        style={{ display: 'flex', alignItems: 'center', gap: 11 }}
                       >
-                        S4
                         <div
-                          className='db-live-dot'
+                          className='db-season-badge'
                           style={{
-                            position: 'absolute',
-                            top: -3,
-                            right: -3,
-                            width: 6,
-                            height: 6,
-                            background: 'var(--sage)',
+                            background: 'rgba(184,147,90,0.12)',
+                            border: '1px solid rgba(184,147,90,0.35)',
+                            color: 'var(--gold)',
+                            position: 'relative',
                           }}
-                        />
+                        >
+                          {activeInvestment.seasons.name.split(' ').map((word: string) => word[0]).join('')}
+                          <div
+                            className='db-live-dot'
+                            style={{
+                              position: 'absolute',
+                              top: -3,
+                              right: -3,
+                              width: 6,
+                              height: 6,
+                              background: 'var(--sage)',
+                            }}
+                          />
+                        </div>
+                        <div>
+                          <div
+                            style={{
+                              fontSize: '.82rem',
+                              fontWeight: 500,
+                              color: 'var(--ink)',
+                            }}
+                          >
+                            {activeInvestment.seasons.name}
+                          </div>
+                          <div
+                            style={{ fontSize: '.68rem', color: 'var(--txt3)' }}
+                          >
+                            Day {getDaysElapsed(activeInvestment.seasons.start_date)} / {activeInvestment.seasons.duration_days}
+                          </div>
+                        </div>
                       </div>
-                      <div>
+                      <div style={{ textAlign: 'right' }}>
                         <div
                           style={{
-                            fontSize: '.82rem',
+                            fontFamily: "'Cormorant Garamond',serif",
+                            fontSize: '1.1rem',
+                            color: 'var(--gold-l)',
                             fontWeight: 500,
-                            color: 'var(--ink)',
                           }}
                         >
-                          Season Four
+                          {activeInvestment.seasons.roi_range}
                         </div>
                         <div
-                          style={{ fontSize: '.68rem', color: 'var(--txt3)' }}
+                          className='db-tag db-tag-live'
+                          style={{ marginTop: 3 }}
                         >
-                          Day 42 / 90
+                          Active
                         </div>
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right' }}>
-                      <div
-                        style={{
-                          fontFamily: "'Cormorant Garamond',serif",
-                          fontSize: '1.1rem',
-                          color: 'var(--gold-l)',
-                          fontWeight: 500,
-                        }}
-                      >
-                        24–32%
-                      </div>
-                      <div
-                        className='db-tag db-tag-live'
-                        style={{ marginTop: 3 }}
-                      >
-                        Active
-                      </div>
+                  )}
+
+                  {!activeInvestment && historyInvestments.length === 0 && (
+                    <div style={{ textAlign: 'center', padding: '20px 0', color: 'var(--txt3)', fontSize: '.8rem' }}>
+                      No investment history yet.
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1030,7 +1082,7 @@ export default function DashboardPage() {
                       fontWeight: 300,
                     }}
                   >
-                    Earn 5% commission on every withdrawal made by your referred
+                    Earn {profile?.commission_rate || 7}% commission on every withdrawal made by your referred
                     investors — automatically credited to your wallet.
                   </div>
                 </div>
@@ -1065,7 +1117,7 @@ export default function DashboardPage() {
                 className='db-ref-copy-row'
                 style={{ display: 'flex', gap: 8, marginBottom: 18 }}
               >
-                <div className='db-ref-code'>VAULT-X-RK2025</div>
+                <div className='db-ref-code'>{profile?.referral_code || 'VAULT-X'}</div>
                 <button className='db-copy-btn' onClick={copyRef}>
                   Copy
                 </button>
@@ -1079,9 +1131,9 @@ export default function DashboardPage() {
                 }}
               >
                 {[
-                  { l: 'Referrals', v: '7', c: 'var(--ink)' },
-                  { l: 'Earned', v: '$84.50', c: 'var(--sage)' },
-                  { l: 'Rate', v: '5%', c: 'var(--gold)' },
+                  { l: 'Referrals', v: referralStats.count.toString(), c: 'var(--ink)' },
+                  { l: 'Earned', v: `$${referralStats.earned.toLocaleString()}`, c: 'var(--sage)' },
+                  { l: 'Rate', v: `${profile?.commission_rate || 7}%`, c: 'var(--gold)' },
                 ].map((r, i) => (
                   <div
                     key={i}
@@ -1119,51 +1171,56 @@ export default function DashboardPage() {
             </div>
 
             {/* NOTICE STRIP */}
-            <div
-              className='db-reveal'
-              style={{
-                background: 'var(--ink)',
-                borderRadius: 'var(--r-lg)',
-                padding: '18px 22px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                gap: 16,
-                flexWrap: 'wrap',
-                transitionDelay: '.22s',
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    fontSize: '.68rem',
-                    letterSpacing: '.16em',
-                    textTransform: 'uppercase',
-                    color: 'rgba(246,241,233,0.35)',
-                    marginBottom: 5,
-                  }}
-                >
-                  Season 4 · Entry Closing
-                </div>
-                <div
-                  style={{
-                    fontFamily: "'Cormorant Garamond',serif",
-                    fontSize: '1.15rem',
-                    fontWeight: 400,
-                    color: 'var(--cream)',
-                  }}
-                >
-                  18 days remain to join Season 4. Pool at 62% capacity.
-                </div>
-              </div>
-              <button
-                className='db-btn db-btn-dark'
-                style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
-                onClick={() => router.push('/season')}
+            {activeSeason && (
+              <div
+                className='db-reveal'
+                style={{
+                  background: 'var(--ink)',
+                  borderRadius: 'var(--r-lg)',
+                  padding: '18px 22px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 16,
+                  flexWrap: 'wrap',
+                  transitionDelay: '.22s',
+                }}
               >
-                <span>Invest Now</span>
-              </button>
-            </div>
+                <div>
+                  <div
+                    style={{
+                      fontSize: '.68rem',
+                      letterSpacing: '.16em',
+                      textTransform: 'uppercase',
+                      color: 'rgba(246,241,233,0.35)',
+                      marginBottom: 5,
+                    }}
+                  >
+                    {activeSeason.name} · {activeSeason.status === 'open' ? 'Entry Open' : 'Live'}
+                  </div>
+                  <div
+                    style={{
+                      fontFamily: "'Cormorant Garamond',serif",
+                      fontSize: '1.15rem',
+                      fontWeight: 400,
+                      color: 'var(--cream)',
+                    }}
+                  >
+                    {activeSeason.status === 'open' 
+                      ? `${getDaysElapsed(activeSeason.start_date) > 0 ? 0 : Math.abs(getDaysElapsed(activeSeason.start_date))} days remain to join ${activeSeason.name}. Pool at ${((activeSeason.current_pool / activeSeason.pool_cap) * 100).toFixed(1)}% capacity.`
+                      : `${activeSeason.name} is currently running with ${((activeSeason.current_pool / activeSeason.pool_cap) * 100).toFixed(1)}% pool capacity.`
+                    }
+                  </div>
+                </div>
+                <button
+                  className='db-btn db-btn-dark'
+                  style={{ whiteSpace: 'nowrap', flexShrink: 0 }}
+                  onClick={() => router.push('/season')}
+                >
+                  <span>Invest Now</span>
+                </button>
+              </div>
+            )}
           </div>
         </main>
       </div>

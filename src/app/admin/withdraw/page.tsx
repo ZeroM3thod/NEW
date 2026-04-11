@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import AdminSidebar from '../AdminSidebar';
+import { createClient } from '@/utils/supabase/client';
 
 /* ══ TYPES ══ */
 type WdStatus = 'pending' | 'approved' | 'rejected';
@@ -9,22 +10,8 @@ interface Withdrawal {
   amt:number; wallet:string; net:string; season:string;
   date:string; note:string; commission:number;
   txid:string; reason:string; status:WdStatus;
+  user_id: string;
 }
-
-const INIT_WD: Withdrawal[] = [
-  {id:'WD001',init:'RK',name:'Rakib Kowshar',   un:'@rakib.investor', amt:1920.00,wallet:'TRx1A2B3C4D5E6F7G8H9I0J',  net:'TRC-20',season:'S4',date:'2025-03-30',note:'Season 4 full profit withdrawal',      commission:96.00,  txid:'',          reason:'',                                              status:'pending'},
-  {id:'WD002',init:'SN',name:'Sharmin Nahar',   un:'@sharmin.nahar',  amt:600.00, wallet:'0xAbCdEf1234567890aBcDeF12',net:'ERC-20',season:'S4',date:'2025-03-29',note:'Partial profit withdrawal',            commission:30.00,  txid:'',          reason:'',                                              status:'pending'},
-  {id:'WD003',init:'AH',name:'Aminul Hossain',  un:'@aminul.h',       amt:380.00, wallet:'TRy9Z8X7W6V5U4T3S2R1Q0P', net:'TRC-20',season:'S3',date:'2025-03-28',note:'Season 3 principal + profit',           commission:19.00,  txid:'TX_0x8f3a9c',reason:'',                                              status:'approved'},
-  {id:'WD004',init:'FK',name:'Farzana Khanam',  un:'@farzana.k',      amt:200.00, wallet:'0x1a2B3c4D5e6F7g8H9i0JkLm',net:'ERC-20',season:'S3',date:'2025-03-27',note:'Principal only withdrawal',             commission:10.00,  txid:'TX_0x2e7b1d',reason:'',                                              status:'approved'},
-  {id:'WD005',init:'MR',name:'Mostafizur R.',   un:'@mostafiz.r',     amt:550.00, wallet:'TRz0Y9X8W7V6U5T4S3R2Q1P0', net:'TRC-20',season:'S4',date:'2025-03-26',note:'Full season 4 withdrawal',             commission:27.50,  txid:'',          reason:'',                                              status:'pending'},
-  {id:'WD006',init:'NB',name:'Nasreen Begum',   un:'@nasreen.b',      amt:150.00, wallet:'TRn1A2S3D4F5G6H7J8K9L0M1', net:'TRC-20',season:'S3',date:'2025-03-25',note:'Referral commission withdrawal',        commission:7.50,   txid:'',          reason:'Duplicate request — already processed',         status:'rejected'},
-  {id:'WD007',init:'JH',name:'Jahangir Hossain',un:'@jahangir.h',     amt:480.00, wallet:'0xJH12345678901234567890AB', net:'BSC',   season:'S4',date:'2025-03-24',note:'Mid-cycle partial exit',              commission:24.00,  txid:'',          reason:'',                                              status:'pending'},
-  {id:'WD008',init:'RA',name:'Roksana Akter',   un:'@roksana.a',      amt:320.00, wallet:'TRr0A1K2T3E4R5A6K7T8E9R0', net:'TRC-20',season:'S3',date:'2025-03-23',note:'S3 profit share',                      commission:16.00,  txid:'TX_0x9d4c2f',reason:'',                                              status:'approved'},
-  {id:'WD009',init:'KH',name:'Karim Hossain',   un:'@karim.h',        amt:1200.00,wallet:'0xKH9876543210ABCDEF123456', net:'ERC-20',season:'S5',date:'2025-04-01',note:'Season 5 early partial exit',         commission:60.00,  txid:'',          reason:'',                                              status:'pending'},
-  {id:'WD010',init:'PM',name:'Parvin Molla',    un:'@parvin.m',       amt:90.00,  wallet:'TRp1A2R3V4I5N6M7O8L9L0A1', net:'TRC-20',season:'S2',date:'2025-03-20',note:'Season 2 old withdrawal',              commission:4.50,   txid:'TX_0x1a5e87',reason:'',                                              status:'approved'},
-  {id:'WD011',init:'SM',name:'Salma Moni',      un:'@salma.m',        amt:750.00, wallet:'TRs1A2L3M4A5M6O7N8I9',     net:'TRC-20',season:'S5',date:'2025-04-01',note:'Season 5 first withdrawal',            commission:37.50,  txid:'',          reason:'',                                              status:'pending'},
-  {id:'WD012',init:'HK',name:'Hasibul Karim',   un:'@hasibul.k',      amt:420.00, wallet:'0xHK4567890ABCDEF12345678', net:'BSC',   season:'S4',date:'2025-03-18',note:'S4 profit withdrawal',                commission:21.00,  txid:'',          reason:'Wallet address unverified — resubmit KYC',     status:'rejected'},
-];
 
 type ModalMode = 'view' | 'approve' | 'reject' | null;
 
@@ -33,9 +20,11 @@ function shortWallet(w:string){ return w.substring(0,10)+'…'+w.slice(-4) }
 function bCls(s:WdStatus){ return s==='approved'?'dm-b-conf':s==='rejected'?'dm-b-rej':'dm-b-pend' }
 
 export default function AdminWithdrawPage() {
+  const supabase = createClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toast,   setToast]   = useState({msg:'',cls:'',show:false});
-  const [wds, setWds]         = useState<Withdrawal[]>(INIT_WD.map(w=>({...w})));
+  const [wds, setWds]         = useState<Withdrawal[]>([]);
+  const [loading, setLoading] = useState(true);
   const [chip, setChip]       = useState('all');
   const [searchQ, setSearchQ] = useState('');
   const [dateFrom, setDateFrom] = useState('2025-01-01');
@@ -44,6 +33,7 @@ export default function AdminWithdrawPage() {
   const [modalMode,setModalMode]= useState<ModalMode>(null);
   const [txidInput,setTxidInput]= useState('');
   const [rejReason,setRejReason]= useState('');
+  
   const bgRef   = useRef<HTMLCanvasElement>(null);
   const chartRef= useRef<HTMLCanvasElement>(null);
   const chartInst=useRef<any>(null);
@@ -55,94 +45,120 @@ export default function AdminWithdrawPage() {
     toastTimer.current=setTimeout(()=>setToast(t=>({...t,show:false})),3300);
   },[]);
 
-  useEffect(()=>{
-    const obs=new IntersectionObserver(e=>e.forEach(x=>{if(x.isIntersecting)x.target.classList.add('vis')}),{threshold:.06});
-    document.querySelectorAll<HTMLElement>('.reveal').forEach(el=>obs.observe(el));
-    return()=>obs.disconnect();
-  },[wds]);
+  const fetchWithdrawals = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('withdrawals')
+      .select('*, profiles(first_name, last_name, username)')
+      .order('created_at', { ascending: false });
+    
+    if (error) {
+      showToast('✕ Error fetching withdrawals', 'err');
+    } else {
+      const mapped: Withdrawal[] = data.map(w => ({
+        id: w.id,
+        init: w.profiles.first_name[0] + w.profiles.last_name[0],
+        name: `${w.profiles.first_name} ${w.profiles.last_name}`,
+        un: `@${w.profiles.username}`,
+        amt: w.amount,
+        wallet: w.address,
+        net: w.network || 'BEP-20',
+        season: 'S4', // Mock or fetch from investments
+        date: new Date(w.created_at).toISOString().split('T')[0],
+        note: '',
+        commission: w.amount * 0.05,
+        txid: w.tx_hash || '',
+        reason: w.rejection_reason || '',
+        status: w.status,
+        user_id: w.user_id
+      }));
+      setWds(mapped);
+    }
+    setLoading(false);
+  }, [supabase, showToast]);
 
-  useEffect(()=>{
-    document.body.style.overflow=(sidebarOpen||!!modalMode)?'hidden':'';
-    return()=>{document.body.style.overflow=''};
-  },[sidebarOpen,modalMode]);
+  useEffect(() => {
+    fetchWithdrawals();
+  }, [fetchWithdrawals]);
 
-  /* BG canvas */
-  useEffect(()=>{
-    const cv=bgRef.current;if(!cv)return;
-    const ctx=cv.getContext('2d')!;
-    let W=0,H=0,T=0,candles:any[]=[],waves:any[]=[],rafId=0;
-    const setup=()=>{
-      W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;
-      const n=Math.max(5,Math.floor(W/52));
-      candles=Array.from({length:n},(_,i)=>({x:(i/n)*W+10+Math.random()*18,y:H*.12+Math.random()*H*.74,w:8+Math.random()*9,h:14+Math.random()*70,wick:6+Math.random()*22,up:Math.random()>.42,spd:.15+Math.random()*.35,ph:Math.random()*Math.PI*2}));
-      const pts=Math.ceil(W/36)+2;
-      waves=[0,1,2,3].map(i=>({pts:Array.from({length:pts},(_,j)=>({x:j*36,y:H*(.1+i*.24)+Math.random()*44})),spd:.1+i*.04,ph:i*1.4,amp:13+i*8,col:i%2===0?'rgba(74,103,65,':'rgba(184,147,90,',opa:i%2===0?'.7)':'.55)'}));
-    };
-    const draw=()=>{
-      ctx.clearRect(0,0,W,H);T+=.011;
-      waves.forEach((w:any)=>{ctx.beginPath();w.pts.forEach((p:any,j:number)=>{const y=p.y+Math.sin(T*w.spd+j*.3+w.ph)*w.amp;j===0?ctx.moveTo(p.x,y):ctx.lineTo(p.x,y)});ctx.strokeStyle=w.col+w.opa;ctx.lineWidth=1;ctx.stroke()});
-      candles.forEach((c:any)=>{const b=Math.sin(T*c.spd+c.ph)*7,x=c.x,y=c.y+b;ctx.strokeStyle='rgba(28,28,28,.8)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+c.w/2,y-c.wick);ctx.lineTo(x+c.w/2,y+c.h+c.wick);ctx.stroke();ctx.fillStyle=c.up?'rgba(74,103,65,.88)':'rgba(184,147,90,.82)';ctx.fillRect(x,y,c.w,c.h);ctx.strokeRect(x,y,c.w,c.h)});
-      rafId=requestAnimationFrame(draw);
-    };
-    window.addEventListener('resize',setup);setup();draw();
-    return()=>{cancelAnimationFrame(rafId);window.removeEventListener('resize',setup)};
-  },[]);
+  const closeModal = () => {
+    setModalMode(null);
+    setModalId('');
+    setTxidInput('');
+    setRejReason('');
+  };
+  const openView = (id: string) => { setModalId(id); setModalMode('view'); };
+  const openApprove = (id: string) => { setModalId(id); setModalMode('approve'); };
+  const openReject = (id: string) => { setModalId(id); setModalMode('reject'); };
 
-  /* Chart */
-  useEffect(()=>{
-    import('chart.js/auto').then(({default:Chart})=>{
-      if(!chartRef.current)return;
-      chartInst.current?.destroy();
-      const ctx=chartRef.current.getContext('2d')!;
-      const labels=['26 Mar','27 Mar','28 Mar','29 Mar','30 Mar','31 Mar','1 Apr'];
-      const pend=[0,150,200,0,1920,550,1230],appr=[320,200,380,600,0,0,90],rej=[420,0,0,0,150,0,0];
-      const g1=ctx.createLinearGradient(0,0,0,170);g1.addColorStop(0,'rgba(184,147,90,.18)');g1.addColorStop(1,'rgba(184,147,90,0)');
-      const g2=ctx.createLinearGradient(0,0,0,170);g2.addColorStop(0,'rgba(74,103,65,.18)');g2.addColorStop(1,'rgba(74,103,65,0)');
-      const g3=ctx.createLinearGradient(0,0,0,170);g3.addColorStop(0,'rgba(155,58,58,.14)');g3.addColorStop(1,'rgba(155,58,58,0)');
-      chartInst.current=new Chart(ctx,{
-        type:'line',
-        data:{labels,datasets:[
-          {label:'Pending', data:pend,fill:true,backgroundColor:g1,borderColor:'rgba(184,147,90,.85)',borderWidth:2,pointBackgroundColor:'rgba(184,147,90,.9)',pointBorderColor:'#faf7f2',pointBorderWidth:2,pointRadius:3,pointHoverRadius:5,tension:.42},
-          {label:'Approved',data:appr,fill:true,backgroundColor:g2,borderColor:'rgba(74,103,65,.85)', borderWidth:2,pointBackgroundColor:'rgba(74,103,65,.9)', pointBorderColor:'#faf7f2',pointBorderWidth:2,pointRadius:3,pointHoverRadius:5,tension:.42},
-          {label:'Rejected',data:rej, fill:true,backgroundColor:g3,borderColor:'rgba(155,58,58,.75)', borderWidth:2,pointBackgroundColor:'rgba(155,58,58,.9)', pointBorderColor:'#faf7f2',pointBorderWidth:2,pointRadius:3,pointHoverRadius:5,tension:.42},
-        ]},
-        options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(28,28,28,.96)',borderColor:'rgba(184,147,90,.3)',borderWidth:1,titleColor:'#d4aa72',bodyColor:'#f6f1e9',titleFont:{family:'DM Sans',size:10},bodyFont:{family:'DM Sans',size:11},padding:10,callbacks:{label:(c:any)=>`  ${c.dataset.label}: $${c.raw.toLocaleString()}`}}},scales:{x:{grid:{color:'rgba(184,147,90,.06)'},ticks:{color:'#6b6459',font:{family:'DM Sans',size:9}}},y:{grid:{color:'rgba(184,147,90,.06)'},ticks:{color:'#6b6459',font:{family:'DM Sans',size:9},callback:(v:any)=>'$'+(v>=1000?(v/1000).toFixed(1)+'K':v)}}},interaction:{intersect:false,mode:'index'}},
-      });
-    });
-    return()=>{chartInst.current?.destroy()};
-  },[]);
+  const curWd = wds.find(w => w.id === modalId);
 
-  const getFiltered=()=>wds.filter(w=>{
-    const mC=chip==='all'||w.status===chip;
-    const q=searchQ.toLowerCase();
-    const mQ=!q||w.name.toLowerCase().includes(q)||w.un.toLowerCase().includes(q)||w.id.toLowerCase().includes(q)||w.wallet.toLowerCase().includes(q)||w.net.toLowerCase().includes(q);
-    const mD=(!dateFrom||w.date>=dateFrom)&&(!dateTo||w.date<=dateTo);
-    return mC&&mQ&&mD;
+  const filtered = wds.filter(w => {
+    const q = searchQ.toLowerCase();
+    if (chip !== 'all' && w.status !== chip) return false;
+    if (q && !(w.name.toLowerCase().includes(q) || w.un.toLowerCase().includes(q) || w.wallet.toLowerCase().includes(q) || w.id.toLowerCase().includes(q))) return false;
+    return true;
   });
 
-  const filtered=getFiltered();
-  const pend=wds.filter(w=>w.status==='pending');
-  const appr=wds.filter(w=>w.status==='approved');
-  const rej =wds.filter(w=>w.status==='rejected');
-  const tod =wds.filter(w=>w.date==='2025-04-01');
-  const fmtU=(v:number)=>'$'+v.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  const pend = wds.filter(w => w.status === 'pending');
+  const appr = wds.filter(w => w.status === 'approved');
+  const rej  = wds.filter(w => w.status === 'rejected');
+  const tod  = wds.filter(w => w.date === new Date().toISOString().split('T')[0] && w.status === 'approved');
 
-  const curWd=wds.find(w=>w.id===modalId)||null;
+  const fmtU = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-  const openView=(id:string)=>{setModalId(id);setModalMode('view')};
-  const openApprove=(id:string)=>{setModalId(id);setTxidInput(wds.find(w=>w.id===id)?.txid||'');setModalMode('approve')};
-  const openReject=(id:string)=>{setModalId(id);setRejReason(wds.find(w=>w.id===id)?.reason||'');setModalMode('reject')};
-  const closeModal=()=>setModalMode(null);
+  const doApprove = async (id: string) => {
+    if (!txidInput.trim()) { showToast('Transaction ID is required.', 'err'); return }
+    const wd = wds.find(w => w.id === id);
+    if (!wd) return;
 
-  const doApprove=(id:string)=>{
-    if(!txidInput.trim()){showToast('Transaction ID is required.','err');return}
-    setWds(prev=>prev.map(w=>w.id===id?{...w,status:'approved',txid:txidInput.trim()}:w));
-    closeModal();showToast(`✓ WD ${id} approved — TX: ${txidInput}`,'ok');
+    // 1. Update withdrawal status
+    const { error: wdError } = await supabase
+      .from('withdrawals')
+      .update({ status: 'approved', tx_hash: txidInput.trim() })
+      .eq('id', id);
+
+    if (wdError) {
+      showToast('✕ Failed to approve withdrawal', 'err');
+      return;
+    }
+
+    // 2. Deduct from user's balance (it was already deducted from withdrawable_total on request)
+    const { data: profile } = await supabase.from('profiles').select('balance').eq('id', wd.user_id).single();
+    if (profile) {
+      await supabase.from('profiles').update({ balance: profile.balance - wd.amt }).eq('id', wd.user_id);
+    }
+
+    showToast(`✓ WD ${id.slice(0,8)} approved`, 'ok');
+    fetchWithdrawals();
+    closeModal();
   };
-  const doReject=(id:string)=>{
-    if(!rejReason.trim()||rejReason.trim().length<10){showToast('Please enter a rejection reason (min 10 chars).','err');return}
-    setWds(prev=>prev.map(w=>w.id===id?{...w,status:'rejected',reason:rejReason}:w));
-    closeModal();showToast(`✕ WD ${id} rejected`,'err');
+
+  const doReject = async (id: string) => {
+    if (!rejReason.trim() || rejReason.trim().length < 10) { showToast('Please enter a rejection reason (min 10 chars).', 'err'); return }
+    const wd = wds.find(w => w.id === id);
+    if (!wd) return;
+
+    // 1. Update withdrawal status
+    const { error: wdError } = await supabase
+      .from('withdrawals')
+      .update({ status: 'rejected', rejection_reason: rejReason })
+      .eq('id', id);
+
+    if (wdError) {
+      showToast('✕ Failed to reject withdrawal', 'err');
+      return;
+    }
+
+    // 2. Refund to user's withdrawable_total
+    const { data: profile } = await supabase.from('profiles').select('withdrawable_total').eq('id', wd.user_id).single();
+    if (profile) {
+      await supabase.from('profiles').update({ withdrawable_total: profile.withdrawable_total + wd.amt }).eq('id', wd.user_id);
+    }
+
+    showToast(`✕ WD ${id.slice(0,8)} rejected`, 'err');
+    fetchWithdrawals();
+    closeModal();
   };
   const approveAllPending=()=>{
     const pendIds=filtered.filter(w=>w.status==='pending');

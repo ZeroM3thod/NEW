@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
+import { createClient } from '@/utils/supabase/client'
 
 interface WdHistory {
   id: string
@@ -23,57 +24,10 @@ interface PendingWd {
   shortAddr: string
 }
 
-const INIT_HISTORY: WdHistory[] = [
-  {
-    id: 'WD-1042',
-    date: 'Mar 30, 2025',
-    amount: 500,
-    fee: 0.5,
-    receive: 499.5,
-    network: 'BEP-20',
-    wallet: '0x7bC9...E8c9B',
-    status: 'approved',
-    note: 'Monthly profit withdrawal',
-  },
-  {
-    id: 'WD-1018',
-    date: 'Mar 15, 2025',
-    amount: 250,
-    fee: 0.5,
-    receive: 249.5,
-    network: 'BEP-20',
-    wallet: '0x7bC9...E8c9B',
-    status: 'approved',
-    note: '',
-  },
-  {
-    id: 'WD-0997',
-    date: 'Feb 28, 2025',
-    amount: 1000,
-    fee: 0.5,
-    receive: 999.5,
-    network: 'BEP-20',
-    wallet: '0x7bC9...E8c9B',
-    status: 'rejected',
-    note: '',
-    reason:
-      'Wallet address does not match our whitelist. Please update your verified withdrawal address in account settings and resubmit.',
-  },
-  {
-    id: 'WD-0974',
-    date: 'Feb 12, 2025',
-    amount: 150,
-    fee: 0.5,
-    receive: 149.5,
-    network: 'BEP-20',
-    wallet: '0x7bC9...E8c9B',
-    status: 'pending',
-    note: 'Quick withdrawal',
-  },
-]
-
 export default function WithdrawPage() {
   const router = useRouter()
+  const supabase = createClient()
+
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [hamburgerOpen, setHamburgerOpen] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
@@ -86,9 +40,12 @@ export default function WithdrawPage() {
   const [selectedChip, setSelectedChip] = useState<number | null>(null)
   const [confirmOpen, setConfirmOpen] = useState(false)
   const [confirmDetails, setConfirmDetails] = useState<PendingWd | null>(null)
-  const [history, setHistory] = useState<WdHistory[]>(INIT_HISTORY)
+  const [history, setHistory] = useState<WdHistory[]>([])
   const [modalOpen, setModalOpen] = useState(false)
   const [modalEntry, setModalEntry] = useState<WdHistory | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [userProfile, setUserProfile] = useState<any>(null)
+
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bgRef = useRef<HTMLCanvasElement>(null)
 
@@ -99,6 +56,55 @@ export default function WithdrawPage() {
     if (toastTimer.current) clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToastShow(false), 3200)
   }, [])
+
+  /* ── fetch data ── */
+  const fetchData = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      router.push('/auth/signin')
+      return
+    }
+
+    // 1. Fetch Profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+    setUserProfile(profile)
+
+    // 2. Fetch Withdrawal History
+    const { data: wdHistory } = await supabase
+      .from('withdrawals')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+    
+    if (wdHistory) {
+      const mapped: WdHistory[] = wdHistory.map(w => ({
+        id: w.id.slice(0, 8).toUpperCase(),
+        date: new Date(w.created_at).toLocaleDateString('en-US', {
+          month: 'short',
+          day: 'numeric',
+          year: 'numeric',
+        }),
+        amount: w.amount,
+        fee: 0.5,
+        receive: w.amount - 0.5,
+        network: w.network || 'BEP-20',
+        wallet: w.address.length > 20 ? w.address.slice(0, 10) + '...' + w.address.slice(-6) : w.address,
+        status: w.status,
+        note: '', // Schema doesn't have note, but I'll keep it empty
+        reason: w.rejection_reason
+      }))
+      setHistory(mapped)
+    }
+    setLoading(false)
+  }, [router, supabase])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   /* ── bg canvas ── */
   useEffect(() => {
@@ -264,8 +270,8 @@ export default function WithdrawPage() {
       showToast('Please enter a valid amount (min $10)')
       return
     }
-    if (amt > 1920) {
-      showToast('Amount exceeds available balance ($1,920)')
+    if (amt > userProfile?.withdrawable_total) {
+      showToast(`Amount exceeds available balance ($${userProfile?.withdrawable_total?.toLocaleString()})`)
       return
     }
     if (!addr) {
@@ -284,33 +290,52 @@ export default function WithdrawPage() {
   }
 
   /* ── submit ── */
-  const submitWithdrawal = () => {
-    if (!confirmDetails) return
-    const newEntry: WdHistory = {
-      id: 'WD-' + (1100 + Math.floor(Math.random() * 99)),
-      date: new Date().toLocaleDateString('en-US', {
-        month: 'short',
-        day: 'numeric',
-        year: 'numeric',
-      }),
-      amount: confirmDetails.amt,
-      fee: 0.5,
-      receive: parseFloat(confirmDetails.recv),
-      network: 'BEP-20',
-      wallet: confirmDetails.shortAddr,
-      status: 'pending',
-      note: confirmDetails.note,
+  const submitWithdrawal = async () => {
+    if (!confirmDetails || !userProfile) return
+    
+    try {
+      const { error } = await supabase
+        .from('withdrawals')
+        .insert({
+          user_id: userProfile.id,
+          amount: confirmDetails.amt,
+          address: confirmDetails.addr,
+          network: 'BEP-20',
+          status: 'pending'
+        })
+      
+      if (error) throw error
+
+      // Optimistically deduct from withdrawable balance
+      // Usually admin approval is needed, but GEMINI.md says "Submitting a request updates the DB with a 'Pending' withdrawal request."
+      // It doesn't say if balance should be deducted immediately. 
+      // Usually, it's better to deduct it so they can't double-spend.
+      
+      const { error: profError } = await supabase
+        .from('profiles')
+        .update({
+          withdrawable_total: userProfile.withdrawable_total - confirmDetails.amt
+        })
+        .eq('id', userProfile.id)
+      
+      if (profError) throw profError
+
+      showToast('Withdrawal submitted · Pending admin approval')
+      fetchData() // Refresh
+      
+      setConfirmOpen(false)
+      setWdAmt('')
+      setWdAddr('')
+      setWdNote('')
+      setFsReq('—')
+      setFsRecv('—')
+      setSelectedChip(null)
+    } catch (err: any) {
+      showToast(`⚠ Error: ${err.message || 'Submission failed'}`)
     }
-    setHistory((h) => [newEntry, ...h])
-    setConfirmOpen(false)
-    setWdAmt('')
-    setWdAddr('')
-    setWdNote('')
-    setFsReq('—')
-    setFsRecv('—')
-    setSelectedChip(null)
-    showToast('Withdrawal submitted · Pending admin approval')
   }
+
+  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--txt2)', background: 'var(--cream)' }}>Loading...</div>
 
   return (
     <>
@@ -335,7 +360,6 @@ export default function WithdrawPage() {
         }}
       />
       <div className='wd-layout'>
-        {/* TOPBAR */}
         <div className='wd-topbar'>
           <button
             className={`wd-hamburger${hamburgerOpen ? ' is-open' : ''}`}
@@ -373,14 +397,12 @@ export default function WithdrawPage() {
             }}
             onClick={() => router.push('/profile')}
           >
-            RK
+            {userProfile?.first_name?.[0]}{userProfile?.last_name?.[0]}
           </div>
         </div>
 
-        {/* MAIN */}
         <main className='wd-main'>
           <div style={{ maxWidth: 760, margin: '0 auto' }}>
-            {/* PAGE HEADER */}
             <div style={{ marginBottom: 28 }} className='wd-reveal'>
               <span className='wd-label'>Transactions</span>
               <h1
@@ -399,7 +421,6 @@ export default function WithdrawPage() {
               </h1>
             </div>
 
-            {/* AVAILABLE BALANCE */}
             <div
               className='wd-bal-badge wd-reveal'
               style={{ marginBottom: 20, transitionDelay: '.04s' }}
@@ -439,7 +460,7 @@ export default function WithdrawPage() {
                       backgroundClip: 'text',
                     }}
                   >
-                    $1,920.00
+                    ${userProfile?.withdrawable_total?.toLocaleString() || '0.00'}
                   </div>
                   <div
                     style={{
@@ -485,7 +506,6 @@ export default function WithdrawPage() {
               </div>
             </div>
 
-            {/* WITHDRAWAL FORM */}
             <div
               className='wd-card wd-reveal'
               style={{
@@ -502,7 +522,6 @@ export default function WithdrawPage() {
                 Withdrawal Details
               </div>
 
-              {/* Amount */}
               <div style={{ marginBottom: 18 }}>
                 <label className='wd-form-label'>
                   Withdrawal Amount (USDT)
@@ -530,7 +549,6 @@ export default function WithdrawPage() {
                   type='number'
                   placeholder='Enter amount e.g. 300'
                   min='10'
-                  max='1920'
                   value={wdAmt}
                   onChange={(e) => onAmtChange(e.target.value)}
                 />
@@ -541,11 +559,10 @@ export default function WithdrawPage() {
                     marginTop: 5,
                   }}
                 >
-                  Minimum: $10 · Maximum: $1,920 (available balance)
+                  Minimum: $10 · Maximum: ${userProfile?.withdrawable_total?.toLocaleString() || '0'} (available balance)
                 </div>
               </div>
 
-              {/* Wallet */}
               <div style={{ marginBottom: 18 }}>
                 <label className='wd-form-label'>
                   Receiving Wallet Address
@@ -568,7 +585,6 @@ export default function WithdrawPage() {
                 </div>
               </div>
 
-              {/* Network (fixed) */}
               <div style={{ marginBottom: 18 }}>
                 <label className='wd-form-label'>Network</label>
                 <div
@@ -629,7 +645,6 @@ export default function WithdrawPage() {
                 </div>
               </div>
 
-              {/* Note */}
               <div style={{ marginBottom: 22 }}>
                 <label className='wd-form-label'>
                   Note{' '}
@@ -653,7 +668,6 @@ export default function WithdrawPage() {
                 />
               </div>
 
-              {/* Fee Summary */}
               <div
                 style={{
                   padding: '14px 16px',
@@ -687,7 +701,6 @@ export default function WithdrawPage() {
                 </div>
               </div>
 
-              {/* Warning */}
               <div className='wd-warn-box' style={{ marginBottom: 20 }}>
                 ⚠ Please double-check your wallet address. Withdrawals sent to
                 wrong addresses cannot be recovered. Processing time is 1–24
@@ -703,7 +716,6 @@ export default function WithdrawPage() {
               </button>
             </div>
 
-            {/* WITHDRAWAL HISTORY */}
             <div style={{ marginTop: 36 }} className='wd-reveal'>
               <div
                 style={{
@@ -839,7 +851,6 @@ export default function WithdrawPage() {
         </main>
       </div>
 
-      {/* CONFIRM OVERLAY */}
       <div
         className={`wd-confirm-overlay${confirmOpen ? ' open' : ''}`}
         onClick={(e) => {
@@ -948,7 +959,6 @@ export default function WithdrawPage() {
         </div>
       </div>
 
-      {/* DETAIL MODAL */}
       <div
         className={`wd-modal-overlay${modalOpen ? ' open' : ''}`}
         onClick={(e) => {

@@ -1,5 +1,7 @@
 'use client';
 import { useRouter, usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
 
 interface Props {
   open: boolean;
@@ -36,6 +38,23 @@ const navItems = [
 export default function UserSidebar({ open, onClose }: Props) {
   const router   = useRouter();
   const pathname = usePathname();
+  const supabase = createClient();
+  const [profile, setProfile] = useState<any>(null);
+
+  useEffect(() => {
+    async function fetchProfile() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        setProfile(data);
+      }
+    }
+    fetchProfile();
+  }, []);
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
 
@@ -67,10 +86,14 @@ export default function UserSidebar({ open, onClose }: Props) {
         </nav>
         <div className="usr-sb-footer">
           <div className="usr-user-row" onClick={() => go('/profile')} style={{ cursor: 'pointer' }}>
-            <div className="usr-avatar">RK</div>
+            <div className="usr-avatar">
+              {profile ? `${profile.first_name[0]}${profile.last_name[0]}` : '...'}
+            </div>
             <div>
-              <div className="usr-user-name">Rafiqul M.</div>
-              <div className="usr-user-tag">Season 4 Investor</div>
+              <div className="usr-user-name">
+                {profile ? `${profile.first_name} ${profile.last_name[0]}.` : 'Loading...'}
+              </div>
+              <div className="usr-user-tag">Season Investor</div>
             </div>
           </div>
         </div>

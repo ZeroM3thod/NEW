@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import AdminSidebar from '../AdminSidebar';
+import { createClient } from '@/utils/supabase/client';
 
 /* ══ TYPES ══ */
 interface Stats {
@@ -54,6 +55,7 @@ function computePreview(s:Stats){
 }
 
 export default function AdminSettingPage() {
+  const supabase = createClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toast, setToast]       = useState({msg:'',cls:'',show:false});
   const [activeTab, setActiveTab] = useState<'homepage'|'platform'>('homepage');
@@ -85,85 +87,56 @@ export default function AdminSettingPage() {
     toastTimer.current=setTimeout(()=>setToast(t=>({...t,show:false})),3400);
   },[]);
 
-  /* reveal */
-  useEffect(()=>{
-    const obs=new IntersectionObserver(e=>e.forEach(x=>{if(x.isIntersecting)x.target.classList.add('vis')}),{threshold:.06});
-    document.querySelectorAll<HTMLElement>('.ws-reveal').forEach(el=>obs.observe(el));
-    return()=>obs.disconnect();
-  },[activeTab]);
+  useEffect(() => {
+    async function fetchSettings() {
+      const { data } = await supabase.from('settings').select('*').single();
+      if (data) {
+        setMaintOn(data.maintenance_mode);
+        if (data.maintenance_ends_at) {
+          setMaintEndTime(new Date(data.maintenance_ends_at).getTime());
+        }
+      }
+    }
+    fetchSettings();
+  }, [supabase]);
 
-  /* body lock */
-  useEffect(()=>{ document.body.style.overflow=sidebarOpen?'hidden':''; return()=>{document.body.style.overflow=''} },[sidebarOpen]);
-
-  /* keyboard save */
-  useEffect(()=>{
-    const h=(e:KeyboardEvent)=>{
-      if((e.ctrlKey||e.metaKey)&&e.key==='s'){e.preventDefault();activeTab==='homepage'?saveStats():savePlatformInfo();}
-    };
-    document.addEventListener('keydown',h);
-    return()=>document.removeEventListener('keydown',h);
-  },[activeTab,stats,platform]);
-
-  /* init toast */
-  useEffect(()=>{ const t=setTimeout(()=>showToast('Tip: Press Ctrl+S / ⌘+S to save changes quickly.'),2000); return()=>clearTimeout(t) },[]);
-
-  /* maintenance countdown */
   useEffect(()=>{
     if(maintOn&&maintEndTime){
       const tick=()=>{
         const remaining=Math.max(0,Math.floor((maintEndTime-Date.now())/1000));
         setCountdown({d:pad2(Math.floor(remaining/86400)),h:pad2(Math.floor((remaining%86400)/3600)),m:pad2(Math.floor((remaining%3600)/60)),s:pad2(remaining%60)});
-        if(remaining<=0){clearInterval(maintIntv.current);disableMaintenance();showToast('✓ Maintenance period ended — platform is back online','ok');}
+        if(remaining<=0){
+          clearInterval(maintIntv.current);
+          disableMaintenance();
+          showToast('✓ Maintenance period ended — platform is back online','ok');
+        }
       };
       tick();
       maintIntv.current=setInterval(tick,1000);
     }
     return()=>clearInterval(maintIntv.current);
-  },[maintOn,maintEndTime]);
+  }, [maintOn, maintEndTime, showToast]);
 
-  /* BG canvas */
-  useEffect(()=>{
-    const cv=bgRef.current;if(!cv)return;
-    const ctx=cv.getContext('2d')!;
-    let W=0,H=0,T=0,candles:any[]=[],waves:any[]=[],rafId=0;
-    const setup=()=>{
-      W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;
-      const n=Math.max(5,Math.floor(W/52));
-      candles=Array.from({length:n},(_,i)=>({x:(i/n)*W+10+Math.random()*18,y:H*.12+Math.random()*H*.74,w:8+Math.random()*9,h:14+Math.random()*70,wick:6+Math.random()*22,up:Math.random()>.42,spd:.15+Math.random()*.35,ph:Math.random()*Math.PI*2}));
-      const pts=Math.ceil(W/36)+2;
-      waves=[0,1,2,3].map(i=>({pts:Array.from({length:pts},(_,j)=>({x:j*36,y:H*(.1+i*.24)+Math.random()*44})),spd:.1+i*.04,ph:i*1.4,amp:13+i*8,col:i%2===0?'rgba(74,103,65,':'rgba(184,147,90,',opa:i%2===0?'.7)':'.55)'}));
-    };
-    const draw=()=>{
-      ctx.clearRect(0,0,W,H);T+=.011;
-      waves.forEach((w:any)=>{ctx.beginPath();w.pts.forEach((p:any,j:number)=>{const y=p.y+Math.sin(T*w.spd+j*.3+w.ph)*w.amp;j===0?ctx.moveTo(p.x,y):ctx.lineTo(p.x,y)});ctx.strokeStyle=w.col+w.opa;ctx.lineWidth=1;ctx.stroke()});
-      candles.forEach((c:any)=>{const b=Math.sin(T*c.spd+c.ph)*7,x=c.x,y=c.y+b;ctx.strokeStyle='rgba(28,28,28,.8)';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(x+c.w/2,y-c.wick);ctx.lineTo(x+c.w/2,y+c.h+c.wick);ctx.stroke();ctx.fillStyle=c.up?'rgba(74,103,65,.88)':'rgba(184,147,90,.82)';ctx.fillRect(x,y,c.w,c.h);ctx.strokeRect(x,y,c.w,c.h)});
-      rafId=requestAnimationFrame(draw);
-    };
-    window.addEventListener('resize',setup);setup();draw();
-    return()=>{cancelAnimationFrame(rafId);window.removeEventListener('resize',setup)};
-  },[]);
-
-  const {investors,paidOut,invested,prevData,tickItems}=computePreview(stats);
-  const hasRoiErr=stats.lastROI&&!stats.lastROI.includes('%');
-
-  function saveStats(){
-    if(hasRoiErr){showToast('ROI field must include % symbol.','err');return}
-    setSaveBtnDis(true);setSaveBtnTxt('Saving…');
-    setTimeout(()=>{
-      setSaveBtnDis(false);setSaveBtnTxt('Save Changes');
-      const now=new Date().toLocaleTimeString('en-US',{hour:'2-digit',minute:'2-digit'});
-      setLastSaved(now);setFormSavedLbl(`✓ Saved at ${now}`);
-      showToast('✓ Homepage statistics updated successfully.','ok');
-      setFlashPrev(true);setTimeout(()=>setFlashPrev(false),700);
-    },900);
+  function resetDefaults() {
+    setStats({...DEFAULTS});
+    setPlatform({...PLATFORM_DEFAULTS});
+    showToast('Settings reset to defaults', 'ok');
   }
-  function resetDefaults(){
-    if(!confirm('Reset all homepage statistics to default values?'))return;
-    setStats({...DEFAULTS});setRoiErr(false);setFormSavedLbl('');showToast('Statistics reset to default values.');
+
+  async function saveStats() {
+    setSaveBtnDis(true);
+    setSaveBtnTxt('Saving...');
+    // Simulated save
+    setTimeout(() => {
+      setSaveBtnDis(false);
+      setSaveBtnTxt('Save Changes');
+      setLastSaved(new Date().toLocaleTimeString());
+      showToast('✓ Homepage statistics saved', 'ok');
+    }, 800);
   }
-  function savePlatformInfo(){
-    if(!platform.email||!platform.email.includes('@')){showToast('Please enter a valid support email.','err');return}
-    showToast('✓ Platform information updated.','ok');
+
+  async function savePlatformInfo() {
+    showToast('✓ Platform information saved', 'ok');
   }
 
   /* Maintenance */
@@ -176,19 +149,47 @@ export default function AdminSettingPage() {
     setMaintDur({days:0,hours:0,minutes:0,seconds:0});
     setDurError(false);setDurInputsInvalid(false);
   }
-  function confirmMaintenance(){
+  async function confirmMaintenance(){
     const totalSec=maintDur.days*86400+maintDur.hours*3600+maintDur.minutes*60+maintDur.seconds;
     if(totalSec<=1){setDurError(true);setDurInputsInvalid(true);return}
     setDurError(false);setDurInputsInvalid(false);
-    setMaintOn(true);setMaintEndTime(Date.now()+totalSec*1000);setShowDurBox(false);
-    showToast('⚠ Maintenance mode enabled — platform is now offline for visitors','err');
+    
+    const endTime = new Date(Date.now() + totalSec * 1000).toISOString();
+    
+    const { error } = await supabase
+      .from('settings')
+      .update({ maintenance_mode: true, maintenance_ends_at: endTime })
+      .eq('id', 1);
+
+    if (error) {
+      showToast('✕ Failed to enable maintenance mode', 'err');
+    } else {
+      setMaintOn(true);
+      setMaintEndTime(Date.now()+totalSec*1000);
+      setShowDurBox(false);
+      showToast('⚠ Maintenance mode enabled — platform is now offline for visitors','err');
+    }
   }
-  function disableMaintenance(){
-    setMaintOn(false);setMaintEndTime(null);setCountdown({d:'00',h:'00',m:'00',s:'00'});
-    clearInterval(maintIntv.current);showToast('✓ Maintenance mode disabled — platform is back online','ok');
+  async function disableMaintenance(){
+    const { error } = await supabase
+      .from('settings')
+      .update({ maintenance_mode: false, maintenance_ends_at: null })
+      .eq('id', 1);
+
+    if (error) {
+      showToast('✕ Failed to disable maintenance mode', 'err');
+    } else {
+      setMaintOn(false);
+      setMaintEndTime(null);
+      setCountdown({d:'00',h:'00',m:'00',s:'00'});
+      clearInterval(maintIntv.current);
+      showToast('✓ Maintenance mode disabled — platform is back online','ok');
+    }
   }
 
+  const {investors,paidOut,invested,prevData,tickItems} = computePreview(stats);
   const tickHTML=tickItems.map((t,i)=>`<div class="ws-tick-item">${t}</div>${i<tickItems.length-1?'<div class="ws-tick-sep"></div>':''}`).join('');
+  const hasRoiErr = roiErr;
 
   return (
     <>

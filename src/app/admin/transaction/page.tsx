@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import AdminSidebar from '../AdminSidebar';
+import { createClient } from '@/utils/supabase/client';
 
 /* ══ TYPES ══ */
 type TxStatus = 'Pending' | 'Approved' | 'Completed' | 'Rejected';
@@ -13,88 +14,41 @@ interface Tx {
 }
 
 /* ══ HELPERS ══ */
-const NETWORKS = ['TRC-20','ERC-20','BEP-20'];
-const STATUS_W = [10,20,55,15];
-const USERS: TxUser[] = [
-  {name:'Arash Karimi',     email:'arash.karimi@email.com',    uid:'USR-0041'},
-  {name:'Fatima Al-Hassan', email:'fatima.alhassan@email.com', uid:'USR-0078'},
-  {name:'Rohan Mehta',      email:'rohan.mehta@email.com',     uid:'USR-0133'},
-  {name:'Elena Vostrikova', email:'elena.v@email.com',         uid:'USR-0209'},
-  {name:'James Okafor',     email:'j.okafor@email.com',        uid:'USR-0317'},
-  {name:'Mei Lin',          email:'mei.lin@email.com',         uid:'USR-0422'},
-  {name:'Carlos Ibáñez',    email:'c.ibanez@email.com',        uid:'USR-0558'},
-  {name:'Nadia Fournier',   email:'nadia.f@email.com',         uid:'USR-0614'},
-  {name:'Ivan Petrov',      email:'ivan.petrov@email.com',     uid:'USR-0703'},
-  {name:'Sara Williams',    email:'sara.w@email.com',          uid:'USR-0891'},
-];
-const REJECTIONS = [
-  'Insufficient KYC verification','Wallet address mismatch',
-  'Flagged by risk engine','Duplicate transaction detected'
-];
-
-function rand(a:number,b:number){ return Math.floor(Math.random()*(b-a+1))+a }
-function hashAddr(){ return '0x'+Array.from({length:40},()=>'0123456789abcdef'[Math.floor(Math.random()*16)]).join('') }
-function txHashFn(){ return '0x'+Array.from({length:64},()=>'0123456789abcdef'[Math.floor(Math.random()*16)]).join('') }
-function weightedStatus(): TxStatus {
-  const r=Math.random()*100;
-  if(r<10) return 'Pending';
-  if(r<30) return 'Approved';
-  if(r<85) return 'Completed';
-  return 'Rejected';
+function fmt(n: number) { return Number(n).toLocaleString('en-US') }
+function fmtUSDT(n: number) {
+  if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
+  if (n >= 1_000)     return '$' + (n / 1_000).toFixed(0) + 'K';
+  return '$' + fmt(n);
 }
-function fmtUSDT(n:number){
-  if(n>=1e6) return '$'+(n/1e6).toFixed(2)+'M';
-  if(n>=1e3) return '$'+(n/1e3).toFixed(1)+'K';
-  return '$'+n.toFixed(2);
-}
-function fmtDateTime(d:Date){
-  return d.toLocaleDateString('en-GB',{day:'2-digit',month:'short',year:'numeric'})
-    +' · '+d.toLocaleTimeString('en-GB',{hour:'2-digit',minute:'2-digit'});
-}
-function generateTxs(): Tx[] {
-  const now = new Date();
-  return Array.from({length:20},(_,i)=>{
-    const type: TxType = Math.random()>0.45 ? 'deposit' : 'withdrawal';
-    const user = USERS[i%USERS.length];
-    const amount = parseFloat((Math.random()*49900+100).toFixed(2));
-    const status = weightedStatus();
-    const daysAgo = rand(0,29), hoursAgo = rand(0,23);
-    const date = new Date(now.getTime()-daysAgo*86400000-hoursAgo*3600000);
-    return {
-      id:'TXN-'+Math.random().toString(36).slice(2,10).toUpperCase(),
-      type, user, amount, wallet:hashAddr(), txHash:txHashFn(),
-      network:NETWORKS[rand(0,2)], date, status,
-      rejectionReason: status==='Rejected' ? REJECTIONS[rand(0,3)] : null,
-    };
-  }).sort((a,b)=>b.date.getTime()-a.date.getTime());
-}
-
-function buildChartData(){
-  const now=new Date();
-  const labels:string[]=[],depData:number[]=[],wdData:number[]=[];
-  for(let i=29;i>=0;i--){
-    const d=new Date(now.getTime()-i*86400000);
-    labels.push(d.toLocaleDateString('en-GB',{day:'2-digit',month:'short'}));
-    const base=180000, seasonal=Math.sin((29-i)/29*Math.PI)*60000;
-    depData.push(Math.max(5000,Math.round(base+seasonal+(Math.random()-.3)*80000)));
-    wdData.push(Math.max(2000,Math.round(base*.6+seasonal*.5+(Math.random()-.4)*60000)));
+function fmtDate(d: Date | string) {
+  if (!d) return '—';
+  try {
+    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch (e) {
+    return String(d);
   }
-  return {labels,depData,wdData};
+}
+function fmtDateTime(d: Date | string) {
+  if (!d) return '—';
+  return fmtDate(d) + ' · ' + new Date(d).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
 }
 
-const ALL_TX = generateTxs();
 const PER_PAGE = 10;
 
 export default function AdminTransactionPage() {
+  const supabase = createClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toast, setToast]             = useState({msg:'',cls:'',show:false});
-  const [allTx, setAllTx]             = useState<Tx[]>(ALL_TX);
+  const [allTx, setAllTx]             = useState<Tx[]>([]);
+  const [loading, setLoading]         = useState(true);
   const [searchQ, setSearchQ]         = useState('');
   const [dateFrom, setDateFrom]       = useState('');
   const [dateTo, setDateTo]           = useState('');
   const [typeFilter, setTypeFilter]   = useState<'all'|'deposit'|'withdrawal'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [modalTx, setModalTx]         = useState<Tx|null>(null);
+  const [chartTotals, setChartTotals] = useState({dep:'—',wd:'—',net:'—'});
+  
   const bgRef   = useRef<HTMLCanvasElement>(null);
   const chartRef= useRef<HTMLCanvasElement>(null);
   const chartInst = useRef<any>(null);
@@ -106,66 +60,57 @@ export default function AdminTransactionPage() {
     toastTimer.current=setTimeout(()=>setToast(t=>({...t,show:false})),3200);
   },[]);
 
-  /* reveal */
-  useEffect(()=>{
-    const obs=new IntersectionObserver(e=>e.forEach(x=>{if(x.isIntersecting)x.target.classList.add('vis')}),{threshold:.05});
-    document.querySelectorAll<HTMLElement>('.tx-reveal').forEach(el=>obs.observe(el));
-    return()=>obs.disconnect();
-  },[]);
+  const fetchTransactions = useCallback(async () => {
+    setLoading(true);
+    // 1. Fetch Deposits
+    const { data: deposits, error: depError } = await supabase
+      .from('deposits')
+      .select('*, profiles(first_name, last_name, username, id)')
+      .neq('status', 'pending');
 
-  /* body lock */
-  useEffect(()=>{
-    document.body.style.overflow=(sidebarOpen||!!modalTx)?'hidden':'';
-    return()=>{document.body.style.overflow=''};
-  },[sidebarOpen,modalTx]);
+    // 2. Fetch Withdrawals
+    const { data: withdrawals, error: wdError } = await supabase
+      .from('withdrawals')
+      .select('*, profiles(first_name, last_name, username, id)')
+      .neq('status', 'pending');
 
-  /* BG canvas */
-  useEffect(()=>{
-    const cv=bgRef.current;if(!cv)return;
-    const ctx=cv.getContext('2d')!;
-    let W=0,H=0,candles:any[]=[],waves:any[]=[],t=0,rafId=0;
-    const setup=()=>{
-      W=cv.width=window.innerWidth;H=cv.height=window.innerHeight;
-      const cols=Math.floor(W/28);candles=[];
-      for(let i=0;i<cols;i++) candles.push({x:i*28+14,open:H*.35+(Math.random()-.5)*H*.28,close:H*.35+(Math.random()-.5)*H*.28,high:0,low:0,speed:.003+Math.random()*.004,phase:Math.random()*Math.PI*2});
-      candles.forEach((c:any)=>{c.high=Math.min(c.open,c.close)-Math.random()*H*.04;c.low=Math.max(c.open,c.close)+Math.random()*H*.04;});
-      waves=Array.from({length:3},(_,i)=>({amplitude:40+i*20,freq:.005+i*.002,speed:.0008+i*.0004,phase:i*Math.PI/1.5,yBase:H*(.3+i*.2)}));
-    };
-    const draw=()=>{
-      ctx.clearRect(0,0,W,H);t+=.012;
-      candles.forEach((c:any)=>{const dy=Math.sin(t*c.speed*100+c.phase)*H*.015,o=c.open+dy,cl=c.close-dy,bull=cl<o,col=bull?'rgba(74,103,65,1)':'rgba(155,58,58,1)',bH=Math.abs(o-cl)||2,bY=Math.min(o,cl);ctx.strokeStyle=col;ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(c.x,c.high+dy);ctx.lineTo(c.x,bY);ctx.moveTo(c.x,bY+bH);ctx.lineTo(c.x,c.low+dy);ctx.stroke();ctx.fillStyle=col;ctx.fillRect(c.x-5,bY,10,bH||2);});
-      waves.forEach((w:any,wi:number)=>{ctx.beginPath();ctx.strokeStyle=`rgba(184,147,90,${.4-wi*.08})`;ctx.lineWidth=1.2-wi*.2;for(let x=0;x<=W;x+=4){const y=w.yBase+Math.sin(x*w.freq+t*w.speed*100+w.phase)*w.amplitude;x===0?ctx.moveTo(x,y):ctx.lineTo(x,y);}ctx.stroke();});
-      rafId=requestAnimationFrame(draw);
-    };
-    window.addEventListener('resize',setup);setup();draw();
-    return()=>{cancelAnimationFrame(rafId);window.removeEventListener('resize',setup)};
-  },[]);
+    if (depError || wdError) {
+      showToast('✕ Error fetching history', 'err');
+    } else {
+      const depMapped: Tx[] = (deposits || []).map(d => ({
+        id: d.id,
+        type: 'deposit',
+        user: { name: `${d.profiles.first_name} ${d.profiles.last_name}`, email: '', uid: d.profiles.username },
+        amount: d.amount,
+        wallet: '',
+        txHash: d.tx_hash || '',
+        network: d.network || 'BEP-20',
+        date: new Date(d.created_at),
+        status: d.status.charAt(0).toUpperCase() + d.status.slice(1) as TxStatus,
+        rejectionReason: d.rejection_reason
+      }));
 
-  /* Chart */
-  useEffect(()=>{
-    import('chart.js/auto').then(({default:Chart})=>{
-      if(!chartRef.current)return;
-      chartInst.current?.destroy();
-      const {labels,depData,wdData}=buildChartData();
-      const ctx=chartRef.current.getContext('2d')!;
-      const depSum=depData.reduce((a,b)=>a+b,0);
-      const wdSum=wdData.reduce((a,b)=>a+b,0);
-      setChartTotals({dep:fmtUSDT(depSum),wd:fmtUSDT(wdSum),net:(depSum-wdSum>=0?'+':'')+fmtUSDT(depSum-wdSum)});
-      chartInst.current=new Chart(ctx,{
-        type:'line',
-        data:{labels,datasets:[
-          {label:'Deposits',    data:depData,borderColor:'#4a6741',backgroundColor:'rgba(74,103,65,.07)',borderWidth:1.8,pointRadius:2,pointHoverRadius:4,tension:.35,fill:true},
-          {label:'Withdrawals', data:wdData, borderColor:'#9b3a3a',backgroundColor:'rgba(155,58,58,.06)',borderWidth:1.8,pointRadius:2,pointHoverRadius:4,tension:.35,fill:true},
-        ]},
-        options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
-          plugins:{legend:{display:false},tooltip:{backgroundColor:'rgba(28,28,28,.95)',titleColor:'#b8935a',bodyColor:'#f6f1e9',borderColor:'rgba(184,147,90,.3)',borderWidth:1,padding:10,titleFont:{family:"'Cormorant Garamond',serif",size:12},bodyFont:{family:"'DM Sans',sans-serif",size:11},callbacks:{label:(c:any)=>` ${c.dataset.label}: $${(c.raw/1000).toFixed(1)}K`}}},
-          scales:{x:{grid:{color:'rgba(184,147,90,.07)'},ticks:{color:'#6b6459',font:{family:"'DM Sans',sans-serif",size:9},maxTicksLimit:10,maxRotation:0}},y:{grid:{color:'rgba(184,147,90,.07)'},ticks:{color:'#6b6459',font:{family:"'DM Sans',sans-serif",size:9},callback:(v:any)=>'$'+(v/1000).toFixed(0)+'K'}}}},
-      });
-    });
-    return()=>{chartInst.current?.destroy()};
-  },[]);
+      const wdMapped: Tx[] = (withdrawals || []).map(w => ({
+        id: w.id,
+        type: 'withdrawal',
+        user: { name: `${w.profiles.first_name} ${w.profiles.last_name}`, email: '', uid: w.profiles.username },
+        amount: w.amount,
+        wallet: w.address,
+        txHash: w.tx_hash || '',
+        network: w.network || 'BEP-20',
+        date: new Date(w.created_at),
+        status: w.status.charAt(0).toUpperCase() + w.status.slice(1) as TxStatus,
+        rejectionReason: w.rejection_reason
+      }));
 
-  const [chartTotals, setChartTotals] = useState({dep:'—',wd:'—',net:'—'});
+      setAllTx([...depMapped, ...wdMapped].sort((a,b) => b.date.getTime() - a.date.getTime()));
+    }
+    setLoading(false);
+  }, [supabase, showToast]);
+
+  useEffect(() => {
+    fetchTransactions();
+  }, [fetchTransactions]);
 
   /* filtered */
   const filtered = useMemo(()=>allTx.filter(tx=>{

@@ -1,12 +1,14 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import './user-sidebar.css';
+import StyledJsxRegistry from '@/components/StyledJsxRegistry';
 
 export const metadata: Metadata = {
   title: 'VaultX — Premium Investment Platform',
   description:
     'VaultX runs structured investment seasons with defined entry periods, transparent ROI targets, and no hidden fees.',
 };
+
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -18,7 +20,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           rel="stylesheet"
         />
       </head>
-      <body>{children}</body>
+      <body data-rendered="true" style={{ minHeight: '100vh' }}>
+        <StyledJsxRegistry>{children}</StyledJsxRegistry>
+      </body>
     </html>
   );
 }

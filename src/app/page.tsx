@@ -1,6 +1,4 @@
-'use client';
 
-import { useScrollReveal } from '@/hooks/useScrollReveal';
 import BgCanvas from '@/components/BgCanvas';
 import Navbar from '@/components/Navbar';
 import Hero from '@/components/Hero';
@@ -13,12 +11,12 @@ import Testimonials from '@/components/Testimonials';
 import About from '@/components/About';
 import Contact from '@/components/Contact';
 import Footer from '@/components/Footer';
+import ScrollRevealInit from '@/components/ScrollRevealInit';
 
 export default function HomePage() {
-  useScrollReveal();
-
   return (
     <>
+      <ScrollRevealInit />
       <BgCanvas />
       <Navbar />
       <main>
@@ -36,3 +34,4 @@ export default function HomePage() {
     </>
   );
 }
+

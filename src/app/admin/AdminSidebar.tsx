@@ -1,5 +1,7 @@
 'use client';
 import { useRouter, usePathname } from 'next/navigation';
+import { useEffect, useState } from 'react';
+import { createClient } from '@/utils/supabase/client';
 
 interface Props {
   open: boolean;
@@ -10,6 +12,46 @@ interface Props {
 export default function AdminSidebar({ open, onClose, onToast }: Props) {
   const router   = useRouter();
   const pathname = usePathname();
+  const supabase = createClient();
+  const [admin, setAdmin] = useState<any>(null);
+  const [counts, setCounts] = useState({ withdraw: '0', deposit: '0', users: '0' });
+
+  useEffect(() => {
+    async function fetchAdmin() {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .single();
+        setAdmin(profile);
+      }
+    }
+    async function fetchCounts() {
+      const { count: withdrawCount } = await supabase
+        .from('withdrawals')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+      
+      const { count: depositCount } = await supabase
+        .from('deposits')
+        .select('*', { count: 'exact', head: true })
+        .eq('status', 'pending');
+
+      const { count: userCount } = await supabase
+        .from('profiles')
+        .select('*', { count: 'exact', head: true });
+
+      setCounts({
+        withdraw: withdrawCount?.toString() || '0',
+        deposit: depositCount?.toString() || '0',
+        users: userCount ? (userCount / 1000).toFixed(0) + 'K' : '0'
+      });
+    }
+    fetchAdmin();
+    fetchCounts();
+  }, []);
 
   const go = (path: string) => { router.push(path); onClose(); };
 
@@ -22,7 +64,7 @@ export default function AdminSidebar({ open, onClose, onToast }: Props) {
           svg: (<><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></>),
         },
         {
-          id: 'user', label: 'User Management', path: '/admin/user', badge: '50K',
+          id: 'user', label: 'User Management', path: '/admin/user', badge: counts.users,
           svg: (<><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></>),
         },
         {
@@ -35,11 +77,11 @@ export default function AdminSidebar({ open, onClose, onToast }: Props) {
       section: 'Requests',
       items: [
         {
-          id: 'withdraw', label: 'Withdraw Requests', path: '/admin/withdraw', badge: '12',
+          id: 'withdraw', label: 'Withdraw Requests', path: '/admin/withdraw', badge: counts.withdraw !== '0' ? counts.withdraw : null,
           svg: (<path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/>),
         },
         {
-          id: 'deposit', label: 'Deposit Requests', path: '/admin/deposit', badge: '7',
+          id: 'deposit', label: 'Deposit Requests', path: '/admin/deposit', badge: counts.deposit !== '0' ? counts.deposit : null,
           svg: (<><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></>),
         },
       ],
@@ -100,10 +142,12 @@ export default function AdminSidebar({ open, onClose, onToast }: Props) {
 
       <div className="adm-sb-bottom">
         <div className="adm-sb-user">
-          <div className="adm-sb-avatar">AD</div>
+          <div className="adm-sb-avatar">
+            {admin ? `${admin.first_name[0]}${admin.last_name[0]}` : 'AD'}
+          </div>
           <div>
-            <div className="adm-sb-uname">Admin User</div>
-            <div className="adm-sb-role">Super Administrator</div>
+            <div className="adm-sb-uname">{admin ? `${admin.first_name} ${admin.last_name}` : 'Admin User'}</div>
+            <div className="adm-sb-role">{admin?.role === 'admin' ? 'Super Administrator' : 'Administrator'}</div>
           </div>
         </div>
       </div>

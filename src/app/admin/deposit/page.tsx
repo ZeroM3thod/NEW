@@ -1,41 +1,24 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import AdminSidebar from '../AdminSidebar';
+import { createClient } from '@/utils/supabase/client';
 
 /* ══════════════════════════════
    TYPES
 ══════════════════════════════ */
-type DepStatus = 'pending' | 'confirmed' | 'rejected';
+type DepStatus = 'pending' | 'approved' | 'rejected';
 interface Deposit {
-  id: string; init: string; name: string; un: string;
+  id: string; init: string; name: string; un: string; userId: string;
   amt: number; network: string; hash: string; date: string;
   season: string; note: string; reason: string; status: DepStatus;
 }
 
 /* ══════════════════════════════
-   INITIAL DATA
-══════════════════════════════ */
-const INIT_DEPOSITS: Deposit[] = [
-  { id:'DEP001', init:'RK', name:'Rakib Kowshar',    un:'@rakib.investor', amt:2174.65, network:'TRC-20', hash:'a1b2c3d4e5f6g7h8901234',        date:'2025-03-28', season:'S5', note:'Season 5 initial deposit',           reason:'',  status:'confirmed' },
-  { id:'DEP002', init:'SN', name:'Sharmin Nahar',    un:'@sharmin.nahar',  amt:800.00,  network:'ERC-20', hash:'0xAbCd1234EfGh5678IjKl90',        date:'2025-03-29', season:'S5', note:'First investment S5',                 reason:'',  status:'confirmed' },
-  { id:'DEP003', init:'AH', name:'Aminul Hossain',   un:'@aminul.h',       amt:500.00,  network:'TRC-20', hash:'TRz9Y8X7W6V5U4T3S2R1Q0P',         date:'2025-03-30', season:'S6', note:'Season 6 early entry',               reason:'',  status:'pending'   },
-  { id:'DEP004', init:'FK', name:'Farzana Khanam',   un:'@farzana.k',      amt:300.00,  network:'BSC',    hash:'0xBNB2468ACEDFG13579246',           date:'2025-03-31', season:'S5', note:'Top-up deposit',                     reason:'',  status:'pending'   },
-  { id:'DEP005', init:'MR', name:'Mostafizur R.',    un:'@mostafiz.r',     amt:5000.00, network:'TRC-20', hash:'TRa0B9C8D7E6F5G4H3I2J1',           date:'2025-04-01', season:'S7', note:'Large Season 7 deposit',             reason:'',  status:'pending'   },
-  { id:'DEP006', init:'NB', name:'Nasreen Begum',    un:'@nasreen.b',      amt:450.00,  network:'ERC-20', hash:'0xNB9876543210ABCDEF1234',          date:'2025-03-27', season:'S5', note:'Mid-season deposit',                 reason:'',  status:'confirmed' },
-  { id:'DEP007', init:'JH', name:'Jahangir Hossain', un:'@jahangir.h',     amt:1000.00, network:'BSC',    hash:'0xJH1234567890EFGH123456',          date:'2025-04-01', season:'S5', note:'New investor first deposit',         reason:'',  status:'pending'   },
-  { id:'DEP008', init:'RA', name:'Roksana Akter',    un:'@roksana.a',      amt:750.00,  network:'TRC-20', hash:'TRr1O2K3S4A5N6A7K8T9E0',           date:'2025-03-26', season:'S6', note:'Season 6 deposit',                   reason:'Transaction hash mismatch — please resubmit', status:'rejected' },
-  { id:'DEP009', init:'KH', name:'Karim Hossain',    un:'@karim.h',        amt:2500.00, network:'TRC-20', hash:'TRk0A9R1I2M3H4O5S6S7A8I',          date:'2025-03-25', season:'S4', note:'Late Season 4 top-up',               reason:'',  status:'confirmed' },
-  { id:'DEP010', init:'PM', name:'Parvin Molla',     un:'@parvin.m',       amt:600.00,  network:'ERC-20', hash:'0xPM1357924680WXYZ123456',          date:'2025-03-24', season:'S6', note:'Season 6 entry',                     reason:'',  status:'pending'   },
-  { id:'DEP011', init:'SM', name:'Salma Moni',       un:'@salma.m',        amt:1200.00, network:'TRC-20', hash:'TRs1A2L3M4A5M6O7N8I9J0',           date:'2025-04-01', season:'S7', note:'Season 7 first deposit',             reason:'',  status:'pending'   },
-  { id:'DEP012', init:'HK', name:'Hasibul Karim',    un:'@hasibul.k',      amt:350.00,  network:'BSC',    hash:'0xHK4567890ABCDEF123456AB',         date:'2025-03-22', season:'S5', note:'Mid-season BSC deposit',             reason:'Insufficient network confirmations', status:'rejected' },
-];
-
-/* ══════════════════════════════
    HELPERS
 ══════════════════════════════ */
 function fmtAmt(v: number) { return v.toLocaleString('en-US', { minimumFractionDigits:2, maximumFractionDigits:2 }); }
-function shortHash(h: string) { return h.length > 18 ? h.substring(0, 12) + '…' + h.slice(-4) : h; }
-function bCls(s: DepStatus) { return s === 'confirmed' ? 'dm-b-conf' : s === 'rejected' ? 'dm-b-rej' : 'dm-b-pend'; }
+function shortHash(h: string) { return h && h.length > 18 ? h.substring(0, 12) + '…' + h.slice(-4) : h || '—'; }
+function bCls(s: DepStatus) { return s === 'approved' ? 'dm-b-conf' : s === 'rejected' ? 'dm-b-rej' : 'dm-b-pend'; }
 
 /* ══════════════════════════════
    MODAL TYPES
@@ -43,13 +26,14 @@ function bCls(s: DepStatus) { return s === 'confirmed' ? 'dm-b-conf' : s === 're
 type ModalMode = 'view' | 'confirm' | 'reject' | null;
 
 export default function AdminDepositPage() {
+  const supabase = createClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toast, setToast]             = useState({ msg:'', cls:'', show:false });
-  const [deposits, setDeposits]       = useState<Deposit[]>(INIT_DEPOSITS.map(d => ({ ...d })));
+  const [deposits, setDeposits]       = useState<Deposit[]>([]);
   const [chip, setChip]               = useState<string>('all');
   const [searchQ, setSearchQ]         = useState('');
-  const [dateFrom, setDateFrom]       = useState('2025-01-01');
-  const [dateTo,   setDateTo]         = useState('2025-12-31');
+  const [dateFrom, setDateFrom]       = useState('');
+  const [dateTo,   setDateTo]         = useState('');
   const [modalOpen, setModalOpen]     = useState(false);
   const [modalMode, setModalMode]     = useState<ModalMode>(null);
   const [modalId,   setModalId]       = useState('');
@@ -58,6 +42,42 @@ export default function AdminDepositPage() {
   const chartRef   = useRef<HTMLCanvasElement>(null);
   const chartInst  = useRef<any>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const [loading, setLoading] = useState(true);
+
+  /* ── Fetch Data ── */
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from('deposits')
+      .select('*, profiles(first_name, last_name, username)')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      showToast('✕ Error fetching deposits', 'err');
+    } else if (data) {
+      setDeposits(data.map((d: any) => ({
+        id: d.id,
+        init: (d.profiles?.first_name?.[0] || '') + (d.profiles?.last_name?.[0] || ''),
+        name: `${d.profiles?.first_name} ${d.profiles?.last_name}`,
+        un: `@${d.profiles?.username}`,
+        userId: d.user_id,
+        amt: Number(d.amount),
+        network: d.network || '—',
+        hash: d.tx_hash || '—',
+        date: d.created_at.split('T')[0],
+        season: '—',
+        note: '',
+        reason: d.rejection_reason || '',
+        status: d.status as any
+      })));
+    }
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   /* ── Toast ── */
   const showToast = useCallback((msg: string, cls = '') => {
@@ -118,7 +138,7 @@ export default function AdminDepositPage() {
       chartInst.current = new Chart(ctx, {
         type:'line',
         data:{ labels, datasets:[
-          { label:'Confirmed', data:conf, fill:true, backgroundColor:g1, borderColor:'rgba(74,103,65,.85)', borderWidth:2, pointBackgroundColor:'rgba(74,103,65,.9)', pointBorderColor:'#faf7f2', pointBorderWidth:2, pointRadius:3, pointHoverRadius:5, tension:.42 },
+          { label:'Approved', data:conf, fill:true, backgroundColor:g1, borderColor:'rgba(74,103,65,.85)', borderWidth:2, pointBackgroundColor:'rgba(74,103,65,.9)', pointBorderColor:'#faf7f2', pointBorderWidth:2, pointRadius:3, pointHoverRadius:5, tension:.42 },
           { label:'Pending',   data:pend, fill:true, backgroundColor:g2, borderColor:'rgba(184,147,90,.85)', borderWidth:2, pointBackgroundColor:'rgba(184,147,90,.9)', pointBorderColor:'#faf7f2', pointBorderWidth:2, pointRadius:3, pointHoverRadius:5, tension:.42 },
           { label:'Rejected',  data:rej,  fill:true, backgroundColor:g3, borderColor:'rgba(155,58,58,.75)', borderWidth:2, pointBackgroundColor:'rgba(155,58,58,.9)', pointBorderColor:'#faf7f2', pointBorderWidth:2, pointRadius:3, pointHoverRadius:5, tension:.42 },
         ]},
@@ -144,13 +164,9 @@ export default function AdminDepositPage() {
 
   /* ── Stats ── */
   const pend  = deposits.filter(d => d.status === 'pending');
-  const conf  = deposits.filter(d => d.status === 'confirmed');
-  const tod   = deposits.filter(d => d.date === '2025-04-01');
-  const month = deposits.filter(d => d.date >= '2025-03-01' && d.status === 'confirmed');
+  const conf  = deposits.filter(d => d.status === 'approved');
   const pendAmt  = pend.reduce((s,d) => s+d.amt, 0);
   const confAmt  = conf.reduce((s,d) => s+d.amt, 0);
-  const todTotal = tod.reduce((s,d) => s+d.amt, 0);
-  const monTotal = month.reduce((s,d) => s+d.amt, 0);
 
   /* ── Actions ── */
   const openView = (id: string) => { setModalId(id); setModalMode('view'); setRejReason(''); setModalOpen(true); };
@@ -161,35 +177,64 @@ export default function AdminDepositPage() {
   };
   const closeModal = () => { setModalOpen(false); setModalMode(null); };
 
-  const doConfirm = (id: string) => {
-    setDeposits(prev => prev.map(d => d.id===id ? {...d, status:'confirmed'} : d));
-    closeModal();
+  const doConfirm = async (id: string) => {
     const d = deposits.find(x => x.id===id);
-    showToast(`✓ DEP ${id} confirmed — $${d?.amt.toLocaleString()} USDT`, 'ok');
-  };
-  const doReject = (id: string) => {
-    if (!rejReason.trim() || rejReason.trim().length < 10) {
-      showToast('Please enter a rejection reason (min 10 chars).', 'err'); return;
+    if (!d) return;
+
+    const { error: depError } = await supabase.from('deposits').update({ status: 'approved' }).eq('id', id);
+    if (depError) { showToast('✕ Error confirming deposit', 'err'); return; }
+
+    const { data: profile } = await supabase.from('profiles').select('balance').eq('id', d.userId).single();
+    const newBalance = (Number(profile?.balance) || 0) + d.amt;
+    const { error: profError } = await supabase.from('profiles').update({ balance: newBalance }).eq('id', d.userId);
+    
+    if (profError) {
+      showToast('✕ Error updating balance', 'err');
+    } else {
+      showToast(`✓ DEP ${id} confirmed — $${d.amt.toLocaleString()} USDT`, 'ok');
+      fetchData();
     }
-    setDeposits(prev => prev.map(d => d.id===id ? {...d, status:'rejected', reason:rejReason} : d));
     closeModal();
-    showToast(`✕ DEP ${id} rejected`, 'err');
   };
-  const confirmAllPending = () => {
+
+  const doReject = async (id: string) => {
+    if (!rejReason.trim() || rejReason.trim().length < 5) {
+      showToast('Please enter a rejection reason.', 'err'); return;
+    }
+    
+    const { error } = await supabase.from('deposits').update({ status: 'rejected', rejection_reason: rejReason }).eq('id', id);
+    if (error) {
+      showToast('✕ Error rejecting deposit', 'err');
+    } else {
+      showToast(`✕ DEP ${id} rejected`, 'err');
+      fetchData();
+    }
+    closeModal();
+  };
+
+  const confirmAllPending = async () => {
     const rows = getFiltered().filter(d => d.status === 'pending');
     if (!rows.length) { showToast('No pending deposits in current view.'); return; }
     const total = rows.reduce((s,d) => s+d.amt, 0);
     if (!confirm(`Confirm all ${rows.length} pending deposits? Total: $${total.toLocaleString()}`)) return;
-    const ids = new Set(rows.map(d => d.id));
-    setDeposits(prev => prev.map(d => ids.has(d.id) ? {...d, status:'confirmed'} : d));
+    
+    for (const d of rows) {
+      await supabase.from('deposits').update({ status: 'approved' }).eq('id', d.id);
+      const { data: profile } = await supabase.from('profiles').select('balance').eq('id', d.userId).single();
+      const newBalance = (Number(profile?.balance) || 0) + d.amt;
+      await supabase.from('profiles').update({ balance: newBalance }).eq('id', d.userId);
+    }
+
     showToast(`✓ ${rows.length} deposits confirmed!`, 'ok');
+    fetchData();
   };
+
   const copyTxt = (t: string) => { navigator.clipboard?.writeText(t).catch(() => {}); showToast('📋 Copied to clipboard!'); };
 
   const exportCSV = () => {
     const rows = getFiltered();
-    const hdr = ['ID','User','Username','Amount','Network','Hash','Date','Season','Status','Reason','Note'];
-    const lines = [hdr.join(','), ...rows.map(d => [d.id,`"${d.name}"`,d.un,d.amt,d.network,`"${d.hash}"`,d.date,d.season,d.status,`"${d.reason}"`,`"${d.note}"`].join(','))];
+    const hdr = ['ID','User','Username','Amount','Network','Hash','Date','Status','Reason'];
+    const lines = [hdr.join(','), ...rows.map(d => [d.id,`"${d.name}"`,d.un,d.amt,d.network,`"${d.hash}"`,d.date,d.status,`"${d.reason}"`].join(','))];
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type:'text/csv' }));
     a.download = `deposits-${new Date().toISOString().slice(0,10)}.csv`; a.click();
@@ -218,7 +263,7 @@ export default function AdminDepositPage() {
           {/* Note bar */}
           {modalMode === 'confirm' && curModal && (
             <div className="dm-conf-note dm-cn-ok">
-              You are confirming a deposit of <strong>${fmtAmt(curModal.amt)} USDT</strong> via <strong>{curModal.network}</strong> from <strong>{curModal.name}</strong>. Please verify the transaction hash before proceeding.
+              You are confirming a deposit of <strong>${fmtAmt(curModal.amt)} USDT</strong> via <strong>{curModal.network}</strong> from <strong>{curModal.name}</strong>. This will credit the user's balance.
             </div>
           )}
           {modalMode === 'reject' && curModal && (
@@ -238,11 +283,9 @@ export default function AdminDepositPage() {
                   <div className="dm-dcell"><div className="dm-dl">Username</div><div className="dm-dv dm-td-sub">{curModal.un}</div></div>
                   <div className="dm-dcell"><div className="dm-dl">Amount (USDT)</div><div className="dm-dv gold">+${fmtAmt(curModal.amt)}</div></div>
                   <div className="dm-dcell"><div className="dm-dl">Network</div><div className="dm-dv">{curModal.network}</div></div>
-                  <div className="dm-dcell"><div className="dm-dl">Season</div><div className="dm-dv">{curModal.season}</div></div>
                   <div className="dm-dcell"><div className="dm-dl">Date</div><div className="dm-dv">{curModal.date}</div></div>
                   <div className="dm-dcell dm-dfull"><div className="dm-dl">Transaction Hash</div><div className="dm-dv mono" onClick={() => copyTxt(curModal.hash)} title="Click to copy">{curModal.hash}</div></div>
                   {curModal.reason && <div className="dm-dcell dm-dfull"><div className="dm-dl">Rejection Reason</div><div className="dm-dv err-c">{curModal.reason}</div></div>}
-                  <div className="dm-dcell dm-dfull"><div className="dm-dl">Note</div><div className="dm-dv">{curModal.note}</div></div>
                 </div>
               )}
               {modalMode === 'confirm' && (
@@ -250,7 +293,6 @@ export default function AdminDepositPage() {
                   <div className="dm-dcell"><div className="dm-dl">User</div><div className="dm-dv">{curModal.name}</div></div>
                   <div className="dm-dcell"><div className="dm-dl">Amount</div><div className="dm-dv gold">+${fmtAmt(curModal.amt)}</div></div>
                   <div className="dm-dcell"><div className="dm-dl">Network</div><div className="dm-dv">{curModal.network}</div></div>
-                  <div className="dm-dcell"><div className="dm-dl">Season</div><div className="dm-dv">{curModal.season}</div></div>
                   <div className="dm-dcell dm-dfull"><div className="dm-dl">Transaction Hash (verify before confirming)</div><div className="dm-dv mono" onClick={() => copyTxt(curModal.hash)} title="Click to copy">{curModal.hash}</div></div>
                 </div>
               )}
@@ -263,9 +305,8 @@ export default function AdminDepositPage() {
                   </div>
                   <div className="dm-fg">
                     <label className="dm-fl" htmlFor="rej-reason">Rejection Reason <span style={{ color:'var(--error)' }}>*</span></label>
-                    <textarea className="dm-fi-ta" id="rej-reason" placeholder="Enter a clear reason for rejection. This message will be sent to the user…"
+                    <textarea className="dm-fi-ta" id="rej-reason" placeholder="Enter a clear reason for rejection..."
                       value={rejReason} onChange={e => setRejReason(e.target.value)} />
-                    <span style={{ fontSize:'.67rem', color:'var(--text-sec)', marginTop:2 }}>Required · Minimum 10 characters.</span>
                   </div>
                 </>
               )}
@@ -277,7 +318,7 @@ export default function AdminDepositPage() {
             {modalMode === 'view' && curModal && (
               curModal.status === 'pending'
                 ? <>
-                    <button className="dm-btn-conf" style={{ flex:1, padding:10, fontSize:'.72rem' }} onClick={() => openConfirmModal(curModal.id)}>✓ Confirm</button>
+                    <button className="dm-btn-conf" style={{ flex:1, padding:10, fontSize:'.72rem' }} onClick={() => doConfirm(curModal.id)}>✓ Confirm</button>
                     <button className="dm-btn-rej"  style={{ flex:1, padding:10, fontSize:'.72rem' }} onClick={() => openRejectModal(curModal.id)}>✕ Reject</button>
                     <button className="dm-btn-ghost" style={{ padding:'10px 14px', fontSize:'.72rem' }} onClick={closeModal}>Close</button>
                   </>
@@ -330,7 +371,6 @@ export default function AdminDepositPage() {
                 <div className="adm-header-uname">Admin User</div>
                 <div className="adm-header-role">Super Administrator</div>
               </div>
-              <button className="dm-btn-logout" onClick={() => showToast('Logging out…')}>Logout</button>
             </div>
           </header>
 
@@ -350,7 +390,7 @@ export default function AdminDepositPage() {
                   <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24" style={{ position:'relative', zIndex:1 }}><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
                   <span>Export CSV</span>
                 </button>
-                <button className="dm-btn-ghost" onClick={() => showToast('Data refreshed.')}>↻</button>
+                <button className="dm-btn-ghost" onClick={() => { showToast('Data refreshed.'); fetchData(); }}>↻</button>
               </div>
             </div>
 
@@ -365,45 +405,26 @@ export default function AdminDepositPage() {
               <div className="dm-stat-card">
                 <div className="dm-st-icon" style={{ background:'rgba(74,103,65,.08)' }}><svg viewBox="0 0 24 24" style={{ stroke:'var(--sage)' }}><polyline points="20 6 9 17 4 12"/></svg></div>
                 <div className="dm-st-num">{conf.length}</div>
-                <div className="dm-st-lbl">Confirmed</div>
+                <div className="dm-st-lbl">Approved</div>
                 <div className="dm-st-sub">${fmtAmt(confAmt)}</div>
               </div>
               <div className="dm-stat-card">
                 <div className="dm-st-icon" style={{ background:'rgba(28,28,28,.06)' }}><svg viewBox="0 0 24 24" style={{ stroke:'var(--charcoal)' }}><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-4 0v2"/></svg></div>
-                <div className="dm-st-num">${todTotal.toLocaleString()}</div>
-                <div className="dm-st-lbl">Received Today</div>
-                <div className="dm-st-sub">Apr 1, 2025</div>
+                <div className="dm-st-num">{deposits.length}</div>
+                <div className="dm-st-lbl">Total Records</div>
+                <div className="dm-st-sub">All time</div>
               </div>
               <div className="dm-stat-card">
                 <div className="dm-st-icon" style={{ background:'rgba(184,147,90,.07)' }}><svg viewBox="0 0 24 24" style={{ stroke:'var(--gold-d)' }}><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg></div>
-                <div className="dm-st-num">${Math.round(monTotal/1000)}K</div>
-                <div className="dm-st-lbl">Monthly (Confirmed)</div>
-                <div className="dm-st-sub">Mar – Apr 2025</div>
+                <div className="dm-st-num">${Math.round(confAmt/1000)}K</div>
+                <div className="dm-st-lbl">Total Approved</div>
+                <div className="dm-st-sub">USDT</div>
               </div>
-            </div>
-
-            {/* Chart */}
-            <div className="dm-chart-card dm-reveal" style={{ marginBottom:16 }}>
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:8, marginBottom:14 }}>
-                <div>
-                  <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1.05rem', color:'var(--ink)' }}>Deposit Volume</div>
-                  <div style={{ fontSize:'.68rem', color:'var(--text-sec)', marginTop:2 }}>Last 7 days · USDT received</div>
-                </div>
-                <div style={{ display:'flex', gap:10, alignItems:'center' }}>
-                  {[['var(--sage)','Confirmed'],['var(--gold)','Pending'],['#9b3a3a','Rejected']].map(([c,l]) => (
-                    <div key={l} style={{ display:'flex', alignItems:'center', gap:5 }}>
-                      <span className="dm-leg-dot" style={{ background:c }}/>
-                      <span style={{ fontSize:'.65rem', color:'var(--text-sec)' }}>{l}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-              <div className="dm-ch-h"><canvas ref={chartRef} /></div>
             </div>
 
             {/* Chips */}
             <div className="dm-chips dm-reveal" style={{ marginBottom:14 }}>
-              {[['all','All Status'],['pending','Pending'],['confirmed','Confirmed'],['rejected','Rejected']].map(([val,lbl]) => (
+              {[['all','All Status'],['pending','Pending'],['approved','Approved'],['rejected','Rejected']].map(([val,lbl]) => (
                 <div key={val} className={`dm-chip${chip===val?' active':''}`} onClick={() => setChip(val)}>{lbl}</div>
               ))}
             </div>
@@ -425,11 +446,13 @@ export default function AdminDepositPage() {
                     <tr>
                       <th>User</th><th>Username</th><th>Amount (USDT)</th>
                       <th>Network</th><th>Transaction Hash</th>
-                      <th>Date</th><th>Season</th><th>Status</th><th>Action</th>
+                      <th>Date</th><th>Status</th><th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filtered.map(d => (
+                    {loading ? (
+                      <tr><td colSpan={8} style={{ textAlign:'center', padding:40 }}>Loading...</td></tr>
+                    ) : filtered.map(d => (
                       <tr key={d.id}>
                         <td><div className="dm-td-u"><div className="dm-td-av">{d.init}</div><div className="dm-td-nm">{d.name}</div></div></td>
                         <td><span className="dm-td-sub">{d.un}</span></td>
@@ -437,12 +460,11 @@ export default function AdminDepositPage() {
                         <td><span className="dm-badge" style={{ background:'rgba(28,28,28,.06)', border:'1px solid rgba(28,28,28,.1)', color:'var(--charcoal)', fontSize:'.56rem' }}>{d.network}</span></td>
                         <td><span className="dm-td-mono" title={d.hash} onClick={() => copyTxt(d.hash)}>{shortHash(d.hash)}</span></td>
                         <td><span className="dm-td-sub">{d.date}</span></td>
-                        <td><span className="dm-badge dm-b-pend" style={{ fontSize:'.56rem' }}>{d.season}</span></td>
                         <td><span className={`dm-badge ${bCls(d.status)}`}>{d.status}</span></td>
                         <td>
                           {d.status === 'pending' ? (
                             <div style={{ display:'flex', gap:5, flexWrap:'wrap' }}>
-                              <button className="dm-btn-conf" onClick={() => openConfirmModal(d.id)}>Confirm</button>
+                              <button className="dm-btn-conf" onClick={() => doConfirm(d.id)}>Confirm</button>
                               <button className="dm-btn-rej"  onClick={() => openRejectModal(d.id)}>Reject</button>
                               <button className="dm-btn-view" onClick={() => openView(d.id)}>View</button>
                             </div>
@@ -452,8 +474,8 @@ export default function AdminDepositPage() {
                         </td>
                       </tr>
                     ))}
-                    {filtered.length === 0 && (
-                      <tr><td colSpan={9}>
+                    {!loading && filtered.length === 0 && (
+                      <tr><td colSpan={8}>
                         <div className="dm-empty-state">
                           <div className="dm-empty-t">No deposits found</div>
                           <div className="dm-empty-b">Try adjusting your search or filter.</div>
@@ -462,14 +484,6 @@ export default function AdminDepositPage() {
                     )}
                   </tbody>
                 </table>
-              </div>
-              <div className="dm-pag">
-                <div className="dm-pag-info">Showing {filtered.length} of {deposits.length} records</div>
-                <div className="dm-pag-btns">
-                  <button className="dm-pag-btn" onClick={() => showToast('Previous page')}>← Prev</button>
-                  <button className="dm-pag-btn active">1</button>
-                  <button className="dm-pag-btn" onClick={() => showToast('Next page')}>Next →</button>
-                </div>
               </div>
             </div>
 

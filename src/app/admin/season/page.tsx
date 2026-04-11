@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import AdminSidebar from '../AdminSidebar';
+import { createClient } from '@/utils/supabase/client';
 
 /* ══════════════════════════════
    TYPES
@@ -9,7 +10,7 @@ interface AutoClose { finalROI: number }
 interface ActiveSeason {
   id: string; name: string; entryDate: string; finishDate: string;
   roi: string; pool: number; min: number; max: number;
-  status: 'running' | 'paused'; poolFilled: number; investors: number;
+  status: 'upcoming' | 'open' | 'running' | 'closed' | 'paused'; poolFilled: number; investors: number;
   dayStart: string; autoClose: AutoClose | null;
 }
 interface PrevSeason {
@@ -28,33 +29,38 @@ function fmtUSDT(n: number) {
 }
 function fmtDate(d: string) {
   if (!d) return '—';
-  return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  try {
+    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  } catch (e) {
+    return d;
+  }
 }
 function calcRunningDays(start: string, end: string) {
   if (!start || !end) return 0;
-  const s = new Date(start + 'T00:00:00'), e = new Date(end + 'T00:00:00');
+  const s = new Date(start), e = new Date(end);
   return Math.max(0, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
 }
 function calcDaysCurrent(dayStart: string) {
   if (!dayStart) return 0;
-  const s = new Date(dayStart + 'T00:00:00'), now = new Date();
+  const s = new Date(dayStart), now = new Date();
   return Math.max(0, Math.round((now.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
 }
 function getRunStart(entryDate: string) {
-  const d = new Date(entryDate + 'T00:00:00');
+  const d = new Date(entryDate);
   d.setDate(d.getDate() + 1);
   return d.toISOString().split('T')[0];
 }
 function calcPeriodStr(entryDate: string, finishDate: string) {
   if (!entryDate || !finishDate) return '— Select dates above —';
-  const ed = new Date(entryDate + 'T00:00:00'), fd = new Date(finishDate + 'T00:00:00');
+  const ed = new Date(entryDate), fd = new Date(finishDate);
   if (fd <= ed) return '⚠ Finish date must be after entry date';
   const rs = new Date(ed); rs.setDate(rs.getDate() + 1);
   const days = calcRunningDays(rs.toISOString().split('T')[0], finishDate);
   return `${fmtDate(rs.toISOString().split('T')[0])} → ${fmtDate(finishDate)} (${days} days)`;
 }
 function countdownText(finishDate: string) {
-  const target = new Date(finishDate + 'T23:59:59');
+  const target = new Date(finishDate);
+  target.setHours(23, 59, 59, 999);
   const msLeft = target.getTime() - Date.now();
   if (msLeft <= 0) return 'Closing now…';
   const dLeft = Math.floor(msLeft / (1000 * 60 * 60 * 24));
@@ -65,29 +71,14 @@ function countdownText(finishDate: string) {
 }
 
 /* ══════════════════════════════
-   INITIAL DATA
-══════════════════════════════ */
-const INIT_ACTIVE: ActiveSeason[] = [
-  { id:'s5', name:'Season 5', entryDate:'2026-01-15', finishDate:'2026-03-31', roi:'18% – 28%', pool:8000000,  min:100, max:20000, status:'running', poolFilled:52, investors:3241, dayStart:'2026-01-16', autoClose:null },
-  { id:'s6', name:'Season 6', entryDate:'2026-02-01', finishDate:'2026-04-30', roi:'20% – 30%', pool:12000000, min:200, max:30000, status:'running', poolFilled:97, investors:5108, dayStart:'2026-02-02', autoClose:null },
-  { id:'s7', name:'Season 7', entryDate:'2026-03-10', finishDate:'2026-05-31', roi:'22% – 35%', pool:15000000, min:500, max:50000, status:'paused',  poolFilled:18, investors:812,  dayStart:'2026-03-11', autoClose:null },
-];
-const INIT_PREV: PrevSeason[] = [
-  { id:'ps1', name:'Season 1', entryDate:'2025-04-01', finishDate:'2025-06-30', roi:'18% – 26%', finalROI:24.2, pool:2000000, min:50,  max:10000 },
-  { id:'ps2', name:'Season 2', entryDate:'2025-07-01', finishDate:'2025-09-30', roi:'19% – 28%', finalROI:27.8, pool:3500000, min:100, max:15000 },
-  { id:'ps3', name:'Season 3', entryDate:'2025-10-01', finishDate:'2025-12-31', roi:'20% – 30%', finalROI:18.5, pool:5000000, min:100, max:20000 },
-  { id:'ps4', name:'Season 4', entryDate:'2025-11-01', finishDate:'2026-01-14', roi:'22% – 32%', finalROI:31.1, pool:6500000, min:200, max:25000 },
-];
-
-/* ══════════════════════════════
    COMPONENT
 ══════════════════════════════ */
 export default function AdminSeasonPage() {
+  const supabase = createClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toast, setToast]             = useState({ msg: '', cls: '', show: false });
-  const [active, setActive]           = useState<ActiveSeason[]>(INIT_ACTIVE.map(s => ({ ...s })));
-  const [prev,   setPrev]             = useState<PrevSeason[]>(INIT_PREV.map(s => ({ ...s })));
-  const [counter, setCounter]         = useState(7);
+  const [active, setActive]           = useState<ActiveSeason[]>([]);
+  const [prev,   setPrev]             = useState<PrevSeason[]>([]);
   const autoCloseTimers               = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const bgRef                         = useRef<HTMLCanvasElement>(null);
   const toastTimer                    = useRef<ReturnType<typeof setTimeout>>();
@@ -98,6 +89,7 @@ export default function AdminSeasonPage() {
   const [smTitle, setSmTitle]   = useState('Create New Season');
   const [smSub, setSmSub]       = useState('Fill in the details to launch a new season');
   const [smBtnTxt, setSmBtnTxt] = useState('Start Season');
+  const [fName, setFName]       = useState('');
   const [fEntry, setFEntry]     = useState('');
   const [fFinish, setFFinish]   = useState('');
   const [fRoi, setFRoi]         = useState('');
@@ -119,6 +111,61 @@ export default function AdminSeasonPage() {
   const [dmId, setDmId]           = useState('');
   const [dmSub, setDmSub]         = useState('');
   const [dmDate, setDmDate]       = useState('');
+
+  const [loading, setLoading] = useState(true);
+
+  /* ── Fetch Data ── */
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    const { data: seasons, error } = await supabase.from('seasons').select('*').order('created_at', { ascending: false });
+    
+    if (error) {
+      showToast('✕ Error fetching seasons', 'err');
+    } else if (seasons) {
+      const activeArr: ActiveSeason[] = [];
+      const prevArr: PrevSeason[] = [];
+
+      seasons.forEach(s => {
+        if (s.status === 'closed') {
+          prevArr.push({
+            id: s.id,
+            name: s.name,
+            entryDate: s.start_date || '',
+            finishDate: s.end_date || '',
+            roi: s.roi_range || '',
+            finalROI: Number(s.final_roi) || 0,
+            pool: Number(s.pool_cap) || 0,
+            min: Number(s.min_entry) || 0,
+            max: 50000 // default max if not in schema
+          });
+        } else {
+          activeArr.push({
+            id: s.id,
+            name: s.name,
+            entryDate: s.start_date || '',
+            finishDate: s.end_date || '',
+            roi: s.roi_range || '',
+            pool: Number(s.pool_cap) || 0,
+            min: Number(s.min_entry) || 0,
+            max: 50000,
+            status: s.status as any,
+            poolFilled: (Number(s.current_pool) / Number(s.pool_cap)) * 100 || 0,
+            investors: 0,
+            dayStart: s.start_date || '',
+            autoClose: null
+          });
+        }
+      });
+
+      setActive(activeArr);
+      setPrev(prevArr);
+    }
+    setLoading(false);
+  }, [supabase]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   /* ── Toast ── */
   const showToast = useCallback((msg: string, cls = '') => {
@@ -193,21 +240,23 @@ export default function AdminSeasonPage() {
     if (autoCloseTimers.current[id]) { clearTimeout(autoCloseTimers.current[id]); delete autoCloseTimers.current[id]; }
   }, []);
 
-  const executeAutoClose = useCallback((id: string) => {
-    setActive(prev => {
-      const s = prev.find(x => x.id === id);
-      if (!s || !s.autoClose) return prev;
-      const roi = s.autoClose.finalROI;
-      setPrev(p => [{ id:s.id, name:s.name, entryDate:s.entryDate, finishDate:s.finishDate, roi:s.roi, finalROI:roi, pool:s.pool, min:s.min, max:s.max }, ...p]);
-      showToast(`⏰ ${s.name} auto-closed with +${roi}% ROI`, 'ok');
-      return prev.filter(x => x.id !== id);
-    });
+  const executeAutoClose = useCallback(async (id: string) => {
+    const s = active.find(x => x.id === id);
+    if (!s || !s.autoClose) return;
+    const roi = s.autoClose.finalROI;
+    
+    const { error } = await supabase.from('seasons').update({ status: 'closed', final_roi: roi }).eq('id', id);
+    if (error) { showToast('✕ Auto-close failed', 'err'); return; }
+
+    showToast(`⏰ ${s.name} auto-closed with +${roi}% ROI`, 'ok');
+    fetchData();
     cancelAutoClose(id);
-  }, [cancelAutoClose, showToast]);
+  }, [active, cancelAutoClose, fetchData, showToast, supabase]);
 
   const scheduleAutoClose = useCallback((s: ActiveSeason) => {
     cancelAutoClose(s.id);
-    const target = new Date(s.finishDate + 'T23:59:59');
+    const target = new Date(s.finishDate);
+    target.setHours(23, 59, 59, 999);
     const msUntil = target.getTime() - Date.now();
     if (msUntil <= 0) { executeAutoClose(s.id); return; }
     autoCloseTimers.current[s.id] = setTimeout(() => executeAutoClose(s.id), msUntil);
@@ -215,70 +264,82 @@ export default function AdminSeasonPage() {
 
   /* ── Season modal open ── */
   const openSeasonModal = (editId?: string) => {
-    setFEntry(''); setFFinish(''); setFRoi(''); setFPool(''); setFMin(''); setFMax('');
+    setFName(''); setFEntry(''); setFFinish(''); setFRoi(''); setFPool(''); setFMin(''); setFMax('');
     setSmEditId(editId || '');
     if (editId) {
-      const s = [...active, ...prev].find(x => x.id === editId);
+      const s = [...active].find(x => x.id === editId) || prev.find(x => x.id === editId);
       if (!s) return;
       setSmTitle(`Edit ${s.name}`); setSmSub('Update season details'); setSmBtnTxt('Save Changes');
-      setFEntry(s.entryDate); setFFinish(s.finishDate); setFRoi(s.roi);
-      setFPool(String(s.pool)); setFMin(String(s.min)); setFMax(String(s.max));
+      setFName(s.name); setFEntry(s.entryDate.split('T')[0]); setFFinish(s.finishDate.split('T')[0]); setFRoi(s.roi);
+      setFPool(String(s.pool)); setFMin(String(s.min)); setFMax(String(s.max || 50000));
     } else {
       setSmTitle('Create New Season'); setSmSub('Fill in the details to launch a new season'); setSmBtnTxt('Start Season');
     }
     setSmOpen(true);
   };
 
-  const submitSeasonModal = () => {
+  const submitSeasonModal = async () => {
+    if (!fName.trim()) { showToast('⚠ Please enter season name', 'err'); return; }
     if (!fEntry || !fFinish) { showToast('⚠ Please set entry and finish dates', 'err'); return; }
-    if (new Date(fFinish + 'T00:00:00') <= new Date(fEntry + 'T00:00:00')) { showToast('⚠ Finish date must be after entry date', 'err'); return; }
+    if (new Date(fFinish) <= new Date(fEntry)) { showToast('⚠ Finish date must be after entry date', 'err'); return; }
     if (!fRoi.trim()) { showToast('⚠ Please enter expected ROI range', 'err'); return; }
     const pool = parseFloat(fPool), mn = parseFloat(fMin), mx = parseFloat(fMax);
     if (isNaN(pool) || pool <= 0) { showToast('⚠ Please enter a valid pool size', 'err'); return; }
     if (isNaN(mn) || mn <= 0 || isNaN(mx) || mx <= 0) { showToast('⚠ Please set min / max entry amounts', 'err'); return; }
     if (mn >= mx) { showToast('⚠ Minimum entry must be less than maximum', 'err'); return; }
 
+    const seasonData = {
+      name: fName,
+      start_date: fEntry,
+      end_date: fFinish,
+      roi_range: fRoi,
+      pool_cap: pool,
+      min_entry: mn,
+      status: smEditId ? undefined : 'open'
+    };
+
     if (smEditId) {
-      setActive(a => a.map(s => s.id === smEditId ? { ...s, entryDate:fEntry, finishDate:fFinish, roi:fRoi, pool, min:mn, max:mx } : s));
-      setPrev(p => p.map(s => s.id === smEditId ? { ...s, entryDate:fEntry, finishDate:fFinish, roi:fRoi, pool, min:mn, max:mx } : s));
-      const s = active.find(x => x.id === smEditId);
-      if (s?.autoClose) scheduleAutoClose({ ...s, entryDate:fEntry, finishDate:fFinish, roi:fRoi, pool, min:mn, max:mx });
+      const { error } = await supabase.from('seasons').update(seasonData).eq('id', smEditId);
+      if (error) { showToast('✕ Error updating season', 'err'); return; }
       showToast(`✓ Season updated`, 'ok');
     } else {
-      const nc = counter + 1;
-      setCounter(nc);
-      const runStart = getRunStart(fEntry);
-      const ns: ActiveSeason = { id:'s'+nc, name:'Season '+nc, entryDate:fEntry, finishDate:fFinish, roi:fRoi, pool, min:mn, max:mx, status:'running', poolFilled:0, investors:0, dayStart:runStart, autoClose:null };
-      setActive(a => [...a, ns]);
-      showToast(`✓ Season ${nc} launched`, 'ok');
+      const { error } = await supabase.from('seasons').insert([seasonData]);
+      if (error) { showToast('✕ Error launching season', 'err'); return; }
+      showToast(`✓ Season launched`, 'ok');
     }
+    
     setSmOpen(false);
+    fetchData();
   };
 
   /* ── Pause / resume ── */
-  const togglePause = (id: string) => {
-    setActive(a => {
-      const s = a.find(x => x.id === id); if (!s) return a;
-      const newStatus = s.status === 'running' ? 'paused' : 'running';
-      showToast(newStatus === 'running' ? `▶ ${s.name} resumed` : `⏸ ${s.name} paused`, 'ok');
-      return a.map(x => x.id === id ? { ...x, status: newStatus } : x);
-    });
+  const togglePause = async (id: string) => {
+    const s = active.find(x => x.id === id); if (!s) return;
+    const newStatus = s.status === 'running' ? 'paused' : 'running';
+    
+    const { error } = await supabase.from('seasons').update({ status: newStatus }).eq('id', id);
+    if (error) { showToast('✕ Error updating status', 'err'); return; }
+
+    showToast(newStatus === 'running' ? `▶ ${s.name} resumed` : `⏸ ${s.name} paused`, 'ok');
+    fetchData();
   };
 
   /* ── Date modal ── */
   const openDateModal = (id: string) => {
     const s = active.find(x => x.id === id); if (!s) return;
-    setDmId(id); setDmSub(`Change finish date for ${s.name}`); setDmDate(s.finishDate); setDmOpen(true);
+    setDmId(id); setDmSub(`Change finish date for ${s.name}`); setDmDate(s.finishDate.split('T')[0]); setDmOpen(true);
   };
-  const confirmDateChange = () => {
+  const confirmDateChange = async () => {
     const s = active.find(x => x.id === dmId);
     if (!s || !dmDate) { showToast('⚠ Please select a date', 'err'); return; }
     if (new Date(dmDate) <= new Date(s.entryDate)) { showToast('⚠ Date must be after entry date', 'err'); return; }
-    const updated = { ...s, finishDate: dmDate };
-    setActive(a => a.map(x => x.id === dmId ? updated : x));
-    if (s.autoClose) scheduleAutoClose(updated);
+    
+    const { error } = await supabase.from('seasons').update({ end_date: dmDate }).eq('id', dmId);
+    if (error) { showToast('✕ Error updating date', 'err'); return; }
+
     setDmOpen(false);
     showToast(`✓ ${s.name} finish date updated to ${fmtDate(dmDate)}`, 'ok');
+    fetchData();
   };
 
   /* ── Close modal ── */
@@ -290,29 +351,32 @@ export default function AdminSeasonPage() {
     setCmAuto(!!s.autoClose); setCmActiveRoi(s.autoClose?.finalROI ?? null);
     setCmOpen(true);
   };
-  const confirmCloseSeason = () => {
+  const confirmCloseSeason = async () => {
     const roi = parseFloat(cmRoi);
     if (isNaN(roi)) { showToast('⚠ Please enter a Final ROI', 'err'); return; }
     const s = active.find(x => x.id === cmId); if (!s) return;
+    
     if (cmAuto) {
+      // For auto-close, we might need a separate field in DB or handle it client-side/edge function.
+      // Assuming we just set it in state for now as requested.
       const updated = { ...s, autoClose: { finalROI: roi } };
       setActive(a => a.map(x => x.id === cmId ? updated : x));
       scheduleAutoClose(updated);
       setCmOpen(false);
       showToast(`⏰ Auto-Close set for ${s.name} — closes on ${fmtDate(s.finishDate)} with +${roi}% ROI`, 'ok');
     } else {
-      cancelAutoClose(cmId);
-      setPrev(p => [{ id:s.id, name:s.name, entryDate:s.entryDate, finishDate:new Date().toISOString().split('T')[0], roi:s.roi, finalROI:roi, pool:s.pool, min:s.min, max:s.max }, ...p]);
-      setActive(a => a.filter(x => x.id !== cmId));
+      const { error } = await supabase.from('seasons').update({ status: 'closed', final_roi: roi }).eq('id', cmId);
+      if (error) { showToast('✕ Error closing season', 'err'); return; }
+      
       setCmOpen(false);
       showToast(`✓ ${s.name} closed with +${roi}% ROI`, 'ok');
+      fetchData();
     }
   };
   const cancelAutoCloseUI = (id: string) => {
-    const s = active.find(x => x.id === id); if (!s) return;
     cancelAutoClose(id);
     setActive(a => a.map(x => x.id === id ? { ...x, autoClose: null } : x));
-    showToast(`✕ Auto-Close cancelled for ${s.name}`);
+    showToast(`✕ Auto-Close cancelled for ${active.find(x => x.id === id)?.name}`);
   };
 
   const periodDisplay = calcPeriodStr(fEntry, fFinish);
@@ -341,6 +405,10 @@ export default function AdminSeasonPage() {
           </div>
           <div className="sm-modal-body">
             <div style={{ display:'grid', gap:14 }}>
+              <div className="sm-form-group">
+                <label className="sm-form-label">Season Name</label>
+                <input className="sm-form-input" type="text" placeholder="e.g. Season 8" value={fName} onChange={e => setFName(e.target.value)} />
+              </div>
               <div className="sm-form-grid-2col">
                 <div className="sm-form-group">
                   <label className="sm-form-label">Last Entry Date</label>
@@ -557,7 +625,9 @@ export default function AdminSeasonPage() {
                 <span style={{ fontSize:'.7rem', color:'var(--text-sec)' }}>{active.length} season{active.length!==1?'s':''} running</span>
               </div>
 
-              {active.length === 0 ? (
+              {loading ? (
+                <div style={{ padding:40, textAlign:'center' }}>Loading seasons...</div>
+              ) : active.length === 0 ? (
                 <div className="sm-empty-state">
                   <span className="sm-empty-icon">📈</span>
                   <div>No active seasons at the moment.</div>
@@ -568,7 +638,7 @@ export default function AdminSeasonPage() {
               ) : (
                 <div style={{ display:'grid', gap:14 }}>
                   {active.map(s => {
-                    const runStart  = getRunStart(s.entryDate);
+                    const runStart  = s.entryDate;
                     const totalDays = calcRunningDays(runStart, s.finishDate);
                     const curDay    = Math.min(calcDaysCurrent(s.dayStart), totalDays);
                     const dayPct    = totalDays > 0 ? Math.round(curDay / totalDays * 100) : 0;
@@ -581,7 +651,7 @@ export default function AdminSeasonPage() {
                         <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
                           <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
                             <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1.18rem', fontWeight:500, color:'var(--ink)' }}>{s.name}</div>
-                            <span className={`sm-badge ${isRunning?'sm-b-running':'sm-b-paused'}`}>{isRunning?'Running':'Paused'}</span>
+                            <span className={`sm-badge ${isRunning?'sm-b-running':s.status==='open'?'sm-b-pending':'sm-b-paused'}`}>{s.status.toUpperCase()}</span>
                             {hasAuto && <span className="sm-badge sm-b-autoclose">⏰ Auto-Close Set</span>}
                           </div>
                           <div style={{ fontSize:'.68rem', color:'var(--text-sec)' }}>{fmtDate(s.entryDate)} → {fmtDate(s.finishDate)}</div>
@@ -600,7 +670,7 @@ export default function AdminSeasonPage() {
                         {/* Meta grid */}
                         <div className="sm-season-meta-grid">
                           {[
-                            ['Last Entry', fmtDate(s.entryDate), ''],
+                            ['Start Date', fmtDate(s.entryDate), ''],
                             ['Finish Date', fmtDate(s.finishDate), ''],
                             ['Running Period', `${totalDays} days`, ''],
                             ['Expected ROI', s.roi, 'gold'],
@@ -626,7 +696,7 @@ export default function AdminSeasonPage() {
                           <div>
                             <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
                               <span style={{ fontSize:'.6rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--text-sec)' }}>Pool Filled</span>
-                              <span style={{ fontSize:'.6rem', color:'var(--text-sec)' }}>{s.poolFilled}% · {fmt(s.investors)} investors</span>
+                              <span style={{ fontSize:'.6rem', color:'var(--text-sec)' }}>{s.poolFilled.toFixed(1)}% · {fmt(s.investors)} investors</span>
                             </div>
                             <div className="sm-pool-bar"><div className="sm-pool-fill" style={{ width:`${s.poolFilled}%`, background:'linear-gradient(90deg,var(--sage),var(--sage-l))' }}/></div>
                           </div>
@@ -678,7 +748,7 @@ export default function AdminSeasonPage() {
                       </thead>
                       <tbody>
                         {prev.map(s => {
-                          const rs   = getRunStart(s.entryDate);
+                          const rs   = s.entryDate;
                           const days = calcRunningDays(rs, s.finishDate);
                           const roiColor = s.finalROI >= 20 ? 'var(--sage)' : s.finalROI >= 10 ? 'var(--gold)' : 'var(--error)';
                           return (

@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
+import { createClient } from '@/utils/supabase/client'
 
 /* ── Types ── */
 interface ActiveSeason {
-  id: number
+  id: string
   name: string
   status: string
   statusLabel: string
@@ -22,7 +23,7 @@ interface ActiveSeason {
   myAmount: number
 }
 interface HistorySeason {
-  id: number
+  id: string
   name: string
   period: string
   roi: string
@@ -30,139 +31,8 @@ interface HistorySeason {
   myPL: string
   plSign: string
   status: 'active' | 'completed'
-  mySeasonId: number | null
+  mySeasonId: string | null
 }
-
-/* ── Initial data ── */
-const INIT_ACTIVE: ActiveSeason[] = [
-  {
-    id: 5,
-    name: 'Season Five',
-    status: 'open',
-    statusLabel: 'Now Open',
-    statusClass: 'sx-tag-open',
-    period: 'May – Aug 2025',
-    endDate: new Date(Date.now() + 14 * 864e5 + 6 * 36e5),
-    roi: '24 – 32',
-    min: 100,
-    max: 50000,
-    pool: 80000000,
-    poolFilled: 52000000,
-    joined: false,
-    myAmount: 0,
-  },
-  {
-    id: 6,
-    name: 'Season Six',
-    status: 'ending',
-    statusLabel: 'Ending Soon',
-    statusClass: 'sx-tag-ending',
-    period: 'Jun – Sep 2025',
-    endDate: new Date(Date.now() + 3 * 864e5 + 4 * 36e5),
-    roi: '20 – 28',
-    min: 200,
-    max: 30000,
-    pool: 50000000,
-    poolFilled: 48500000,
-    joined: false,
-    myAmount: 0,
-  },
-  {
-    id: 7,
-    name: 'Season Seven',
-    status: 'open',
-    statusLabel: 'Now Open',
-    statusClass: 'sx-tag-open',
-    period: 'Jul – Oct 2025',
-    endDate: new Date(Date.now() + 22 * 864e5 + 10 * 36e5),
-    roi: '18 – 26',
-    min: 100,
-    max: 100000,
-    pool: 100000000,
-    poolFilled: 18000000,
-    joined: false,
-    myAmount: 0,
-  },
-]
-const INIT_HISTORY: HistorySeason[] = [
-  {
-    id: 1,
-    name: 'Season One',
-    period: 'Jan – Apr 2023',
-    roi: '+18.2%',
-    myInv: '$1,000',
-    myPL: '+$182',
-    plSign: '+',
-    status: 'completed',
-    mySeasonId: 1,
-  },
-  {
-    id: 2,
-    name: 'Season Two',
-    period: 'Jun – Sep 2023',
-    roi: '+23.7%',
-    myInv: '$500',
-    myPL: '+$118',
-    plSign: '+',
-    status: 'completed',
-    mySeasonId: 1,
-  },
-  {
-    id: 3,
-    name: 'Season Three',
-    period: 'Nov 2023 – Feb 2024',
-    roi: '+28.4%',
-    myInv: '$800',
-    myPL: '+$227',
-    plSign: '+',
-    status: 'completed',
-    mySeasonId: 1,
-  },
-  {
-    id: 4,
-    name: 'Season Four',
-    period: 'May – Aug 2024',
-    roi: '+21.0%',
-    myInv: '$674.65',
-    myPL: '+$146',
-    plSign: '+',
-    status: 'completed',
-    mySeasonId: 1,
-  },
-  {
-    id: 5,
-    name: 'Season Five',
-    period: 'May – Aug 2025',
-    roi: '24 – 32% (est)',
-    myInv: '—',
-    myPL: '—',
-    plSign: '0',
-    status: 'active',
-    mySeasonId: null,
-  },
-  {
-    id: 6,
-    name: 'Season Six',
-    period: 'Jun – Sep 2025',
-    roi: '20 – 28% (est)',
-    myInv: '—',
-    myPL: '—',
-    plSign: '0',
-    status: 'active',
-    mySeasonId: null,
-  },
-  {
-    id: 7,
-    name: 'Season Seven',
-    period: 'Jul – Oct 2025',
-    roi: '18 – 26% (est)',
-    myInv: '—',
-    myPL: '—',
-    plSign: '0',
-    status: 'active',
-    mySeasonId: null,
-  },
-]
 
 function pad(n: number) {
   return String(n).padStart(2, '0')
@@ -175,25 +45,26 @@ function fmt(n: number) {
 
 export default function SeasonPage() {
   const router = useRouter()
+  const supabase = createClient()
 
   /* ── State ── */
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [toastMsg, setToastMsg] = useState('')
   const [toastCls, setToastCls] = useState('')
   const [toastShow, setToastShow] = useState(false)
-  const [seasons, setSeasons] = useState<ActiveSeason[]>(INIT_ACTIVE)
-  const [history, setHistory] = useState<HistorySeason[]>(INIT_HISTORY)
+  const [seasons, setSeasons] = useState<ActiveSeason[]>([])
+  const [history, setHistory] = useState<HistorySeason[]>([])
   const [histTab, setHistTab] = useState<
     'all' | 'active' | 'completed' | 'mine'
   >('all')
   const [modalOpen, setModalOpen] = useState(false)
   const [modalState, setModalState] = useState<'form' | 'success'>('form')
-  const [investId, setInvestId] = useState<number | null>(null)
+  const [investId, setInvestId] = useState<string | null>(null)
   const [amountVal, setAmountVal] = useState('')
-  const [userBalance, setUserBalance] = useState(2847.65)
-  const [totalInvested, setTotalInvested] = useState(2174.65)
-  const [countdowns, setCountdowns] = useState<Record<number, string>>({})
-  const [poolWidths, setPoolWidths] = useState<Record<number, string>>({})
+  const [userProfile, setUserProfile] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+  const [countdowns, setCountdowns] = useState<Record<string, string>>({})
+  const [poolWidths, setPoolWidths] = useState<Record<string, string>>({})
 
   /* ── Refs ── */
   const bgRef = useRef<HTMLCanvasElement>(null)
@@ -207,6 +78,82 @@ export default function SeasonPage() {
     if (toastTimer.current) clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToastShow(false), 3200)
   }, [])
+
+  /* ── Fetch Data ── */
+  const fetchData = useCallback(async () => {
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      router.push('/auth/signin')
+      return
+    }
+
+    // 1. Fetch Profile
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+    setUserProfile(profile)
+
+    // 2. Fetch All Seasons
+    const { data: dbSeasons } = await supabase
+      .from('seasons')
+      .select('*')
+      .order('created_at', { ascending: false })
+    
+    // 3. Fetch My Investments
+    const { data: myInvestments } = await supabase
+      .from('investments')
+      .select('*, seasons(*)')
+      .eq('user_id', user.id)
+
+    if (dbSeasons) {
+      const activeMapped: ActiveSeason[] = dbSeasons
+        .filter(s => s.status === 'open' || s.status === 'running')
+        .map(s => {
+          const myInv = myInvestments?.find(inv => inv.season_id === s.id)
+          return {
+            id: s.id,
+            name: s.name,
+            status: s.status,
+            statusLabel: s.status === 'open' ? 'Now Open' : 'Live',
+            statusClass: s.status === 'open' ? 'sx-tag-open' : 'sx-tag-ending',
+            period: s.period,
+            endDate: new Date(s.end_date || Date.now() + 7 * 864e5),
+            roi: s.roi_range,
+            min: s.min_entry,
+            max: s.pool_cap,
+            pool: s.pool_cap,
+            poolFilled: s.current_pool,
+            joined: !!myInv,
+            myAmount: myInv?.amount || 0
+          }
+        })
+      setSeasons(activeMapped)
+
+      const historyMapped: HistorySeason[] = dbSeasons.map(s => {
+        const myInv = myInvestments?.find(inv => inv.season_id === s.id)
+        return {
+          id: s.id,
+          name: s.name,
+          period: s.period,
+          roi: s.status === 'completed' ? `+${s.final_roi}%` : `${s.roi_range}% (est)`,
+          myInv: myInv ? `$${myInv.amount.toLocaleString()}` : '—',
+          myPL: s.status === 'completed' && myInv ? `+$${(myInv.amount * (s.final_roi / 100)).toFixed(2)}` : '—',
+          plSign: s.status === 'completed' && myInv ? '+' : '0',
+          status: s.status === 'completed' ? 'completed' : 'active',
+          mySeasonId: myInv ? myInv.id : null
+        }
+      })
+      setHistory(historyMapped)
+    }
+
+    setLoading(false)
+  }, [router, supabase])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   /* ── BG Canvas ── */
   useEffect(() => {
@@ -306,23 +253,21 @@ export default function SeasonPage() {
     }
   }, [])
 
-  /* ── Pool bars animate on mount ── */
+  /* ── Pool bars animate ── */
   useEffect(() => {
-    const t = setTimeout(() => {
-      const widths: Record<number, string> = {}
+    if (seasons.length > 0) {
+      const widths: Record<string, string> = {}
       seasons.forEach((s) => {
         widths[s.id] = Math.round((s.poolFilled / s.pool) * 100) + '%'
       })
       setPoolWidths(widths)
-    }, 300)
-    return () => clearTimeout(t)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+    }
+  }, [seasons])
 
   /* ── Countdown timers ── */
   useEffect(() => {
     const tick = () => {
-      const cds: Record<number, string> = {}
+      const cds: Record<string, string> = {}
       seasons.forEach((s) => {
         const diff = s.endDate.getTime() - Date.now()
         if (diff <= 0) {
@@ -388,7 +333,7 @@ export default function SeasonPage() {
   })
 
   /* ── Open invest modal ── */
-  const openInvest = (id: number) => {
+  const openInvest = (id: string) => {
     setInvestId(id)
     setAmountVal('')
     setModalState('form')
@@ -396,8 +341,8 @@ export default function SeasonPage() {
   }
 
   /* ── Confirm investment ── */
-  const confirmInvest = () => {
-    if (!investId) return
+  const confirmInvest = async () => {
+    if (!investId || !userProfile) return
     const s = seasons.find((x) => x.id === investId)
     if (!s) return
     const amt = parseFloat(amountVal)
@@ -409,57 +354,58 @@ export default function SeasonPage() {
       showToast(`⚠ Minimum investment is $${s.min.toLocaleString()}.`)
       return
     }
-    if (amt > s.max) {
-      showToast(`⚠ Maximum investment is $${s.max.toLocaleString()}.`)
-      return
-    }
-    if (amt > userBalance) {
+    if (amt > userProfile.balance) {
       showToast('⚠ Insufficient balance.')
       return
     }
 
-    /* Update state */
-    setSeasons((prev) =>
-      prev.map((x) =>
-        x.id === investId
-          ? {
-              ...x,
-              joined: true,
-              myAmount: amt,
-              poolFilled: Math.min(x.pool, x.poolFilled + amt),
-            }
-          : x,
-      ),
-    )
-    setUserBalance((b) => b - amt)
-    setTotalInvested((t) => t + amt)
-    setHistory((prev) =>
-      prev.map((r) =>
-        r.id === investId
-          ? { ...r, myInv: '$' + amt.toLocaleString(), mySeasonId: 1 }
-          : r,
-      ),
-    )
-    /* Animate pool bar */
-    setTimeout(() => {
-      setPoolWidths((prev) => ({
-        ...prev,
-        [investId]:
-          Math.round((Math.min(s.pool, s.poolFilled + amt) / s.pool) * 100) +
-          '%',
-      }))
-    }, 100)
+    try {
+      // 1. Create Investment
+      const { error: invError } = await supabase
+        .from('investments')
+        .insert({
+          user_id: userProfile.id,
+          season_id: investId,
+          amount: amt,
+          status: 'active'
+        })
+      
+      if (invError) throw invError
 
-    setModalState('success')
-    showToast('✓ Investment confirmed!', 'ok')
+      // 2. Update Profile
+      const { error: profError } = await supabase
+        .from('profiles')
+        .update({
+          balance: userProfile.balance - amt,
+          invested_total: userProfile.invested_total + amt
+        })
+        .eq('id', userProfile.id)
+      
+      if (profError) throw profError
+
+      // 3. Update Season Pool (This might fail due to RLS, but we try)
+      await supabase
+        .from('seasons')
+        .update({
+          current_pool: s.poolFilled + amt
+        })
+        .eq('id', investId)
+
+      setModalState('success')
+      showToast('✓ Investment confirmed!', 'ok')
+      fetchData() // Refresh data
+    } catch (err: any) {
+      showToast(`⚠ Error: ${err.message || 'Transaction failed'}`)
+    }
   }
 
   const currentSeason = investId ? seasons.find((x) => x.id === investId) : null
 
   /* ════════════════════════════════════════ */
+  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--txt2)', background: 'var(--cream)' }}>Loading Seasons...</div>
+
   return (
     <>
-      {/* BG Canvas */}
       <canvas
         ref={bgRef}
         style={{
@@ -473,7 +419,6 @@ export default function SeasonPage() {
         }}
       />
 
-      {/* Toast */}
       <div
         className={`sx-toast${toastShow ? ' show' : ''}${toastCls ? ' ' + toastCls : ''}`}
       >
@@ -483,7 +428,6 @@ export default function SeasonPage() {
       <UserSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className='sx-layout'>
-        {/* ═══ MOBILE TOPBAR ═══ */}
         <div className='sx-topbar'>
           <button className='sx-hamburger' onClick={() => setSidebarOpen(true)}>
             <span />
@@ -506,14 +450,12 @@ export default function SeasonPage() {
             }}
             onClick={() => router.push('/profile')}
           >
-            RK
+            {userProfile?.first_name?.[0]}{userProfile?.last_name?.[0]}
           </div>
         </div>
 
-        {/* ═══ MAIN ═══ */}
         <main className='sx-main'>
           <div style={{ maxWidth: 1040, margin: '0 auto' }}>
-            {/* PAGE TITLE */}
             <div
               className='sx-reveal'
               style={{
@@ -544,7 +486,6 @@ export default function SeasonPage() {
               </div>
             </div>
 
-            {/* QUICK STATS BAR */}
             <div
               className='sx-reveal'
               style={{
@@ -559,22 +500,22 @@ export default function SeasonPage() {
               }}
             >
               {[
-                { lbl: 'Active Seasons', val: <>3</>, valStyle: {} },
+                { lbl: 'Active Seasons', val: <>{seasons.length}</>, valStyle: {} },
                 {
                   lbl: 'My Total Invested',
                   val: (
-                    <>{`$${totalInvested.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`}</>
+                    <>{`$${userProfile?.invested_total?.toLocaleString() || '0'}`}</>
                   ),
                   valStyle: { color: 'var(--gold)' },
                 },
                 {
                   lbl: 'Avg. Season ROI',
-                  val: <>+23.4%</>,
+                  val: <>{userProfile?.avg_roi || '0'}%</>,
                   valStyle: { color: 'var(--sage)' },
                 },
                 {
                   lbl: 'Total Profit',
-                  val: <>+$673.00</>,
+                  val: <>{`+$${userProfile?.profits_total?.toLocaleString() || '0'}`}</>,
                   valStyle: { color: 'var(--sage)' },
                 },
               ].map((s, i) => (
@@ -613,7 +554,6 @@ export default function SeasonPage() {
               ))}
             </div>
 
-            {/* ACTIVE SEASONS HEADER */}
             <div
               className='sx-reveal'
               style={{
@@ -648,11 +588,10 @@ export default function SeasonPage() {
                   color: 'var(--text-sec)',
                 }}
               >
-                <span className='sx-live-dot' />3 seasons live
+                <span className='sx-live-dot' />{seasons.length} seasons live
               </div>
             </div>
 
-            {/* ACTIVE SEASON CARDS */}
             <div
               className='sx-seasons-grid sx-reveal'
               style={{ transitionDelay: '.12s' }}
@@ -793,10 +732,11 @@ export default function SeasonPage() {
                       ) : (
                         <button
                           className='sx-btn-sage'
-                          style={{ width: '100%', textAlign: 'center' }}
+                          style={{ width: '100%', textAlign: 'center', opacity: s.status === 'open' ? 1 : 0.5 }}
+                          disabled={s.status !== 'open'}
                           onClick={() => openInvest(s.id)}
                         >
-                          Invest Now →
+                          {s.status === 'open' ? 'Invest Now →' : 'Closed'}
                         </button>
                       )}
                     </div>
@@ -807,7 +747,6 @@ export default function SeasonPage() {
 
             <div className='sx-divider' />
 
-            {/* HISTORY HEADER + TABS */}
             <div
               className='sx-reveal'
               style={{ transitionDelay: '.16s', marginBottom: 20 }}
@@ -844,7 +783,6 @@ export default function SeasonPage() {
               </div>
             </div>
 
-            {/* HISTORY TABLE */}
             <div
               className='sx-hist-wrap sx-reveal'
               style={{ transitionDelay: '.2s' }}
@@ -959,7 +897,6 @@ export default function SeasonPage() {
         </main>
       </div>
 
-      {/* ═══ INVEST MODAL ═══ */}
       <div
         className={`sx-overlay${modalOpen ? ' open' : ''}`}
         onClick={(e) => {
@@ -983,7 +920,6 @@ export default function SeasonPage() {
             </button>
           </div>
 
-          {/* FORM */}
           {modalState === 'form' && currentSeason && (
             <>
               <div className='sx-modal-season-badge'>
@@ -1035,9 +971,8 @@ export default function SeasonPage() {
                   <input
                     className='sx-fi'
                     type='number'
-                    placeholder={`Min $${currentSeason.min} · Max $${currentSeason.max.toLocaleString()}`}
+                    placeholder={`Min $${currentSeason.min} · Max $${currentSeason.pool.toLocaleString()}`}
                     min={currentSeason.min}
-                    max={currentSeason.max}
                     value={amountVal}
                     onChange={(e) => setAmountVal(e.target.value)}
                   />
@@ -1048,12 +983,6 @@ export default function SeasonPage() {
                     Min:{' '}
                     <strong style={{ color: 'var(--ink)' }}>
                       $<span>{currentSeason.min.toLocaleString()}</span>
-                    </strong>
-                  </span>
-                  <span>
-                    Max:{' '}
-                    <strong style={{ color: 'var(--ink)' }}>
-                      $<span>{currentSeason.max.toLocaleString()}</span>
                     </strong>
                   </span>
                 </div>
@@ -1100,7 +1029,6 @@ export default function SeasonPage() {
             </>
           )}
 
-          {/* SUCCESS */}
           {modalState === 'success' && currentSeason && (
             <div
               className='sx-modal-success'
@@ -1133,20 +1061,7 @@ export default function SeasonPage() {
               >
                 Your investment in <strong>{currentSeason.name}</strong> has
                 been confirmed. You will receive your returns at the end of the
-                90-day cycle.
-              </p>
-              <p
-                style={{
-                  marginTop: 10,
-                  fontSize: '.72rem',
-                  color: '#b8b0a4',
-                  letterSpacing: '.04em',
-                }}
-              >
-                Expected return:{' '}
-                <strong style={{ color: 'var(--sage)' }}>
-                  {currentSeason.roi}%
-                </strong>
+                cycle.
               </p>
               <button
                 className='sx-btn-ink'

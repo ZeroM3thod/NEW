@@ -2,16 +2,31 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { createClient } from '@/utils/supabase/client';
 
 export default function Navbar() {
   const router = useRouter();
+  const supabase = createClient();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [activeSeason, setActiveSeason] = useState<any>(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 40);
     window.addEventListener('scroll', onScroll);
     return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  useEffect(() => {
+    async function fetchActiveSeason() {
+      const { data } = await supabase
+        .from('seasons')
+        .select('name')
+        .eq('status', 'open')
+        .single();
+      if (data) setActiveSeason(data);
+    }
+    fetchActiveSeason();
   }, []);
 
   const closeMenu = () => setMenuOpen(false);
@@ -31,7 +46,14 @@ export default function Navbar() {
         <div className="nav-inner">
           <a href="#" className="logo">
             <div className="logo-mark"/>
-            <span className="logo-text">Vault<span>X</span></span>
+            <div style={{display:'flex',flexDirection:'column'}}>
+              <span className="logo-text">Vault<span>X</span></span>
+              {activeSeason && (
+                <span style={{fontSize:'.55rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--gold)',marginTop:'-4px'}}>
+                  {activeSeason.name} Now Open — Limited Slots
+                </span>
+              )}
+            </div>
           </a>
           <ul className="nav-links">
             <li><a href="#about">About Us</a></li>

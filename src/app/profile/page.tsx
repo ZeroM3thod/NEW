@@ -3,9 +3,11 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
+import { createClient } from '@/utils/supabase/client'
 
 export default function ProfilePage() {
   const router = useRouter()
+  const supabase = createClient()
 
   /* ── State ── */
   const [sidebarOpen, setSidebarOpen] = useState(false)
@@ -14,19 +16,56 @@ export default function ProfilePage() {
   const [toastShow, setToastShow] = useState(false)
   const [seeMoreOpen, setSeeMoreOpen] = useState(false)
   const [copied, setCopied] = useState(false)
-  const [heroName, setHeroName] = useState('Rakib Kowshar')
+  
+  const [profile, setProfile] = useState<any>(null)
+  const [referrals, setReferrals] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
 
   /* form fields */
-  const [fName, setFName] = useState('Rakib Kowshar')
-  const [fUn, setFUn] = useState('rakib.investor')
-  const [fEm, setFEm] = useState('hellorakib.rk@gmail.com')
-  const [fPh, setFPh] = useState('1712-345678')
-  const [fCo, setFCo] = useState('Bangladesh')
+  const [fName, setFName] = useState('')
+  const [fUn, setFUn] = useState('')
+  const [fEm, setFEm] = useState('')
+  const [fPh, setFPh] = useState('')
+  const [fCo, setFCo] = useState('')
 
   /* ── Refs ── */
   const bgRef = useRef<HTMLCanvasElement>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const formCardRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    async function fetchData() {
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        router.push('/auth/signin')
+        return
+      }
+
+      const { data: profileData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .single()
+      
+      if (profileData) {
+        setProfile(profileData)
+        setFName(`${profileData.first_name} ${profileData.last_name}`)
+        setFUn(profileData.username || '')
+        setFEm(user.email || '')
+        setFPh(profileData.phone_number || '')
+        setFCo(profileData.country || '')
+      }
+
+      const { data: referralData } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('referred_by', user.id)
+      
+      setReferrals(referralData || [])
+      setLoading(false)
+    }
+    fetchData()
+  }, [router, supabase])
 
   /* ── Toast ── */
   const showToast = useCallback((msg: string, cls = '') => {
@@ -173,10 +212,28 @@ export default function ProfilePage() {
   }, [])
 
   /* ── Save profile ── */
-  const saveProfile = (e: React.FormEvent) => {
+  const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
-    setHeroName(fName.trim() || 'Rakib Kowshar')
-    showToast('Profile saved successfully', 'ok')
+    const [firstName, ...lastNameParts] = fName.split(' ')
+    const lastName = lastNameParts.join(' ')
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({
+        first_name: firstName,
+        last_name: lastName,
+        username: fUn,
+        phone_number: fPh,
+        country: fCo
+      })
+      .eq('id', profile.id)
+
+    if (error) {
+      showToast(error.message, 'err')
+    } else {
+      setProfile({ ...profile, first_name: firstName, last_name: lastName, username: fUn, phone_number: fPh, country: fCo })
+      showToast('Profile saved successfully', 'ok')
+    }
   }
 
   /* ── Reset form ── */
@@ -191,7 +248,7 @@ export default function ProfilePage() {
 
   /* ── Copy referral code ── */
   const copyCode = () => {
-    const code = 'VAULT-RK-2025'
+    const code = profile?.referral_code || 'VAULT-X'
     const doShow = () => {
       setCopied(true)
       showToast('Referral code copied', 'ok')
@@ -371,7 +428,7 @@ export default function ProfilePage() {
                 Good morning,
                 <br />
                 <em style={{ fontStyle: 'italic', color: 'var(--gold)' }}>
-                  Rakib
+                  {profile?.first_name || 'User'}
                 </em>
               </h1>
             </div>
@@ -383,27 +440,27 @@ export default function ProfilePage() {
             >
               <div style={{ position: 'relative', flexShrink: 0 }}>
                 <div className='pf-avatar-lg'>
-                  RK
+                  {profile ? `${profile.first_name[0]}${profile.last_name[0]}` : '...'}
                   <div className='pf-online-dot' />
                 </div>
               </div>
               <div className='pf-hero-body'>
-                <h2 className='pf-hero-name'>{heroName}</h2>
+                <h2 className='pf-hero-name'>{profile ? `${profile.first_name} ${profile.last_name}` : 'Loading...'}</h2>
                 <div className='pf-hero-uid'>
-                  @rakib.investor · Member since Jan 2023
+                  @{profile?.username} · Member since {profile ? new Date(profile.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : '...'}
                 </div>
                 <div className='pf-meta-pills'>
                   <div className='pf-pill'>
-                    Balance <strong>$2,847.65</strong>
+                    Balance <strong>${profile?.balance?.toLocaleString() || '0'}</strong>
                   </div>
                   <div className='pf-pill'>
-                    ROI <strong>+23.4%</strong>
+                    ROI <strong>+{profile?.avg_roi || '0'}%</strong>
                   </div>
                   <div className='pf-pill'>
-                    Season <strong>S4 Active</strong>
+                    Season <strong>{profile?.active_season_id ? 'Active' : 'Not Joined'}</strong>
                   </div>
                   <div className='pf-pill'>
-                    Referred <strong>7 users</strong>
+                    Referred <strong>{referrals.length} users</strong>
                   </div>
                 </div>
               </div>
@@ -478,26 +535,22 @@ export default function ProfilePage() {
                           type='email'
                           id='pf-em'
                           value={fEm}
-                          onChange={(e) => setFEm(e.target.value)}
-                          placeholder='you@email.com'
-                          required
+                          readOnly
+                          style={{ opacity: 0.6 }}
                         />
                       </div>
                       <div className='pf-fg pf-f-full'>
                         <label className='pf-fl' htmlFor='pf-ph'>
                           Phone Number
                         </label>
-                        <div className='pf-phone-row'>
-                          <span className='pf-phone-pfx'>🇧🇩 +880</span>
-                          <input
-                            className='pf-fi'
-                            type='tel'
-                            id='pf-ph'
-                            value={fPh}
-                            onChange={(e) => setFPh(e.target.value)}
-                            placeholder='01X-XXXXXXXX'
-                          />
-                        </div>
+                        <input
+                          className='pf-fi'
+                          type='tel'
+                          id='pf-ph'
+                          value={fPh}
+                          onChange={(e) => setFPh(e.target.value)}
+                          placeholder='01X-XXXXXXXX'
+                        />
                       </div>
                       <div className='pf-fg'>
                         <label className='pf-fl' htmlFor='pf-co'>
@@ -520,7 +573,7 @@ export default function ProfilePage() {
                           className='pf-fi'
                           type='text'
                           id='pf-ss'
-                          value='Season 4'
+                          value={profile?.active_season_id ? 'Active' : 'None'}
                           readOnly
                         />
                       </div>
@@ -730,7 +783,7 @@ export default function ProfilePage() {
                   </p>
                   <span className='pf-sec-label'>Your Code</span>
                   <div className='pf-ref-code-box' style={{ marginBottom: 18 }}>
-                    <span className='pf-ref-code-val'>VAULT-RK-2025</span>
+                    <span className='pf-ref-code-val'>{profile?.referral_code || 'VAULT-X'}</span>
                     <button
                       className={`pf-btn-copy${copied ? ' copied' : ''}`}
                       onClick={copyCode}
@@ -742,17 +795,17 @@ export default function ProfilePage() {
                   <div className='pf-stat-trio' style={{ marginBottom: 18 }}>
                     <div className='pf-stat-cell'>
                       <div className='pf-stat-val'>
-                        $84<span>.50</span>
+                        ${profile?.profits_total?.toLocaleString() || '0'}
                       </div>
                       <div className='pf-stat-lbl'>Commission</div>
                     </div>
                     <div className='pf-stat-cell'>
-                      <div className='pf-stat-val'>7</div>
+                      <div className='pf-stat-val'>{referrals.length}</div>
                       <div className='pf-stat-lbl'>Referred</div>
                     </div>
                     <div className='pf-stat-cell'>
                       <div className='pf-stat-val'>
-                        5<span>%</span>
+                        {profile?.commission_rate || 7}<span>%</span>
                       </div>
                       <div className='pf-stat-lbl'>Rate</div>
                     </div>
@@ -801,7 +854,7 @@ export default function ProfilePage() {
                         letterSpacing: '.06em',
                       }}
                     >
-                      7 total
+                      {referrals.length} total
                     </span>
                   </div>
                   <div className='pf-tbl-wrap'>
@@ -809,42 +862,32 @@ export default function ProfilePage() {
                       <thead>
                         <tr>
                           <th>User</th>
-                          <th>Profit</th>
                           <th>Balance</th>
-                          <th>Withdrawable</th>
                           <th>Status</th>
                         </tr>
                       </thead>
                       <tbody>
-                        {users.map((u, i) => (
+                        {referrals.slice(0, 5).map((u, i) => (
                           <tr key={i}>
                             <td>
                               <div className='pf-td-u'>
-                                <div className='pf-td-av'>{u.i}</div>
+                                <div className='pf-td-av'>{u.first_name[0]}{u.last_name[0]}</div>
                                 <div>
-                                  <div className='pf-td-nm'>{u.name}</div>
-                                  <div className='pf-td-hd'>{u.h}</div>
+                                  <div className='pf-td-nm'>{u.first_name} {u.last_name[0]}.</div>
+                                  <div className='pf-td-hd'>@{u.username}</div>
                                 </div>
                               </div>
                             </td>
                             <td
-                              className={
-                                u.p === '+$0.00' ? 'pf-c-neu' : 'pf-c-pos'
-                              }
-                            >
-                              {u.p}
-                            </td>
-                            <td
                               style={{ fontWeight: 500, color: 'var(--ink)' }}
                             >
-                              {u.b}
+                              ${u.balance?.toLocaleString() || '0'}
                             </td>
-                            <td style={{ color: 'var(--sage)' }}>{u.w}</td>
                             <td>
                               <span
-                                className={`pf-badge ${u.s === 'active' ? 'pf-b-act' : 'pf-b-pend'}`}
+                                className={`pf-badge pf-b-act`}
                               >
-                                {u.s}
+                                active
                               </span>
                             </td>
                           </tr>
@@ -884,7 +927,7 @@ export default function ProfilePage() {
                         className='pf-wrow-val'
                         style={{ color: 'var(--ink)' }}
                       >
-                        $8,420.00
+                        ${profile?.invested_total?.toLocaleString() || '0'}
                       </span>
                     </div>
                     <div className='pf-wrow'>
@@ -893,7 +936,7 @@ export default function ProfilePage() {
                         className='pf-wrow-val'
                         style={{ color: 'var(--gold)' }}
                       >
-                        $2,847.65
+                        ${profile?.balance?.toLocaleString() || '0'}
                       </span>
                     </div>
                     <div className='pf-wrow'>
@@ -902,7 +945,7 @@ export default function ProfilePage() {
                         className='pf-wrow-val'
                         style={{ color: 'var(--sage)' }}
                       >
-                        $1,920.00
+                        ${profile?.withdrawable_total?.toLocaleString() || '0'}
                       </span>
                     </div>
                     <div className='pf-wrow'>
@@ -911,7 +954,7 @@ export default function ProfilePage() {
                         className='pf-wrow-val'
                         style={{ color: 'var(--sage)' }}
                       >
-                        +$673.00
+                        +${profile?.profits_total?.toLocaleString() || '0'}
                       </span>
                     </div>
                     <div className='pf-wrow'>
@@ -920,7 +963,7 @@ export default function ProfilePage() {
                         className='pf-wrow-val'
                         style={{ color: 'var(--gold)' }}
                       >
-                        +$84.50
+                        +${profile?.profits_total?.toLocaleString() || '0'}
                       </span>
                     </div>
                   </div>

@@ -98,7 +98,7 @@ export default function DepositPage() {
       .from('profiles')
       .select('*')
       .eq('id', authUser.id)
-      .single()
+      .maybeSingle()
     setUserProfile(profile)
 
     // 2. Fetch Active Seasons Count

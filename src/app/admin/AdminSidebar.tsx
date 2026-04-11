@@ -9,6 +9,13 @@ interface Props {
   onToast: (msg: string) => void;
 }
 
+function getInitials(profile: any): string {
+  const first = profile?.first_name?.[0] || '';
+  const last = profile?.last_name?.[0] || '';
+  if (first || last) return (first + last).toUpperCase();
+  return 'AD';
+}
+
 export default function AdminSidebar({ open, onClose, onToast }: Props) {
   const router   = useRouter();
   const pathname = usePathname();
@@ -24,7 +31,7 @@ export default function AdminSidebar({ open, onClose, onToast }: Props) {
           .from('profiles')
           .select('*')
           .eq('id', user.id)
-          .single();
+          .maybeSingle();
         setAdmin(profile);
       }
     }
@@ -46,12 +53,12 @@ export default function AdminSidebar({ open, onClose, onToast }: Props) {
       setCounts({
         withdraw: withdrawCount?.toString() || '0',
         deposit: depositCount?.toString() || '0',
-        users: userCount ? (userCount / 1000).toFixed(0) + 'K' : '0'
+        users: userCount ? (userCount >= 1000 ? (userCount / 1000).toFixed(0) + 'K' : String(userCount)) : '0'
       });
     }
     fetchAdmin();
     fetchCounts();
-  }, []);
+  }, [supabase]);
 
   const go = (path: string) => { router.push(path); onClose(); };
 
@@ -109,6 +116,10 @@ export default function AdminSidebar({ open, onClose, onToast }: Props) {
     go(path);
   };
 
+  const adminName = admin
+    ? [admin.first_name, admin.last_name].filter(Boolean).join(' ') || admin.username || 'Admin'
+    : 'Admin User';
+
   return (
     <aside className={`adm-sidebar${open ? ' open' : ''}`}>
       <div className="adm-sb-top">
@@ -142,11 +153,9 @@ export default function AdminSidebar({ open, onClose, onToast }: Props) {
 
       <div className="adm-sb-bottom">
         <div className="adm-sb-user">
-          <div className="adm-sb-avatar">
-            {admin ? `${admin.first_name[0]}${admin.last_name[0]}` : 'AD'}
-          </div>
+          <div className="adm-sb-avatar">{getInitials(admin)}</div>
           <div>
-            <div className="adm-sb-uname">{admin ? `${admin.first_name} ${admin.last_name}` : 'Admin User'}</div>
+            <div className="adm-sb-uname">{adminName}</div>
             <div className="adm-sb-role">{admin?.role === 'admin' ? 'Super Administrator' : 'Administrator'}</div>
           </div>
         </div>

@@ -35,6 +35,14 @@ const navItems = [
   },
 ];
 
+function getInitials(profile: any): string {
+  const first = profile?.first_name?.[0] || '';
+  const last = profile?.last_name?.[0] || '';
+  if (first || last) return (first + last).toUpperCase();
+  const username = profile?.username?.[0] || '';
+  return username.toUpperCase() || '?';
+}
+
 export default function UserSidebar({ open, onClose }: Props) {
   const router   = useRouter();
   const pathname = usePathname();
@@ -43,22 +51,28 @@ export default function UserSidebar({ open, onClose }: Props) {
 
   useEffect(() => {
     async function fetchProfile() {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (user) {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
         const { data } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', user.id)
-          .single();
-        setProfile(data);
+          .maybeSingle();
+        if (data) setProfile(data);
+      } catch (err) {
+        console.error('UserSidebar profile fetch error:', err);
       }
     }
     fetchProfile();
-  }, []);
+  }, [supabase]);
 
   const isActive = (href: string) => pathname === href || pathname.startsWith(href + '/');
-
   const go = (href: string) => { router.push(href); onClose(); };
+
+  const displayName = profile
+    ? [profile.first_name, profile.last_name].filter(Boolean).join(' ') || profile.username || 'User'
+    : 'Loading…';
 
   return (
     <>
@@ -86,13 +100,9 @@ export default function UserSidebar({ open, onClose }: Props) {
         </nav>
         <div className="usr-sb-footer">
           <div className="usr-user-row" onClick={() => go('/profile')} style={{ cursor: 'pointer' }}>
-            <div className="usr-avatar">
-              {profile ? `${profile.first_name[0]}${profile.last_name[0]}` : '...'}
-            </div>
+            <div className="usr-avatar">{getInitials(profile)}</div>
             <div>
-              <div className="usr-user-name">
-                {profile ? `${profile.first_name} ${profile.last_name[0]}.` : 'Loading...'}
-              </div>
+              <div className="usr-user-name">{displayName}</div>
               <div className="usr-user-tag">Season Investor</div>
             </div>
           </div>

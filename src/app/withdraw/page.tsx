@@ -70,7 +70,7 @@ export default function WithdrawPage() {
       .from('profiles')
       .select('*')
       .eq('id', user.id)
-      .single()
+      .maybeSingle()
     setUserProfile(profile)
 
     // 2. Fetch Withdrawal History

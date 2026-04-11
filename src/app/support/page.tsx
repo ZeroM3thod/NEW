@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import UserSidebar from '@/components/UserSidebar';
 
 interface Ticket { id:string;subject:string;category:string;priority:string;date:string;status:'open'|'pending'|'closed' }
 
@@ -119,34 +120,13 @@ export default function SupportPage() {
 
   return (
     <>
-      <div className={`sp-toast${toastShow?' show':''}${toastCls?' '+toastCls:''}`}>{toastMsg}</div>
-      <div className={`sp-sb-overlay${sidebarOpen?' show':''}`} onClick={()=>setSidebarOpen(false)}/>
+      <div className={`sp-toast${toastShow ? ' show' : ''}${toastCls ? ' ' + toastCls : ''}`}>
+        {toastMsg}
+      </div>
 
-      {/* SIDEBAR — outside layout */}
-      <aside className={`sp-sidebar${sidebarOpen?' open':''}`}>
-        <div className="sp-sidebar-logo">
-          <a href="/" style={{textDecoration:'none',display:'flex',alignItems:'center'}}>
-            <div className="sp-logo-mark"/><span className="sp-logo-text">Vault<span>X</span></span>
-          </a>
-        </div>
-        <nav className="sp-sidebar-nav">
-          {navItems.map(n=>(
-            <button key={n.id} className={`sp-nav-item${n.id==='support'?' active':''}`}
-              onClick={()=>{n.fn();setSidebarOpen(false);}}>
-              <svg fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">{n.svg}</svg>
-              {n.label}
-            </button>
-          ))}
-        </nav>
-        <div className="sp-sidebar-footer">
-          <div className="sp-user-row">
-            <div className="sp-avatar">RK</div>
-            <div><div className="sp-user-name">Rafiqul M.</div><div className="sp-user-tag">Season 4 Investor</div></div>
-          </div>
-        </div>
-      </aside>
+      <UserSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
-      <div className="sp-layout">
+      <div className='sp-layout'>
 
         {/* MOBILE TOPBAR */}
         <div className="sp-topbar">

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import './globals.css';
+import './user-sidebar.css';
 
 export const metadata: Metadata = {
   title: 'VaultX — Premium Investment Platform',
@@ -7,11 +8,7 @@ export const metadata: Metadata = {
     'VaultX runs structured investment seasons with defined entry periods, transparent ROI targets, and no hidden fees.',
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
       <head>

@@ -165,14 +165,25 @@ export default function AdminUserPage() {
     setLoading(true);
     const { data: deposits } = await supabase.from('deposits').select('*').eq('user_id', u.uid);
     const { data: withdrawals } = await supabase.from('withdrawals').select('*').eq('user_id', u.uid);
-    const { data: investments } = await supabase.from('investments').select('*, seasons(name)').eq('user_id', u.uid);
+    const { data: investments } = await supabase.from('investments').select('*, seasons(name, final_roi, status, roi_range)').eq('user_id', u.uid);
     const { data: referrals } = await supabase.from('profiles').select('username').eq('referred_by', u.uid);
 
     const fullUser = {
       ...u,
       deposits: deposits?.map(d => ({ id: d.id, type: 'deposit', amount: Number(d.amount), status: d.status, date: d.created_at, wallet: d.tx_hash, network: d.network, userId: d.user_id })) || [],
       withdrawals: withdrawals?.map(w => ({ id: w.id, type: 'withdrawal', amount: Number(w.amount), status: w.status, date: w.created_at, wallet: w.address, network: w.network, userId: w.user_id })) || [],
-      seasonsJoined: investments?.map((i: any) => ({ season: i.seasons?.name || 'Unknown', amount: Number(i.amount), roi: 0, profit: 0 })) || [],
+      seasonsJoined: investments?.map((i: any) => {
+        const season = i.seasons;
+        const isClosed = season?.status === 'closed' || season?.status === 'completed';
+        const finalRoi = isClosed ? (season?.final_roi || 0) : 0;
+        const profit = isClosed ? (Number(i.amount) * (finalRoi / 100)) : 0;
+        return { 
+          season: season?.name || 'Unknown', 
+          amount: Number(i.amount), 
+          roi: finalRoi, 
+          profit: profit 
+        };
+      }) || [],
       refUsers: referrals?.map(r => r.username) || [],
       refCount: referrals?.length || 0
     } as User;

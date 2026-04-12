@@ -186,7 +186,10 @@ export default function AdminDepositPage() {
 
     const { data: profile } = await supabase.from('profiles').select('balance').eq('id', d.userId).single();
     const newBalance = (Number(profile?.balance) || 0) + d.amt;
-    const { error: profError } = await supabase.from('profiles').update({ balance: newBalance }).eq('id', d.userId);
+    const { error: profError } = await supabase.from('profiles').update({ 
+      balance: newBalance,
+      withdrawable_total: newBalance  // no more locked deposits
+    }).eq('id', d.userId);
     
     if (profError) {
       showToast('✕ Error updating balance', 'err');
@@ -222,7 +225,10 @@ export default function AdminDepositPage() {
       await supabase.from('deposits').update({ status: 'approved' }).eq('id', d.id);
       const { data: profile } = await supabase.from('profiles').select('balance').eq('id', d.userId).single();
       const newBalance = (Number(profile?.balance) || 0) + d.amt;
-      await supabase.from('profiles').update({ balance: newBalance }).eq('id', d.userId);
+      await supabase.from('profiles').update({ 
+        balance: newBalance,
+        withdrawable_total: newBalance  // no more locked deposits
+      }).eq('id', d.userId);
     }
 
     showToast(`✓ ${rows.length} deposits confirmed!`, 'ok');

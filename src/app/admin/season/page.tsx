@@ -372,8 +372,6 @@ export default function AdminSeasonPage() {
     const s = active.find(x => x.id === cmId); if (!s) return;
     
     if (cmAuto) {
-      // For auto-close, we might need a separate field in DB or handle it client-side/edge function.
-      // Assuming we just set it in state for now as requested.
       const updated = { ...s, autoClose: { finalROI: roi } };
       setActive(a => a.map(x => x.id === cmId ? updated : x));
       scheduleAutoClose(updated);
@@ -381,45 +379,81 @@ export default function AdminSeasonPage() {
       showToast(`⏰ Auto-Close set for ${s.name} — closes on ${fmtDate(s.finishDate)} with +${roi}% ROI`, 'ok');
     } else {
       setLoading(true);
-      // 1. Fetch all investments for this season
-      const { data: investments, error: invErr } = await supabase.from('investments').select('*').eq('season_id', cmId).eq('status', 'active');
+
+      // 1. Fetch all active investments for this season
+      const { data: investments, error: invErr } = await supabase
+        .from('investments')
+        .select('*')
+        .eq('season_id', cmId)
+        .eq('status', 'active');
       
       if (invErr) { showToast('✕ Error fetching investments', 'err'); setLoading(false); return; }
 
-      // 2. Process payouts for each investment
+      // 2. Process payouts: return principal + profit to each investor
       if (investments && investments.length > 0) {
         for (const inv of investments) {
           const principal = Number(inv.amount);
           const profit = principal * (roi / 100);
           const totalReturn = principal + profit;
 
-          // Fetch current user profile to get current balance and profits_total
-          const { data: profile, error: profErr } = await supabase.from('profiles').select('balance, profits_total, invested_total').eq('id', inv.user_id).single();
+          // Fetch investor profile (need referred_by for commission)
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('balance, profits_total, invested_total, referred_by')
+            .eq('id', inv.user_id)
+            .single();
           
           if (profile) {
             const newBalance = Number(profile.balance) + totalReturn;
             const newProfitsTotal = Number(profile.profits_total) + profit;
             const newInvestedTotal = Math.max(0, Number(profile.invested_total) - principal);
 
-            // Update profile
+            // Update investor balance — withdrawable_total = balance (no lock)
             await supabase.from('profiles').update({
               balance: newBalance,
+              withdrawable_total: newBalance,
               profits_total: newProfitsTotal,
-              invested_total: newInvestedTotal
+              invested_total: newInvestedTotal,
             }).eq('id', inv.user_id);
 
-            // Mark investment as closed
-            await supabase.from('investments').update({ status: 'closed' }).eq('id', inv.id);
+            // Mark investment as completed
+            await supabase.from('investments').update({ status: 'completed' }).eq('id', inv.id);
+
+            // 3. Referral commission: 7% of PROFIT to referrer (not 7% of investment amount)
+            if (profile.referred_by && profit > 0) {
+              const REFERRAL_RATE = 0.07;
+              const commission = profit * REFERRAL_RATE;
+
+              const { data: referrer } = await supabase
+                .from('profiles')
+                .select('balance, referral_earned')
+                .eq('id', profile.referred_by)
+                .single();
+
+              if (referrer) {
+                const newRefBalance = Number(referrer.balance) + commission;
+                await supabase.from('profiles').update({
+                  balance: newRefBalance,
+                  withdrawable_total: newRefBalance,  // withdrawable = full balance
+                  referral_earned: (Number(referrer.referral_earned) || 0) + commission,
+                }).eq('id', profile.referred_by);
+              }
+            }
           }
         }
       }
 
-      // 3. Close the season
-      const { error } = await supabase.from('seasons').update({ status: 'closed', final_roi: roi }).eq('id', cmId);
+      // 4. Close the season and set final ROI
+      const { error } = await supabase
+        .from('seasons')
+        .update({ status: 'closed', final_roi: roi })
+        .eq('id', cmId);
+
       if (error) { showToast('✕ Error closing season', 'err'); setLoading(false); return; }
       
       setCmOpen(false);
-      showToast(`✓ ${s.name} closed. Payouts processed for ${investments?.length || 0} investors.`, 'ok');
+      const count = investments?.length || 0;
+      showToast(`✓ ${s.name} closed. Payouts processed for ${count} investor${count !== 1 ? 's' : ''}.`, 'ok');
       fetchData();
     }
   };

@@ -103,15 +103,28 @@ export default function SignInPage() {
     } else if (user) {
       showToast('✓ Welcome back! Redirecting…', 'ok');
       
-      // Check user role and redirect accordingly
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('role')
-        .eq('id', user.id)
-        .maybeSingle();
-      
-      const redirectPath = profile?.role === 'admin' ? '/admin/dashboard' : '/dashboard';
-      setTimeout(() => router.push(redirectPath), 1600);
+      try {
+        // Check user role and redirect accordingly
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('role')
+          .eq('id', user.id)
+          .maybeSingle();
+        
+        if (profileError) {
+          console.error('Profile fetch error:', profileError);
+          showToast('Error loading profile. Redirecting...', 'err');
+          setTimeout(() => router.push('/dashboard'), 1600);
+          return;
+        }
+        
+        const redirectPath = profile?.role === 'admin' ? '/admin/dashboard' : '/dashboard';
+        console.log('Redirecting to:', redirectPath, 'Role:', profile?.role);
+        setTimeout(() => router.push(redirectPath), 1600);
+      } catch (err) {
+        console.error('Redirect error:', err);
+        showToast('Error during redirect. Please try again.', 'err');
+      }
     }
   };
 

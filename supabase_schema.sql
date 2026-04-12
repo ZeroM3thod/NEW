@@ -20,7 +20,6 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     first_name TEXT,
     last_name TEXT,
     username TEXT UNIQUE,
-    email TEXT,
     phone_number TEXT,
     country TEXT,
     role public.user_role DEFAULT 'user',
@@ -188,13 +187,12 @@ BEGIN
         WHERE referral_code = (new.raw_user_meta_data->>'referral_by_code');
     END IF;
 
-    INSERT INTO public.profiles (id, first_name, last_name, username, email, phone_number, country, role, referral_code, referred_by)
+    INSERT INTO public.profiles (id, first_name, last_name, username, phone_number, country, role, referral_code, referred_by)
     VALUES (
         new.id,
         new.raw_user_meta_data->>'first_name',
         new.raw_user_meta_data->>'last_name',
         new.raw_user_meta_data->>'username',
-        new.email,
         new.raw_user_meta_data->>'phone',
         COALESCE(new.raw_user_meta_data->>'country', 'Bangladesh'),
         user_role,
@@ -214,3 +212,13 @@ CREATE TRIGGER on_auth_user_created
 INSERT INTO public.settings (id, maintenance_mode, base_referral_rate)
 VALUES (1, false, 7.0)
 ON CONFLICT (id) DO NOTHING;
+
+-- 7. VERIFY SETUP
+SELECT 'Tables created:' as info;
+SELECT tablename FROM pg_tables WHERE schemaname = 'public' AND tablename IN ('profiles', 'seasons', 'investments', 'deposits', 'withdrawals', 'settings');
+
+SELECT 'RLS enabled:' as info;
+SELECT relname as table_name, relrowsecurity as rls_enabled FROM pg_class WHERE relname IN ('profiles', 'seasons', 'investments', 'deposits', 'withdrawals', 'settings');
+
+SELECT 'Policies created:' as info;
+SELECT tablename, policyname, cmd FROM pg_policies WHERE schemaname = 'public';

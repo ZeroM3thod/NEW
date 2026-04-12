@@ -116,10 +116,10 @@ export default function SeasonPage() {
             id: s.id,
             name: s.name,
             status: s.status,
-            statusLabel: s.status === 'open' ? 'Entry Open' : 'Running',
+            statusLabel: s.status === 'open' ? 'Now Open' : 'Live',
             statusClass: s.status === 'open' ? 'sx-tag-open' : 'sx-tag-ending',
-            period: s.period || `${new Date(s.start_date).toLocaleDateString('en-GB', { month: 'short' })}–${new Date(s.end_date).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`,
-            endDate: s.status === 'open' ? new Date(s.start_date) : new Date(s.end_date),
+            period: s.period,
+            endDate: new Date(s.end_date || Date.now() + 7 * 864e5),
             roi: s.roi_range,
             min: s.min_entry,
             max: s.pool_cap,
@@ -133,16 +133,15 @@ export default function SeasonPage() {
 
       const historyMapped: HistorySeason[] = dbSeasons.map(s => {
         const myInv = myInvestments?.find(inv => inv.season_id === s.id)
-        const isClosed = s.status === 'closed'
         return {
           id: s.id,
           name: s.name,
-          period: s.period || `${new Date(s.start_date).toLocaleDateString('en-GB', { month: 'short' })}–${new Date(s.end_date).toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`,
-          roi: isClosed ? `+${s.final_roi}%` : `${s.roi_range}% (est)`,
+          period: s.period,
+          roi: s.status === 'completed' ? `+${s.final_roi}%` : `${s.roi_range}% (est)`,
           myInv: myInv ? `$${myInv.amount.toLocaleString()}` : '—',
-          myPL: isClosed && myInv ? `+$${(myInv.amount * (s.final_roi / 100)).toFixed(2)}` : '—',
-          plSign: isClosed && myInv ? '+' : '0',
-          status: isClosed ? 'completed' : 'active', // 'completed' used for 'closed' UI style
+          myPL: s.status === 'completed' && myInv ? `+$${(myInv.amount * (s.final_roi / 100)).toFixed(2)}` : '—',
+          plSign: s.status === 'completed' && myInv ? '+' : '0',
+          status: s.status === 'completed' ? 'completed' : 'active',
           mySeasonId: myInv ? myInv.id : null
         }
       })
@@ -279,13 +278,7 @@ export default function SeasonPage() {
         const h = Math.floor((diff % 864e5) / 36e5)
         const m = Math.floor((diff % 36e5) / 6e4)
         const sec = Math.floor((diff % 6e4) / 1e3)
-        const timeStr = `${d}d ${pad(h)}h ${pad(m)}m ${pad(sec)}s`
-        
-        if (s.status === 'open') {
-          cds[s.id] = `${timeStr} left to join`
-        } else {
-          cds[s.id] = `${timeStr} until finished`
-        }
+        cds[s.id] = `${d}d ${pad(h)}h ${pad(m)}m ${pad(sec)}s left to join`
       })
       setCountdowns(cds)
     }
@@ -623,7 +616,7 @@ export default function SeasonPage() {
                         </span>
                       </div>
                       <div className='sx-countdown-lbl'>
-                        {s.status === 'open' ? 'Entry window closes in' : 'Season Finished in'}
+                        Entry window closes in
                       </div>
                       <div className='sx-countdown'>
                         {countdowns[s.id] || '—'}

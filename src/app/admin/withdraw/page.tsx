@@ -81,6 +81,16 @@ export default function AdminWithdrawPage() {
     fetchWithdrawals();
   }, [fetchWithdrawals]);
 
+  /* ── Scroll reveal ── */
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      e => e.forEach(x => { if (x.isIntersecting) x.target.classList.add('vis'); }),
+      { threshold: 0.06 }
+    );
+    document.querySelectorAll<HTMLElement>('.reveal, .dm-reveal').forEach(el => obs.observe(el));
+    return () => obs.disconnect();
+  }, [wds, loading]); // re-runs when data loads
+
   const closeModal = () => {
     setModalMode(null);
     setModalId('');

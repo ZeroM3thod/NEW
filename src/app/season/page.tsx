@@ -289,6 +289,7 @@ export default function SeasonPage() {
 
   /* ── Scroll reveal ── */
   useEffect(() => {
+    if (loading) return; // wait until content is rendered
     const obs = new IntersectionObserver(
       (entries) => {
         entries.forEach((e) => {
@@ -301,7 +302,7 @@ export default function SeasonPage() {
       .querySelectorAll<HTMLElement>('.sx-reveal')
       .forEach((el) => obs.observe(el))
     return () => obs.disconnect()
-  }, [])
+  }, [loading])
 
   /* ── Body scroll lock ── */
   useEffect(() => {

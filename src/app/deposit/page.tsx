@@ -253,6 +253,7 @@ export default function DepositPage() {
 
   /* ── scroll reveal ── */
   useEffect(() => {
+    if (loading) return; // wait until content renders
     const obs = new IntersectionObserver(
       (entries) =>
         entries.forEach((e) => {
@@ -267,7 +268,7 @@ export default function DepositPage() {
       .querySelectorAll<HTMLElement>('.dp-reveal')
       .forEach((el) => obs.observe(el))
     return () => obs.disconnect()
-  }, [step])
+  }, [step, loading])
 
   /* ── body scroll lock ── */
   useEffect(() => {

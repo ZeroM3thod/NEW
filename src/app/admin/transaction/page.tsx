@@ -112,6 +112,16 @@ export default function AdminTransactionPage() {
     fetchTransactions();
   }, [fetchTransactions]);
 
+  /* ── Scroll reveal ── */
+  useEffect(() => {
+    const obs = new IntersectionObserver(
+      e => e.forEach(x => { if (x.isIntersecting) x.target.classList.add('vis'); }),
+      { threshold: 0.06 }
+    );
+    document.querySelectorAll<HTMLElement>('.tx-reveal').forEach(el => obs.observe(el));
+    return () => obs.disconnect();
+  }, [allTx, loading]); // re-runs when data loads
+
   /* filtered */
   const filtered = useMemo(()=>allTx.filter(tx=>{
     const q=searchQ.trim().toLowerCase();

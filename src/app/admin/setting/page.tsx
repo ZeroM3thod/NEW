@@ -100,6 +100,20 @@ export default function AdminSettingPage() {
     fetchSettings();
   }, [supabase]);
 
+  /* ── Scroll reveal ── */
+  useEffect(() => {
+    // Small delay ensures all ws-reveal elements are painted
+    const timer = setTimeout(() => {
+      const obs = new IntersectionObserver(
+        e => e.forEach(x => { if (x.isIntersecting) x.target.classList.add('vis'); }),
+        { threshold: 0.06 }
+      );
+      document.querySelectorAll<HTMLElement>('.ws-reveal').forEach(el => obs.observe(el));
+      // No cleanup needed — elements stay visible once triggered
+    }, 50);
+    return () => clearTimeout(timer);
+  }, []); // settings page renders immediately with no loading guard
+
   useEffect(()=>{
     if(maintOn&&maintEndTime){
       const tick=()=>{

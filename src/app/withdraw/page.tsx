@@ -206,6 +206,7 @@ export default function WithdrawPage() {
 
   /* ── scroll reveal ── */
   useEffect(() => {
+    if (loading) return; // wait until content renders
     const obs = new IntersectionObserver(
       (entries) =>
         entries.forEach((e) => {
@@ -220,7 +221,7 @@ export default function WithdrawPage() {
       .querySelectorAll<HTMLElement>('.wd-reveal')
       .forEach((el) => obs.observe(el))
     return () => obs.disconnect()
-  }, [])
+  }, [loading])
 
   /* ── body scroll lock ── */
   useEffect(() => {

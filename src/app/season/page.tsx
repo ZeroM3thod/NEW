@@ -92,7 +92,7 @@ export default function SeasonPage() {
       .from('profiles')
       .select('*')
       .eq('id', user.id)
-      .maybeSingle()
+      .single()
     setUserProfile(profile)
 
     // 2. Fetch All Seasons

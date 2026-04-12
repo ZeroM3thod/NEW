@@ -5,6 +5,199 @@ import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
 import { createClient } from '@/utils/supabase/client'
 
+/* ── Country codes list ── */
+const COUNTRY_CODES = [
+  { code: 'AF', name: 'Afghanistan', dial: '+93', flag: '🇦🇫' },
+  { code: 'AL', name: 'Albania', dial: '+355', flag: '🇦🇱' },
+  { code: 'DZ', name: 'Algeria', dial: '+213', flag: '🇩🇿' },
+  { code: 'AD', name: 'Andorra', dial: '+376', flag: '🇦🇩' },
+  { code: 'AO', name: 'Angola', dial: '+244', flag: '🇦🇴' },
+  { code: 'AR', name: 'Argentina', dial: '+54', flag: '🇦🇷' },
+  { code: 'AM', name: 'Armenia', dial: '+374', flag: '🇦🇲' },
+  { code: 'AU', name: 'Australia', dial: '+61', flag: '🇦🇺' },
+  { code: 'AT', name: 'Austria', dial: '+43', flag: '🇦🇹' },
+  { code: 'AZ', name: 'Azerbaijan', dial: '+994', flag: '🇦🇿' },
+  { code: 'BH', name: 'Bahrain', dial: '+973', flag: '🇧🇭' },
+  { code: 'BD', name: 'Bangladesh', dial: '+880', flag: '🇧🇩' },
+  { code: 'BY', name: 'Belarus', dial: '+375', flag: '🇧🇾' },
+  { code: 'BE', name: 'Belgium', dial: '+32', flag: '🇧🇪' },
+  { code: 'BZ', name: 'Belize', dial: '+501', flag: '🇧🇿' },
+  { code: 'BJ', name: 'Benin', dial: '+229', flag: '🇧🇯' },
+  { code: 'BT', name: 'Bhutan', dial: '+975', flag: '🇧🇹' },
+  { code: 'BO', name: 'Bolivia', dial: '+591', flag: '🇧🇴' },
+  { code: 'BA', name: 'Bosnia & Herzegovina', dial: '+387', flag: '🇧🇦' },
+  { code: 'BR', name: 'Brazil', dial: '+55', flag: '🇧🇷' },
+  { code: 'BN', name: 'Brunei', dial: '+673', flag: '🇧🇳' },
+  { code: 'BG', name: 'Bulgaria', dial: '+359', flag: '🇧🇬' },
+  { code: 'BF', name: 'Burkina Faso', dial: '+226', flag: '🇧🇫' },
+  { code: 'BI', name: 'Burundi', dial: '+257', flag: '🇧🇮' },
+  { code: 'CM', name: 'Cameroon', dial: '+237', flag: '🇨🇲' },
+  { code: 'CA', name: 'Canada', dial: '+1', flag: '🇨🇦' },
+  { code: 'CF', name: 'Central African Republic', dial: '+236', flag: '🇨🇫' },
+  { code: 'TD', name: 'Chad', dial: '+235', flag: '🇹🇩' },
+  { code: 'CL', name: 'Chile', dial: '+56', flag: '🇨🇱' },
+  { code: 'CN', name: 'China', dial: '+86', flag: '🇨🇳' },
+  { code: 'CO', name: 'Colombia', dial: '+57', flag: '🇨🇴' },
+  { code: 'KM', name: 'Comoros', dial: '+269', flag: '🇰🇲' },
+  { code: 'CD', name: 'Congo (DRC)', dial: '+243', flag: '🇨🇩' },
+  { code: 'CG', name: 'Congo (Republic)', dial: '+242', flag: '🇨🇬' },
+  { code: 'CR', name: 'Costa Rica', dial: '+506', flag: '🇨🇷' },
+  { code: 'CI', name: 'Côte d\'Ivoire', dial: '+225', flag: '🇨🇮' },
+  { code: 'HR', name: 'Croatia', dial: '+385', flag: '🇭🇷' },
+  { code: 'CU', name: 'Cuba', dial: '+53', flag: '🇨🇺' },
+  { code: 'CY', name: 'Cyprus', dial: '+357', flag: '🇨🇾' },
+  { code: 'CZ', name: 'Czech Republic', dial: '+420', flag: '🇨🇿' },
+  { code: 'DK', name: 'Denmark', dial: '+45', flag: '🇩🇰' },
+  { code: 'DJ', name: 'Djibouti', dial: '+253', flag: '🇩🇯' },
+  { code: 'DO', name: 'Dominican Republic', dial: '+1', flag: '🇩🇴' },
+  { code: 'EC', name: 'Ecuador', dial: '+593', flag: '🇪🇨' },
+  { code: 'EG', name: 'Egypt', dial: '+20', flag: '🇪🇬' },
+  { code: 'SV', name: 'El Salvador', dial: '+503', flag: '🇸🇻' },
+  { code: 'GQ', name: 'Equatorial Guinea', dial: '+240', flag: '🇬🇶' },
+  { code: 'ER', name: 'Eritrea', dial: '+291', flag: '🇪🇷' },
+  { code: 'EE', name: 'Estonia', dial: '+372', flag: '🇪🇪' },
+  { code: 'ET', name: 'Ethiopia', dial: '+251', flag: '🇪🇹' },
+  { code: 'FJ', name: 'Fiji', dial: '+679', flag: '🇫🇯' },
+  { code: 'FI', name: 'Finland', dial: '+358', flag: '🇫🇮' },
+  { code: 'FR', name: 'France', dial: '+33', flag: '🇫🇷' },
+  { code: 'GA', name: 'Gabon', dial: '+241', flag: '🇬🇦' },
+  { code: 'GM', name: 'Gambia', dial: '+220', flag: '🇬🇲' },
+  { code: 'GE', name: 'Georgia', dial: '+995', flag: '🇬🇪' },
+  { code: 'DE', name: 'Germany', dial: '+49', flag: '🇩🇪' },
+  { code: 'GH', name: 'Ghana', dial: '+233', flag: '🇬🇭' },
+  { code: 'GR', name: 'Greece', dial: '+30', flag: '🇬🇷' },
+  { code: 'GT', name: 'Guatemala', dial: '+502', flag: '🇬🇹' },
+  { code: 'GN', name: 'Guinea', dial: '+224', flag: '🇬🇳' },
+  { code: 'GW', name: 'Guinea-Bissau', dial: '+245', flag: '🇬🇼' },
+  { code: 'GY', name: 'Guyana', dial: '+592', flag: '🇬🇾' },
+  { code: 'HT', name: 'Haiti', dial: '+509', flag: '🇭🇹' },
+  { code: 'HN', name: 'Honduras', dial: '+504', flag: '🇭🇳' },
+  { code: 'HK', name: 'Hong Kong', dial: '+852', flag: '🇭🇰' },
+  { code: 'HU', name: 'Hungary', dial: '+36', flag: '🇭🇺' },
+  { code: 'IS', name: 'Iceland', dial: '+354', flag: '🇮🇸' },
+  { code: 'IN', name: 'India', dial: '+91', flag: '🇮🇳' },
+  { code: 'ID', name: 'Indonesia', dial: '+62', flag: '🇮🇩' },
+  { code: 'IR', name: 'Iran', dial: '+98', flag: '🇮🇷' },
+  { code: 'IQ', name: 'Iraq', dial: '+964', flag: '🇮🇶' },
+  { code: 'IE', name: 'Ireland', dial: '+353', flag: '🇮🇪' },
+  { code: 'IL', name: 'Israel', dial: '+972', flag: '🇮🇱' },
+  { code: 'IT', name: 'Italy', dial: '+39', flag: '🇮🇹' },
+  { code: 'JM', name: 'Jamaica', dial: '+1', flag: '🇯🇲' },
+  { code: 'JP', name: 'Japan', dial: '+81', flag: '🇯🇵' },
+  { code: 'JO', name: 'Jordan', dial: '+962', flag: '🇯🇴' },
+  { code: 'KZ', name: 'Kazakhstan', dial: '+7', flag: '🇰🇿' },
+  { code: 'KE', name: 'Kenya', dial: '+254', flag: '🇰🇪' },
+  { code: 'KW', name: 'Kuwait', dial: '+965', flag: '🇰🇼' },
+  { code: 'KG', name: 'Kyrgyzstan', dial: '+996', flag: '🇰🇬' },
+  { code: 'LA', name: 'Laos', dial: '+856', flag: '🇱🇦' },
+  { code: 'LV', name: 'Latvia', dial: '+371', flag: '🇱🇻' },
+  { code: 'LB', name: 'Lebanon', dial: '+961', flag: '🇱🇧' },
+  { code: 'LS', name: 'Lesotho', dial: '+266', flag: '🇱🇸' },
+  { code: 'LR', name: 'Liberia', dial: '+231', flag: '🇱🇷' },
+  { code: 'LY', name: 'Libya', dial: '+218', flag: '🇱🇾' },
+  { code: 'LI', name: 'Liechtenstein', dial: '+423', flag: '🇱🇮' },
+  { code: 'LT', name: 'Lithuania', dial: '+370', flag: '🇱🇹' },
+  { code: 'LU', name: 'Luxembourg', dial: '+352', flag: '🇱🇺' },
+  { code: 'MG', name: 'Madagascar', dial: '+261', flag: '🇲🇬' },
+  { code: 'MW', name: 'Malawi', dial: '+265', flag: '🇲🇼' },
+  { code: 'MY', name: 'Malaysia', dial: '+60', flag: '🇲🇾' },
+  { code: 'MV', name: 'Maldives', dial: '+960', flag: '🇲🇻' },
+  { code: 'ML', name: 'Mali', dial: '+223', flag: '🇲🇱' },
+  { code: 'MT', name: 'Malta', dial: '+356', flag: '🇲🇹' },
+  { code: 'MR', name: 'Mauritania', dial: '+222', flag: '🇲🇷' },
+  { code: 'MU', name: 'Mauritius', dial: '+230', flag: '🇲🇺' },
+  { code: 'MX', name: 'Mexico', dial: '+52', flag: '🇲🇽' },
+  { code: 'MD', name: 'Moldova', dial: '+373', flag: '🇲🇩' },
+  { code: 'MC', name: 'Monaco', dial: '+377', flag: '🇲🇨' },
+  { code: 'MN', name: 'Mongolia', dial: '+976', flag: '🇲🇳' },
+  { code: 'ME', name: 'Montenegro', dial: '+382', flag: '🇲🇪' },
+  { code: 'MA', name: 'Morocco', dial: '+212', flag: '🇲🇦' },
+  { code: 'MZ', name: 'Mozambique', dial: '+258', flag: '🇲🇿' },
+  { code: 'MM', name: 'Myanmar', dial: '+95', flag: '🇲🇲' },
+  { code: 'NA', name: 'Namibia', dial: '+264', flag: '🇳🇦' },
+  { code: 'NP', name: 'Nepal', dial: '+977', flag: '🇳🇵' },
+  { code: 'NL', name: 'Netherlands', dial: '+31', flag: '🇳🇱' },
+  { code: 'NZ', name: 'New Zealand', dial: '+64', flag: '🇳🇿' },
+  { code: 'NI', name: 'Nicaragua', dial: '+505', flag: '🇳🇮' },
+  { code: 'NE', name: 'Niger', dial: '+227', flag: '🇳🇪' },
+  { code: 'NG', name: 'Nigeria', dial: '+234', flag: '🇳🇬' },
+  { code: 'NO', name: 'Norway', dial: '+47', flag: '🇳🇴' },
+  { code: 'OM', name: 'Oman', dial: '+968', flag: '🇴🇲' },
+  { code: 'PK', name: 'Pakistan', dial: '+92', flag: '🇵🇰' },
+  { code: 'PS', name: 'Palestine', dial: '+970', flag: '🇵🇸' },
+  { code: 'PA', name: 'Panama', dial: '+507', flag: '🇵🇦' },
+  { code: 'PG', name: 'Papua New Guinea', dial: '+675', flag: '🇵🇬' },
+  { code: 'PY', name: 'Paraguay', dial: '+595', flag: '🇵🇾' },
+  { code: 'PE', name: 'Peru', dial: '+51', flag: '🇵🇪' },
+  { code: 'PH', name: 'Philippines', dial: '+63', flag: '🇵🇭' },
+  { code: 'PL', name: 'Poland', dial: '+48', flag: '🇵🇱' },
+  { code: 'PT', name: 'Portugal', dial: '+351', flag: '🇵🇹' },
+  { code: 'QA', name: 'Qatar', dial: '+974', flag: '🇶🇦' },
+  { code: 'RO', name: 'Romania', dial: '+40', flag: '🇷🇴' },
+  { code: 'RU', name: 'Russia', dial: '+7', flag: '🇷🇺' },
+  { code: 'RW', name: 'Rwanda', dial: '+250', flag: '🇷🇼' },
+  { code: 'SA', name: 'Saudi Arabia', dial: '+966', flag: '🇸🇦' },
+  { code: 'SN', name: 'Senegal', dial: '+221', flag: '🇸🇳' },
+  { code: 'RS', name: 'Serbia', dial: '+381', flag: '🇷🇸' },
+  { code: 'SL', name: 'Sierra Leone', dial: '+232', flag: '🇸🇱' },
+  { code: 'SG', name: 'Singapore', dial: '+65', flag: '🇸🇬' },
+  { code: 'SK', name: 'Slovakia', dial: '+421', flag: '🇸🇰' },
+  { code: 'SI', name: 'Slovenia', dial: '+386', flag: '🇸🇮' },
+  { code: 'SO', name: 'Somalia', dial: '+252', flag: '🇸🇴' },
+  { code: 'ZA', name: 'South Africa', dial: '+27', flag: '🇿🇦' },
+  { code: 'SS', name: 'South Sudan', dial: '+211', flag: '🇸🇸' },
+  { code: 'ES', name: 'Spain', dial: '+34', flag: '🇪🇸' },
+  { code: 'LK', name: 'Sri Lanka', dial: '+94', flag: '🇱🇰' },
+  { code: 'SD', name: 'Sudan', dial: '+249', flag: '🇸🇩' },
+  { code: 'SR', name: 'Suriname', dial: '+597', flag: '🇸🇷' },
+  { code: 'SE', name: 'Sweden', dial: '+46', flag: '🇸🇪' },
+  { code: 'CH', name: 'Switzerland', dial: '+41', flag: '🇨🇭' },
+  { code: 'SY', name: 'Syria', dial: '+963', flag: '🇸🇾' },
+  { code: 'TW', name: 'Taiwan', dial: '+886', flag: '🇹🇼' },
+  { code: 'TJ', name: 'Tajikistan', dial: '+992', flag: '🇹🇯' },
+  { code: 'TZ', name: 'Tanzania', dial: '+255', flag: '🇹🇿' },
+  { code: 'TH', name: 'Thailand', dial: '+66', flag: '🇹🇭' },
+  { code: 'TG', name: 'Togo', dial: '+228', flag: '🇹🇬' },
+  { code: 'TT', name: 'Trinidad & Tobago', dial: '+1', flag: '🇹🇹' },
+  { code: 'TN', name: 'Tunisia', dial: '+216', flag: '🇹🇳' },
+  { code: 'TR', name: 'Turkey', dial: '+90', flag: '🇹🇷' },
+  { code: 'TM', name: 'Turkmenistan', dial: '+993', flag: '🇹🇲' },
+  { code: 'UG', name: 'Uganda', dial: '+256', flag: '🇺🇬' },
+  { code: 'UA', name: 'Ukraine', dial: '+380', flag: '🇺🇦' },
+  { code: 'AE', name: 'United Arab Emirates', dial: '+971', flag: '🇦🇪' },
+  { code: 'GB', name: 'United Kingdom', dial: '+44', flag: '🇬🇧' },
+  { code: 'US', name: 'United States', dial: '+1', flag: '🇺🇸' },
+  { code: 'UY', name: 'Uruguay', dial: '+598', flag: '🇺🇾' },
+  { code: 'UZ', name: 'Uzbekistan', dial: '+998', flag: '🇺🇿' },
+  { code: 'VE', name: 'Venezuela', dial: '+58', flag: '🇻🇪' },
+  { code: 'VN', name: 'Vietnam', dial: '+84', flag: '🇻🇳' },
+  { code: 'YE', name: 'Yemen', dial: '+967', flag: '🇾🇪' },
+  { code: 'ZM', name: 'Zambia', dial: '+260', flag: '🇿🇲' },
+  { code: 'ZW', name: 'Zimbabwe', dial: '+263', flag: '🇿🇼' },
+];
+
+/* Helper to parse phone number into dial code and number */
+function parsePhoneNumber(phone: string): { dialCode: string; number: string } {
+  if (!phone) return { dialCode: '+880', number: '' }
+  
+  // Find matching dial code from the list
+  const sortedCodes = [...COUNTRY_CODES].sort((a, b) => b.dial.length - a.dial.length)
+  for (const country of sortedCodes) {
+    if (phone.startsWith(country.dial)) {
+      return { dialCode: country.dial, number: phone.slice(country.dial.length) }
+    }
+  }
+  
+  // Default fallback
+  return { dialCode: '+880', number: phone }
+}
+
+/* Helper to get dial code from country name */
+function getDialCodeFromCountry(countryName: string): string {
+  const found = COUNTRY_CODES.find(c => c.name === countryName)
+  return found?.dial || '+880'
+}
+
 export default function ProfilePage() {
   const router = useRouter()
   const supabase = createClient()
@@ -27,6 +220,10 @@ export default function ProfilePage() {
   const [fEm, setFEm] = useState('')
   const [fPh, setFPh] = useState('')
   const [fCo, setFCo] = useState('')
+  
+  /* phone country code */
+  const [fDialCode, setFDialCode] = useState('+880')
+  const [fPhoneNumber, setFPhoneNumber] = useState('')
 
   /* ── Refs ── */
   const bgRef = useRef<HTMLCanvasElement>(null)
@@ -35,34 +232,52 @@ export default function ProfilePage() {
 
   useEffect(() => {
     async function fetchData() {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        router.push('/auth/signin')
-        return
-      }
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          router.push('/auth/signin')
+          return
+        }
 
-      const { data: profileData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', user.id)
-        .maybeSingle()
-      
-      if (profileData) {
-        setProfile(profileData)
-        setFName(`${profileData.first_name} ${profileData.last_name}`)
-        setFUn(profileData.username || '')
-        setFEm(user.email || '')
-        setFPh(profileData.phone_number || '')
-        setFCo(profileData.country || '')
-      }
+        const { data: profileData, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', user.id)
+          .maybeSingle()
+        
+        if (profileError) {
+          console.error('Profile fetch error:', profileError)
+        }
+        
+        if (profileData) {
+          setProfile(profileData)
+          setFName(`${profileData.first_name} ${profileData.last_name}`)
+          setFUn(profileData.username || '')
+          setFEm(user.email || '')
+          setFPh(profileData.phone_number || '')
+          setFCo(profileData.country || '')
+          
+          // Parse phone number into dial code and number
+          const { dialCode, number } = parsePhoneNumber(profileData.phone_number)
+          setFDialCode(dialCode)
+          setFPhoneNumber(number)
+        } else {
+          console.warn('No profile found for user:', user.id)
+          // Set email at least from auth
+          setFEm(user.email || '')
+        }
 
-      const { data: referralData } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('referred_by', user.id)
-      
-      setReferrals(referralData || [])
-      setLoading(false)
+        const { data: referralData } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('referred_by', user.id)
+        
+        setReferrals(referralData || [])
+      } catch (err) {
+        console.error('Profile page fetch error:', err)
+      } finally {
+        setLoading(false)
+      }
     }
     fetchData()
   }, [router, supabase])
@@ -214,8 +429,19 @@ export default function ProfilePage() {
   /* ── Save profile ── */
   const saveProfile = async (e: React.FormEvent) => {
     e.preventDefault()
+    
+    // Get current user
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) {
+      showToast('Please sign in again', 'err')
+      return
+    }
+    
     const [firstName, ...lastNameParts] = fName.split(' ')
     const lastName = lastNameParts.join(' ')
+    
+    // Combine dial code and phone number
+    const fullPhone = fPhoneNumber ? `${fDialCode}${fPhoneNumber}` : ''
 
     const { error } = await supabase
       .from('profiles')
@@ -223,26 +449,33 @@ export default function ProfilePage() {
         first_name: firstName,
         last_name: lastName,
         username: fUn,
-        phone_number: fPh,
+        phone_number: fullPhone,
         country: fCo
       })
-      .eq('id', profile.id)
+      .eq('id', user.id)
 
     if (error) {
       showToast(error.message, 'err')
     } else {
-      setProfile({ ...profile, first_name: firstName, last_name: lastName, username: fUn, phone_number: fPh, country: fCo })
+      setProfile({ ...profile, first_name: firstName, last_name: lastName, username: fUn, phone_number: fullPhone, country: fCo })
+      setFPh(fullPhone)
       showToast('Profile saved successfully', 'ok')
     }
   }
 
   /* ── Reset form ── */
   const resetForm = () => {
-    setFName('Rakib Kowshar')
-    setFUn('rakib.investor')
-    setFEm('hellorakib.rk@gmail.com')
-    setFPh('1712-345678')
-    setFCo('Bangladesh')
+    if (profile) {
+      setFName(`${profile.first_name} ${profile.last_name}`)
+      setFUn(profile.username || '')
+      setFCo(profile.country || '')
+      
+      // Parse phone number back
+      const { dialCode, number } = parsePhoneNumber(profile.phone_number)
+      setFDialCode(dialCode)
+      setFPhoneNumber(number)
+      setFPh(profile.phone_number || '')
+    }
     showToast('Changes discarded')
   }
 
@@ -543,27 +776,66 @@ export default function ProfilePage() {
                         <label className='pf-fl' htmlFor='pf-ph'>
                           Phone Number
                         </label>
-                        <input
-                          className='pf-fi'
-                          type='tel'
-                          id='pf-ph'
-                          value={fPh}
-                          onChange={(e) => setFPh(e.target.value)}
-                          placeholder='01X-XXXXXXXX'
-                        />
+                        <div className='phone-row' style={{display:'flex',gap:0,border:'1px solid var(--border)',borderRadius:'var(--radius)',overflow:'hidden',background:'var(--cream)'}}>
+                          {/* Dial code selector */}
+                          <div style={{position:'relative',flexShrink:0}}>
+                            <select
+                              value={fDialCode}
+                              onChange={(e) => {
+                                setFDialCode(e.target.value)
+                                // Update country when dial code changes
+                                const found = COUNTRY_CODES.find(c => c.dial === e.target.value)
+                                if (found) setFCo(found.name)
+                              }}
+                              style={{
+                                padding:'11px 28px 11px 10px',height:'100%',background:'var(--parchment)',
+                                border:'none',borderRight:'1px solid var(--border)',
+                                fontFamily:"'DM Sans',sans-serif",fontSize:'.82rem',color:'var(--ink)',
+                                outline:'none',cursor:'pointer',appearance:'none',WebkitAppearance:'none',
+                                minWidth:90,
+                              }}
+                            >
+                              {COUNTRY_CODES.map(c => (
+                                <option key={c.code} value={c.dial}>{c.flag} {c.dial}</option>
+                              ))}
+                            </select>
+                            <span style={{position:'absolute',right:7,top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'.6rem',color:'var(--text-secondary)'}}>▼</span>
+                          </div>
+                          {/* Number input */}
+                          <input
+                            className='pf-fi'
+                            type='tel'
+                            id='pf-ph'
+                            value={fPhoneNumber}
+                            onChange={(e) => setFPhoneNumber(e.target.value)}
+                            placeholder='1712-345678'
+                            style={{border:'none',borderRadius:0,flex:1,background:'transparent'}}
+                          />
+                        </div>
                       </div>
                       <div className='pf-fg'>
                         <label className='pf-fl' htmlFor='pf-co'>
                           Country
                         </label>
-                        <input
+                        <select
                           className='pf-fi'
-                          type='text'
                           id='pf-co'
                           value={fCo}
-                          onChange={(e) => setFCo(e.target.value)}
-                          placeholder='Country'
-                        />
+                          onChange={(e) => {
+                            setFCo(e.target.value)
+                            // Sync dial code when country changes
+                            const found = COUNTRY_CODES.find(c => c.name === e.target.value)
+                            if (found) setFDialCode(found.dial)
+                          }}
+                          style={{appearance:'none',WebkitAppearance:'none',
+                            backgroundImage:"url(\"data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9' stroke='%236b6459' stroke-width='1.8' fill='none'/%3E%3C/svg%3E\")",
+                            backgroundRepeat:'no-repeat',backgroundPosition:'right 12px center',backgroundSize:'16px',paddingRight:34,cursor:'pointer'}}
+                        >
+                          <option value=''>Select your country…</option>
+                          {COUNTRY_CODES.map(c => (
+                            <option key={c.code} value={c.name}>{c.flag} {c.name}</option>
+                          ))}
+                        </select>
                       </div>
                       <div className='pf-fg'>
                         <label className='pf-fl' htmlFor='pf-ss'>

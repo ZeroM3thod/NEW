@@ -173,18 +173,29 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 DECLARE
     referrer_id UUID;
+    user_count INTEGER;
+    user_role public.user_role := 'user';
 BEGIN
+    -- Check if this is the first user (make them admin)
+    SELECT COUNT(*) INTO user_count FROM public.profiles;
+    IF user_count = 0 THEN
+        user_role := 'admin';
+    END IF;
+
     IF new.raw_user_meta_data->>'referral_by_code' IS NOT NULL THEN
         SELECT id INTO referrer_id FROM public.profiles 
         WHERE referral_code = (new.raw_user_meta_data->>'referral_by_code');
     END IF;
 
-    INSERT INTO public.profiles (id, first_name, last_name, username, referral_code, referred_by)
+    INSERT INTO public.profiles (id, first_name, last_name, username, phone_number, country, role, referral_code, referred_by)
     VALUES (
         new.id,
         new.raw_user_meta_data->>'first_name',
         new.raw_user_meta_data->>'last_name',
         new.raw_user_meta_data->>'username',
+        new.raw_user_meta_data->>'phone',
+        COALESCE(new.raw_user_meta_data->>'country', 'Bangladesh'),
+        user_role,
         upper(substring(md5(random()::text) from 1 for 8)),
         referrer_id
     );

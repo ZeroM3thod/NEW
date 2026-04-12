@@ -47,7 +47,7 @@ export default function ReferralPage() {
       .from('profiles')
       .select('*')
       .eq('id', user.id)
-      .maybeSingle()
+      .single()
     setProfile(profileData)
 
     const { data: refUsers } = await supabase

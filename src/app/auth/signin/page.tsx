@@ -90,7 +90,7 @@ export default function SignInPage() {
     if (!valid) return;
     setLLoading(true);
 
-    const { error } = await supabase.auth.signInWithPassword({
+    const { error, data: { user } } = await supabase.auth.signInWithPassword({
       email,
       password: pw,
     });
@@ -100,9 +100,18 @@ export default function SignInPage() {
       showToast('✕ ' + error.message, 'err');
       setLEmailCls('fi-err');
       setLPwCls('fi-err');
-    } else {
+    } else if (user) {
       showToast('✓ Welcome back! Redirecting…', 'ok');
-      setTimeout(() => router.push('/dashboard'), 1600);
+      
+      // Check user role and redirect accordingly
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('role')
+        .eq('id', user.id)
+        .maybeSingle();
+      
+      const redirectPath = profile?.role === 'admin' ? '/admin/dashboard' : '/dashboard';
+      setTimeout(() => router.push(redirectPath), 1600);
     }
   };
 

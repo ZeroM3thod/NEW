@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
     first_name TEXT,
     last_name TEXT,
     username TEXT UNIQUE,
+    email TEXT,
     phone_number TEXT,
     country TEXT,
     role public.user_role DEFAULT 'user',
@@ -187,12 +188,13 @@ BEGIN
         WHERE referral_code = (new.raw_user_meta_data->>'referral_by_code');
     END IF;
 
-    INSERT INTO public.profiles (id, first_name, last_name, username, phone_number, country, role, referral_code, referred_by)
+    INSERT INTO public.profiles (id, first_name, last_name, username, email, phone_number, country, role, referral_code, referred_by)
     VALUES (
         new.id,
         new.raw_user_meta_data->>'first_name',
         new.raw_user_meta_data->>'last_name',
         new.raw_user_meta_data->>'username',
+        new.email,
         new.raw_user_meta_data->>'phone',
         COALESCE(new.raw_user_meta_data->>'country', 'Bangladesh'),
         user_role,

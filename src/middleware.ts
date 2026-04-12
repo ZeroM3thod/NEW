@@ -46,6 +46,8 @@ export async function updateSession(request: NextRequest) {
   const isMaintenance = settings?.maintenance_mode || false
   const isMaintenancePage = request.nextUrl.pathname.startsWith('/maintenance')
   const isAdminPage = request.nextUrl.pathname.startsWith('/admin')
+  const isAuthPage = request.nextUrl.pathname.startsWith('/auth')
+  const isHomePage = request.nextUrl.pathname === '/'
 
   // Fetch profile to check if user is admin
   let userRole = 'user'
@@ -58,10 +60,20 @@ export async function updateSession(request: NextRequest) {
     userRole = profile?.role || 'user'
   }
 
-  if (isMaintenance && !isAdminPage && !isMaintenancePage && userRole !== 'admin') {
-    const url = request.nextUrl.clone()
-    url.pathname = '/maintenance'
-    return NextResponse.redirect(url)
+  // Maintenance mode logic
+  if (isMaintenance && userRole !== 'admin' && !isAdminPage && !isMaintenancePage) {
+    // 1. Authenticated users (non-admin) are always redirected to maintenance page
+    if (user) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/maintenance'
+      return NextResponse.redirect(url)
+    }
+    // 2. Unauthenticated users can only access Home and Auth pages
+    if (!isHomePage && !isAuthPage) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/maintenance'
+      return NextResponse.redirect(url)
+    }
   }
 
   if (

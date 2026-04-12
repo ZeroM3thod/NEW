@@ -97,7 +97,7 @@ export default function AdminUserPage() {
         uid: u.id,
         name: `${u.first_name} ${u.last_name}`,
         username: u.username,
-        email: u.username + '@email.com',
+        email: u.email || '—',
         phone: u.phone_number || '—',
         country: u.country || '—',
         balance: Number(u.balance),

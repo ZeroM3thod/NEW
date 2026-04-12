@@ -47,6 +47,13 @@ export default function AdminDashboardPage() {
     labels: [], invested: [], users: []
   });
 
+  const [miniStats, setMiniStats] = useState({
+    totalPaidOut: '$0',
+    avgSeasonROI: '0%',
+    payoutRate: '0%',
+    seasonsRun: '0'
+  });
+
   /* ── Fetch Data ── */
   const fetchData = useCallback(async () => {
     // 1. Stats
@@ -66,6 +73,24 @@ export default function AdminDashboardPage() {
       pendingWithdrawals: pendingWdCount || 0
     });
 
+    // 1b. Mini Stats
+    const { data: approvedWd } = await supabase.from('withdrawals').select('amount').eq('status', 'approved');
+    const totalPaid = approvedWd?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+    
+    const { data: closedSeasons } = await supabase.from('seasons').select('final_roi').eq('status', 'closed');
+    const avgROI = closedSeasons?.length ? (closedSeasons.reduce((acc, curr) => acc + Number(curr.final_roi), 0) / closedSeasons.length) : 0;
+    
+    const { count: rejectedWdCount } = await supabase.from('withdrawals').select('*', { count: 'exact', head: true }).eq('status', 'rejected');
+    const totalWdCount = (approvedWd?.length || 0) + (rejectedWdCount || 0);
+    const payoutRate = totalWdCount > 0 ? ((approvedWd?.length || 0) / totalWdCount * 100) : 100;
+
+    setMiniStats({
+      totalPaidOut: `$${(totalPaid / 1000000).toFixed(1)}M`,
+      avgSeasonROI: `${avgROI >= 0 ? '+' : ''}${avgROI.toFixed(1)}%`,
+      payoutRate: `${payoutRate.toFixed(1)}%`,
+      seasonsRun: String(closedSeasons?.length || 0)
+    });
+
     // 2. Recent Users
     const { data: recUsers } = await supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(7);
     if (recUsers) {
@@ -73,7 +98,7 @@ export default function AdminDashboardPage() {
         init: (u.first_name?.[0] || '') + (u.last_name?.[0] || ''),
         name: `${u.first_name} ${u.last_name}`,
         un: `@${u.username}`,
-        email: u.username + '@email.com', // Profile doesn't have email, mock it or use username
+        email: u.email || '—',
         joined: new Date(u.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
         balance: `$${Number(u.balance).toLocaleString()}`,
         status: 'active'
@@ -117,12 +142,34 @@ export default function AdminDashboardPage() {
       }));
     }
 
-    // 5. Chart Data (Mocking for now as complex aggregation is needed, but will use some real points)
-    const months = ['Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr'];
+    // 5. Chart Data
+    const monthLabels = [];
+    const investedData = [];
+    const usersData = [];
+    const now = new Date();
+    
+    for (let i = 7; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const label = d.toLocaleDateString('en-GB', { month: 'short' });
+      monthLabels.push(label);
+      
+      const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1).toISOString();
+      const endOfMonth = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59).toISOString();
+      
+      // We want CUMULATIVE data for the chart growth
+      const { count: usersCountUpToNow } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'user').lte('created_at', endOfMonth);
+      const { data: invUpToNow } = await supabase.from('investments').select('amount').lte('created_at', endOfMonth);
+      
+      const totalInvUpToNow = invUpToNow?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+      
+      investedData.push(totalInvUpToNow / 1000000); // in Millions
+      usersData.push(usersCountUpToNow || 0);
+    }
+
     setChartData({
-      labels: months,
-      invested: [8.2, 12.4, 18.6, 24.1, 31.8, 42.3, 58.7, totalInv / 1000000],
-      users: [4200, 8100, 12400, 18900, 24800, 34200, 43100, userCount || 50421]
+      labels: monthLabels,
+      invested: investedData,
+      users: usersData
     });
 
   }, [supabase]);
@@ -445,7 +492,7 @@ export default function AdminDashboardPage() {
                 </div>
                 <div className="adm-chart-card" style={{ padding:'16px 20px' }}>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-                    {[['$4.3M','Total Paid Out'],['+23.4%','Avg Season ROI'],['99.8%','Payout Rate'],['7','Seasons Run']].map(([v,l]) => (
+                    {[[miniStats.totalPaidOut,'Total Paid Out'],[miniStats.avgSeasonROI,'Avg Season ROI'],[miniStats.payoutRate,'Payout Rate'],[miniStats.seasonsRun,'Seasons Run']].map(([v,l]) => (
                       <div key={l} className="adm-mini-stat"><div className="adm-mini-val">{v}</div><div className="adm-mini-lbl">{l}</div></div>
                     ))}
                   </div>

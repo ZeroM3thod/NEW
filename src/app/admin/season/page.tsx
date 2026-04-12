@@ -114,6 +114,11 @@ export default function AdminSeasonPage() {
 
   const [loading, setLoading] = useState(true);
 
+  const [aggStats, setAggStats] = useState({
+    avgROI: '+0%',
+    totalPool: '$0'
+  });
+
   /* ── Fetch Data ── */
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -124,9 +129,15 @@ export default function AdminSeasonPage() {
     } else if (seasons) {
       const activeArr: ActiveSeason[] = [];
       const prevArr: PrevSeason[] = [];
+      let totalPoolAll = 0;
+      let totalROI = 0;
+      let closedCount = 0;
 
       seasons.forEach(s => {
+        totalPoolAll += Number(s.current_pool || 0);
         if (s.status === 'closed') {
+          closedCount++;
+          totalROI += Number(s.final_roi || 0);
           prevArr.push({
             id: s.id,
             name: s.name,
@@ -136,7 +147,7 @@ export default function AdminSeasonPage() {
             finalROI: Number(s.final_roi) || 0,
             pool: Number(s.pool_cap) || 0,
             min: Number(s.min_entry) || 0,
-            max: 50000 // default max if not in schema
+            max: 50000 
           });
         } else {
           activeArr.push({
@@ -159,6 +170,10 @@ export default function AdminSeasonPage() {
 
       setActive(activeArr);
       setPrev(prevArr);
+      setAggStats({
+        avgROI: `${(closedCount > 0 ? (totalROI / closedCount) : 0).toFixed(1)}%`,
+        totalPool: fmtUSDT(totalPoolAll)
+      });
     }
     setLoading(false);
   }, [supabase]);
@@ -365,11 +380,46 @@ export default function AdminSeasonPage() {
       setCmOpen(false);
       showToast(`⏰ Auto-Close set for ${s.name} — closes on ${fmtDate(s.finishDate)} with +${roi}% ROI`, 'ok');
     } else {
+      setLoading(true);
+      // 1. Fetch all investments for this season
+      const { data: investments, error: invErr } = await supabase.from('investments').select('*').eq('season_id', cmId).eq('status', 'active');
+      
+      if (invErr) { showToast('✕ Error fetching investments', 'err'); setLoading(false); return; }
+
+      // 2. Process payouts for each investment
+      if (investments && investments.length > 0) {
+        for (const inv of investments) {
+          const principal = Number(inv.amount);
+          const profit = principal * (roi / 100);
+          const totalReturn = principal + profit;
+
+          // Fetch current user profile to get current balance and profits_total
+          const { data: profile, error: profErr } = await supabase.from('profiles').select('balance, profits_total, invested_total').eq('id', inv.user_id).single();
+          
+          if (profile) {
+            const newBalance = Number(profile.balance) + totalReturn;
+            const newProfitsTotal = Number(profile.profits_total) + profit;
+            const newInvestedTotal = Math.max(0, Number(profile.invested_total) - principal);
+
+            // Update profile
+            await supabase.from('profiles').update({
+              balance: newBalance,
+              profits_total: newProfitsTotal,
+              invested_total: newInvestedTotal
+            }).eq('id', inv.user_id);
+
+            // Mark investment as closed
+            await supabase.from('investments').update({ status: 'closed' }).eq('id', inv.id);
+          }
+        }
+      }
+
+      // 3. Close the season
       const { error } = await supabase.from('seasons').update({ status: 'closed', final_roi: roi }).eq('id', cmId);
-      if (error) { showToast('✕ Error closing season', 'err'); return; }
+      if (error) { showToast('✕ Error closing season', 'err'); setLoading(false); return; }
       
       setCmOpen(false);
-      showToast(`✓ ${s.name} closed with +${roi}% ROI`, 'ok');
+      showToast(`✓ ${s.name} closed. Payouts processed for ${investments?.length || 0} investors.`, 'ok');
       fetchData();
     }
   };
@@ -604,8 +654,8 @@ export default function AdminSeasonPage() {
               {[
                 ['Active Seasons', String(active.length), 'var(--ink)'],
                 ['Total Seasons Run', String(active.length + prev.length), 'var(--ink)'],
-                ['Avg Final ROI', '+23.4%', 'var(--gold)'],
-                ['Total Pool (All Seasons)', '$46.8M', 'var(--ink)'],
+                ['Avg Final ROI', aggStats.avgROI, 'var(--gold)'],
+                ['Total Pool (All Seasons)', aggStats.totalPool, 'var(--ink)'],
               ].map(([lbl, val, col]) => (
                 <div key={lbl} className="sm-card" style={{ padding:'16px 18px' }}>
                   <div style={{ fontSize:'.58rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--text-sec)', marginBottom:4 }}>{lbl}</div>

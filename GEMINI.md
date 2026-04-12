@@ -1,121 +1,45 @@
 
 
-#  Full-Stack Integration & Database PRD
+# GEMINI.md - Platform Bug Fixes & Feature Updates
 
-## 1. Project Overview
-This document outlines the requirements to transform a static frontend design into a fully functional, data-driven web application. All mock and demo data must be replaced with real-time data fetched from the backend. The design must remain exactly as is, with all changes occurring under the hood.
-
-**Tech Stack Requirements:**
-* **Backend & Database:** Supabase (PostgreSQL, Auth, Edge Functions).
-* **Deployment:** Vercel.
-* **Core Rule:** Absolute zero use of hardcoded, mock, or demo data for metrics, user details, and system statuses.
-
----
-
-## 2. Security & Access Control (RBAC)
-* **Role Segregation:** Strict separation between `User` and `Admin` roles.
-* **Admin Route Protection:** Users attempting to access any `/admin/*` routes (Dashboard, Season Management, User Management, etc.) must be strictly blocked and redirected to a **404 Error** page.
-* **Mutation Security:** Any creation, modification, or deletion of system data (seasons, user balances, approvals) must be validated on the backend to ensure the requester has Admin privileges.
-
----
-
-## 3. Public Pages Requirements
-
-### Home Page
-* **Header Navbar:** Dynamic season notification. E.g., if Season 6 is open in the database, display: `"Season 6 Now Open — Limited Slots"`.
-* **Platform Performance:** Update the `"Last Season ROI"` dynamically based on the most recently completed season. (e.g., if Season 4 completed at 23%, display **23%**, not the default 28.4%).
-* **Season Section:** Display a total of 4 seasons dynamically:
-    * Card 1 & 2: The last two completed seasons.
-    * Card 3: The currently running season.
-    * Card 4: The upcoming season (Entry Open).
-
----
-
-## 4. User Portal Requirements
-
-### User Dashboard
-* **Greeting:** Display `"Good morning, [User First Name]"`.
-* **Top Right Badge:** Display the currently running season (e.g., `"Season 4 Live"`). If the user hasn't joined any season, display `"Not Joined"`.
-* **Portfolio Status:**
-    * Show real Total Portfolio balance.
-    * Show active season progress (e.g., `"Day 42 of 90 days"`) based on database timestamps.
-    * Display Season Progress (%), Entry Amount ($), Target %, All-time profit ($ and %), and Avg ROI (%).
-* **Stat Cards:** Invested, Withdrawable, Total Profits, Avg ROI must fetch real aggregated data.
-* **Performance Graph:** Must render using actual historical user data.
-* **History Seasons:** List the user's past season investments.
-* **Referral Section:** Display the user's unique referral code. Show real counts for Referrals, Earned, and set the default Commission Rate display to **7%** (or dynamically based on milestones).
-* **Season Banner:** Display dynamic countdown based on DB (e.g., `"6 days remain to join Season 6. Pool at 51% capacity."`). The "Invest Now" button routes to the Season page.
-
-### User Season Page
-* **Stat Cards:** Active Seasons, Total Invested, Avg Season ROI, Total Profit (real user data).
-* **Currently Running Section:** Top right badge must accurately reflect the number of live seasons (e.g., `"3 seasons live"`).
-* **Investment Logic:** Users can only invest in seasons where `entry_status` is open. Closed seasons must disable the invest function.
-* **History Section:** Populate "All Seasons & History" from the database.
-
-### User Deposit Page
-* **Deposit Addresses:** Fetch dynamic wallet addresses and generate QR codes based on the selected network.
-* **Submission:** Submitting a deposit sends a "Pending" request to the Admin. It does *not* credit the account until Admin approval.
-
-### User Withdraw Page
-* **Available Balance:** Strictly fetch the `Withdrawable` balance from the DB.
-* **Submission:** Submitting a request updates the DB with a "Pending" withdrawal request.
-
-### Referral Page
-* **Referral Details:** Auto-generate a unique referral link and code upon signup.
-* **Sign-up Auto-fill:** Clicking the referral link routes to the signup page and automatically inputs the referral code.
-* **Social Sharing:** Fully functional WhatsApp, Telegram, Twitter, and Email share buttons.
-* **Milestone Logic (Automated):**
-    * Base rate (e.g., 5% or 7% as per DB config).
-    * At **50 Referrals**: Commission rate automatically increases by **+1%**. Next target set to 100.
-    * At **100 Referrals**: Commission rate automatically increases by an additional **+3%**.
-    * Commission Rate card must reflect these dynamic updates.
-* **Stats & History:** Show Monthly Earnings, Total Invested by Refs, Lifetime Earning, and a detailed list of referred users.
-
-### User Support Page
-* **Contact Links:** Email and Telegram buttons must open respective external apps/links.
-* **Cleanup:** Remove all mock ticket history UI.
-
-### User Profile Page
-* **Header & Avatar:** Greet with First Name. Avatar displays the initial of the First Name and Last Name.
-* **Account Details:** Display Full Name, Username, Join Date (Month/Year), Balance, All-time ROI, Active Season status, and Total Referred.
-* **Edit Profile:** Users can update their Full Name, Username, Phone Number, and Country. Updates sync to the DB. (Email requires special auth handling).
-* **Security:** Password change triggers a Supabase Auth reset email.
-* **Summaries:** Wallet Summary (Invested, Current, Withdrawable, Profits, Ref Commission) and Referral summary must show real metrics.
-
----
-
-## 5. Admin Portal Requirements
+## 1. Admin Portal Updates
 
 ### Admin Dashboard
-* **Aggregated Metrics:** Total Users, USDT Invested, Platform Balance, Active Seasons, Pending Withdrawals, Platform Growth, Season Distribution, Total Paid Out, Avg Season ROI, Payout Rate, Seasons Run, Recent Users, Withdraw Requests.
+* **Data Integration:** Replace all hardcoded demo data with real-time database queries for the following metric cards:
+    * **Total Paid Out** (currently showing mock data like -$4.3M)
+    * **Avg Season ROI** (currently showing mock data like +23.4%)
+    * **Seasons Run** (currently showing mock data like 7)
+    * **Payout Rate** (currently showing mock data like 99.8%)
+* **Profit Growth Chart:** Ensure the chart dynamically renders using real historical data from the database.
 
 ### Admin User Management
-* **Metrics:** Total Users, Active, Suspended, Total Balance Pool.
-* **Directory:** Functional search bar and user list.
-* **Edit User:** Admins can view and edit user details. Edits made here must reflect globally across the user's frontend and the database immediately.
+* **Email Display Bug Fix:** When an admin clicks to view a specific user's details, the email field currently generates a fake email combining the username (`username@email.com`). Fix this to fetch and display the user's actual registered email address (e.g., `hasan.dev.404@gmail.com`) from the database.
 
 ### Admin Season Management
-* **Metrics:** Active Seasons, Total Seasons Run, Total Pool (All Seasons), Avg Final ROI.
-* **CRUD Operations:** Create, update, and manage seasons in real-time.
-* **History:** List all previous seasons accurately.
+* **Data Integration:** The **Total Pool (All Seasons)** and **Avg Final ROI** cards must fetch and display real aggregated data from the database.
+* **Season Closure Logic (Critical):** When an admin closes a season and inputs the "Final ROI", the system must automatically execute a payout action. It must calculate the profit or loss based on that Final ROI and return the invested principal plus the calculated profit/loss back to the available balance of every user who invested in that specific season.
 
-### Admin Withdrawal Management
-* **Metrics & Charts:** Pending, Approved, Rejected, Processed Today. 7-Day Withdrawal Volume graph.
-* **Actionable List:** Admins can Approve or Reject requests.
-* **Rejection Logic:** Rejecting a withdrawal *requires* the Admin to input a reason.
+### Admin Web Settings Page
+* **Demo Status:** Keep all setting toggles and features as non-functional demos, *except* for the Maintenance Mode.
+* **Maintenance Mode Routing Logic:**
+    * When enabled by the admin, unauthenticated users can only access the public landing/home page, the Sign-in page, and the Sign-up page.
+    * Once a user signs in, they must be forcibly routed to a "Maintenance" page. If they try to navigate to any other internal page (dashboard, profile, etc.), the system must block the request and redirect them back to the Maintenance page.
 
-### Admin Deposit Management
-* **Metrics & Charts:** Pending, Confirmed, Received Today, Monthly (Confirmed). Deposit Volume graph.
-* **Actionable List:** Admins can Approve or Reject.
-* **Approval Logic:** Approving automatically adds the funds to the specific user's `Available Balance`.
-* **Rejection Logic:** Rejecting *requires* a reason, which the user will be able to see on their personal deposit details page.
+*(Note: All other admin pages require no changes at this time.)*
 
-### Admin Transaction History
-* **Global Ledger:** View Total Transactions, Deposits, Withdrawals, Total Amount Processed, Daily Flow (Last 30 days).
+---
 
-### Admin Web Settings (Maintenance Mode)
-* **Static UI:** Keep existing UI elements as non-functional demos, *except* for Maintenance Mode.
-* **Maintenance Logic:**
-    * Admin enables Maintenance Mode and sets a specific time duration.
-    * If active, any standard user attempting to access the site is forcibly routed to a "Maintenance" page displaying the remaining time duration.
-    * Once the duration expires, the site automatically unlocks for standard users. Admins can bypass the maintenance lock.
+## 2. User Portal Updates
+
+### User Season Page
+* **Closed Season UI Updates:** In the "All Seasons & History" section, if a season has been closed by the admin with a final ROI:
+    * Update the visual status to **"Closed"**.
+    * Automatically remove the **"Invest Now"** button.
+    * Display the actual final percentage in the **"ROI"** section.
+    * Display the user's calculated monetary return in the **"My Profit / Loss"** section.
+* **Dynamic Countdown Logic:**
+    * **Phase 1 (Entry Open):** The season card should display **"Entry window closes in"** and count down to the *entry deadline*.
+    * **Phase 2 (Running / Entry Closed):** Once the entry time expires, immediately remove the **"Invest Now"** button from the action section. Change the countdown text from "Entry window closes in" to **"Season Finished in"** and start a new countdown to the season's actual end date.
+
+### Public Home Page
+* **No Changes:** Leave the main public home page exactly as it is for now. Do not apply any updates here.

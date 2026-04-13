@@ -25,13 +25,11 @@
 /* ── SIDEBAR ── */
 .db-sidebar {
   width: 220px; flex-shrink: 0;
-  /* Always solid — no glass effect that causes blur bleed-through */
   background: #f6f1e9;
   border-right: 1px solid var(--border);
   display: flex; flex-direction: column;
   padding: 28px 0 24px;
   position: fixed; top: 0; left: 0; bottom: 0;
-  /* z-index above overlay (299) so clicks always reach nav buttons */
   z-index: 300;
   transition: transform .3s ease;
   overflow-y: auto;
@@ -88,7 +86,6 @@
 .db-sidebar-overlay {
   display: none; position: fixed; inset: 0;
   background: rgba(28,28,28,0.45);
-  /* No backdrop-filter — sidebar must show clearly */
   z-index: 299;
 }
 .db-sidebar-overlay.open { display: block; }
@@ -172,9 +169,11 @@
 .db-prog-fill { height: 100%; border-radius: 100px; background: linear-gradient(90deg, var(--gold), var(--gold-l)); transition: width 1.6s ease; }
 
 /* ── STAT ── */
-.db-stat-num { font-family: 'Cormorant Garamond', serif; font-size: 1.9rem; font-weight: 400; color: var(--ink); line-height: 1; }
-.db-stat-up { color: var(--sage); }
+.db-stat-num  { font-family: 'Cormorant Garamond', serif; font-size: 1.9rem; font-weight: 400; color: var(--ink); line-height: 1; }
+/* ↓ colour helpers — used dynamically via className */
+.db-stat-up   { color: var(--sage); }
 .db-stat-gold { color: var(--gold); }
+.db-stat-dn   { color: #b05252; }   /* ← RED for losses / negative P&L */
 
 /* ── TAGS ── */
 .db-tag { display: inline-block; padding: 2px 9px; border-radius: 100px; font-size: .65rem; letter-spacing: .06em; }
@@ -275,8 +274,6 @@
 }
 .db-copy-btn:hover { background: var(--gold); }
 
-/* ── BOTTOM NAV removed ── */
-
 /* ── TOAST ── */
 .db-toast {
   position: fixed; top: 18px; left: 50%; transform: translateX(-50%) translateY(-70px);
@@ -339,7 +336,6 @@
 
 @media (min-width: 901px) {
   .db-topbar { display: none; }
-  /* On desktop, sidebar can use glass effect */
   .db-sidebar {
     background: rgba(246,241,233,0.94);
     backdrop-filter: blur(16px);

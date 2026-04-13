@@ -5,6 +5,14 @@ import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
 import { createClient } from '@/utils/supabase/client'
 
+// ─── P&L helpers (same as dashboard) ────────────────────────────────────────
+const fmtPnL   = (n: number) => n >= 0
+  ? `+$${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 })}`
+  : `-$${Math.abs(n).toLocaleString(undefined, { minimumFractionDigits:2, maximumFractionDigits:2 })}`
+
+const pnlColor = (n: number) => n >= 0 ? 'var(--sage)' : '#b05252'
+// ────────────────────────────────────────────────────────────────────────────
+
 /* ── Types ── */
 interface ActiveSeason {
   id: string
@@ -27,12 +35,13 @@ interface HistorySeason {
   id: string
   name: string
   period: string
-  roi: string
+  roi: string            // display string, e.g. "24.5%"
+  roiSign: string        // '+' | '-' | '0'  (for colour)
   finalRoi: number | null
   myInv: string
   myPL: string
-  plSign: string
-  dbStatus: string  // raw DB status: 'upcoming' | 'open' | 'running' | 'closed'
+  plSign: string         // '+' | '-' | '0'
+  dbStatus: string
   mySeasonId: string | null
 }
 
@@ -109,21 +118,37 @@ export default function SeasonPage() {
       setSeasons(activeMapped)
 
       const historyMapped: HistorySeason[] = dbSeasons.map(s => {
-        const myInv = myInvestments?.find(inv => inv.season_id === s.id)
-        const isClosed = s.status === 'closed'
-        const finalRoi = isClosed && s.final_roi != null ? Number(s.final_roi) : null
-        const profit = (finalRoi !== null && myInv) ? Number(myInv.amount) * finalRoi / 100 : 0
+        const myInv      = myInvestments?.find(inv => inv.season_id === s.id)
+        const isClosed   = s.status === 'closed'
+        const finalRoi   = isClosed && s.final_roi != null ? Number(s.final_roi) : null
+        const profit     = (finalRoi !== null && myInv) ? Number(myInv.amount) * finalRoi / 100 : 0
+
+        // ROI display string — always show sign for closed seasons
+        let roiStr  = '—'
+        let roiSign = '0'
+        if (isClosed && finalRoi !== null) {
+          roiStr  = `${finalRoi >= 0 ? '+' : ''}${finalRoi}%`
+          roiSign = finalRoi >= 0 ? '+' : '-'
+        } else if (s.roi_range) {
+          roiStr  = s.roi_range
+          roiSign = '0'  // range shown neutral; colour decided at render
+        }
+
         return {
           id: s.id,
           name: s.name,
           period: s.period || '',
-          roi: isClosed && finalRoi !== null ? `${finalRoi}%` : (s.roi_range ? `${s.roi_range}` : '—'),
+          roi: roiStr,
+          roiSign,
           finalRoi,
           myInv: myInv ? `$${Number(myInv.amount).toLocaleString()}` : '—',
+          // P&L: principal + profit returned → show net gain/loss
           myPL: (isClosed && myInv && finalRoi !== null)
-            ? `${profit >= 0 ? '+' : '-'}$${Math.abs(profit).toFixed(2)}`
+            ? fmtPnL(profit)
             : '—',
-          plSign: (isClosed && myInv && finalRoi !== null) ? (profit >= 0 ? '+' : '-') : '0',
+          plSign: (isClosed && myInv && finalRoi !== null)
+            ? (profit >= 0 ? '+' : '-')
+            : '0',
           dbStatus: s.status,
           mySeasonId: myInv ? myInv.id : null
         }
@@ -147,9 +172,7 @@ export default function SeasonPage() {
   useEffect(() => {
     const channel = supabase
       .channel('season-changes')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'seasons' }, () => {
-        fetchData()
-      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'seasons' }, () => { fetchData() })
       .subscribe()
     return () => { supabase.removeChannel(channel) }
   }, [supabase, fetchData])
@@ -194,7 +217,6 @@ export default function SeasonPage() {
       const labels: Record<string,string> = {}
       seasons.forEach(s => {
         const now = Date.now()
-        // Phase 1: entry open → count down to entry close
         if (s.status === 'open' && s.entryCloseDate) {
           const diff = s.entryCloseDate.getTime() - now
           if (diff > 0) {
@@ -204,7 +226,6 @@ export default function SeasonPage() {
             return
           }
         }
-        // Phase 2: running → count down to season end
         const diff = s.endDate.getTime() - now
         if (diff <= 0) { cds[s.id] = 'Ending'; labels[s.id] = 'Season finished'; return }
         const d=Math.floor(diff/864e5), h=Math.floor((diff%864e5)/36e5), m=Math.floor((diff%36e5)/6e4), sec=Math.floor((diff%6e4)/1e3)
@@ -242,10 +263,10 @@ export default function SeasonPage() {
 
   /* ── Filtered history rows ── */
   const filteredHistory = history.filter(r => {
-    if (histTab === 'all') return true
-    if (histTab === 'active') return r.dbStatus === 'open' || r.dbStatus === 'running'
+    if (histTab === 'all')       return true
+    if (histTab === 'active')    return r.dbStatus === 'open' || r.dbStatus === 'running'
     if (histTab === 'completed') return r.dbStatus === 'closed'
-    if (histTab === 'mine') return r.mySeasonId !== null
+    if (histTab === 'mine')      return r.mySeasonId !== null
     return true
   })
 
@@ -258,9 +279,9 @@ export default function SeasonPage() {
     const s = seasons.find(x => x.id === investId)
     if (!s) return
     const amt = parseFloat(amountVal)
-    if (!amt || isNaN(amt)) { showToast('⚠ Please enter an amount.'); return }
-    if (amt < s.min) { showToast(`⚠ Minimum investment is $${s.min.toLocaleString()}.`); return }
-    if (amt > userProfile.balance) { showToast('⚠ Insufficient balance.'); return }
+    if (!amt || isNaN(amt))       { showToast('⚠ Please enter an amount.'); return }
+    if (amt < s.min)              { showToast(`⚠ Minimum investment is $${s.min.toLocaleString()}.`); return }
+    if (amt > userProfile.balance){ showToast('⚠ Insufficient balance.'); return }
 
     try {
       const { error: invError } = await supabase.from('investments').insert({
@@ -269,7 +290,7 @@ export default function SeasonPage() {
       if (invError) throw invError
 
       await supabase.from('profiles').update({
-        balance: userProfile.balance - amt,
+        balance:        userProfile.balance - amt,
         invested_total: (Number(userProfile.invested_total) || 0) + amt
       }).eq('id', userProfile.id)
 
@@ -287,8 +308,8 @@ export default function SeasonPage() {
 
   /* ── Stats ── */
   const myTotalInvested = userProfile?.invested_total || 0
-  const myProfits = userProfile?.profits_total || 0
-  const avgRoi = userProfile?.avg_roi || 0
+  const myProfits       = userProfile?.profits_total  || 0
+  const avgRoi          = userProfile?.avg_roi        || 0
 
   if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'var(--txt2)',background:'var(--cream)'}}>Loading Seasons...</div>
 
@@ -324,13 +345,21 @@ export default function SeasonPage() {
               </div>
             </div>
 
-            {/* STATS STRIP */}
+            {/* STATS STRIP — profits auto-red if negative */}
             <div className='sx-reveal' style={{transitionDelay:'.04s',display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:2,border:'1px solid var(--border)',borderRadius:10,overflow:'hidden',marginBottom:36}}>
               {[
-                {lbl:'Active Seasons', val:<>{seasons.length}</>, valStyle:{}},
-                {lbl:'My Total Invested', val:<>${Number(myTotalInvested).toLocaleString()}</>, valStyle:{color:'var(--gold)'}},
-                {lbl:'Avg. Season ROI', val:<>{avgRoi}%</>, valStyle:{color:'var(--sage)'}},
-                {lbl:'Total Profit', val:<>+${Number(myProfits).toLocaleString()}</>, valStyle:{color:'var(--sage)'}},
+                {lbl:'Active Seasons',      val:<>{seasons.length}</>,              valStyle:{}},
+                {lbl:'My Total Invested',   val:<>${Number(myTotalInvested).toLocaleString()}</>, valStyle:{color:'var(--gold)'}},
+                {
+                  lbl:'Avg. Season ROI',
+                  val: <>{avgRoi >= 0 ? '+' : ''}{avgRoi}%</>,
+                  valStyle:{color: pnlColor(avgRoi)},
+                },
+                {
+                  lbl:'Total Profit / Loss',
+                  val: <>{fmtPnL(Number(myProfits))}</>,
+                  valStyle:{color: pnlColor(Number(myProfits))},
+                },
               ].map((s,i) => (
                 <div key={i} style={{background:'var(--surface)',padding:'16px 18px',borderRight:i%2===0?'1px solid var(--border)':'none'}}>
                   <div style={{fontSize:'.62rem',letterSpacing:'.12em',textTransform:'uppercase',color:'var(--text-sec)',marginBottom:4}}>{s.lbl}</div>
@@ -359,7 +388,7 @@ export default function SeasonPage() {
               ) : seasons.map(s => {
                 const pct = Math.round((s.poolFilled / s.pool) * 100)
                 const isEntryExpired = s.entryCloseDate && s.entryCloseDate.getTime() <= Date.now()
-                const isOpen = s.status === 'open' && !isEntryExpired
+                const isOpen    = s.status === 'open' && !isEntryExpired
                 const isRunning = s.status === 'running' || (s.status === 'open' && isEntryExpired)
 
                 return (
@@ -369,7 +398,6 @@ export default function SeasonPage() {
                         <span className='sx-sc-name'>{s.name}</span>
                         <span className={`sx-tag ${s.statusClass}`}>{s.statusLabel}</span>
                       </div>
-                      {/* Phase-aware countdown */}
                       <div className='sx-countdown-lbl'>{countdownLabel[s.id] || (isOpen ? 'Entry window closes in' : 'Season finishes in')}</div>
                       <div className='sx-countdown'>{countdowns[s.id] || '—'}</div>
                     </div>
@@ -434,7 +462,7 @@ export default function SeasonPage() {
               </div>
             </div>
 
-            {/* HISTORY TABLE */}
+            {/* HISTORY TABLE — green/red based on actual ROI / P&L sign */}
             <div className='sx-hist-wrap sx-reveal' style={{transitionDelay:'.2s'}}>
               <table className='sx-htbl'>
                 <thead>
@@ -447,15 +475,41 @@ export default function SeasonPage() {
                     <tr key={r.id}>
                       <td><div className='sx-td-sname'>{r.name}</div></td>
                       <td><div className='sx-td-period'>{r.period}</div></td>
-                      <td className={r.plSign==='+'?'sx-c-pos':r.plSign==='-'?'sx-c-neg':'sx-c-neu'}>{r.roi}</td>
+
+                      {/* ROI column — green for +, red for -, neutral for range */}
+                      <td>
+                        <span style={{
+                          fontFamily:"'Cormorant Garamond',serif",
+                          fontSize:'.95rem',
+                          fontWeight:500,
+                          color: r.roiSign === '+' ? 'var(--sage)'
+                               : r.roiSign === '-' ? '#b05252'
+                               : 'var(--text-sec)',
+                        }}>
+                          {r.roi}
+                        </span>
+                      </td>
+
                       <td>
                         {r.mySeasonId !== null ? (
                           <><span className='sx-my-tag'>mine</span> {r.myInv}</>
                         ) : r.myInv}
                       </td>
-                      <td className={r.plSign==='+'?'sx-c-pos':r.plSign==='-'?'sx-c-neg':'sx-c-neu'}>
-                        {r.myPL}
+
+                      {/* P&L column — green for profit, red for loss */}
+                      <td>
+                        <span style={{
+                          fontFamily:"'Cormorant Garamond',serif",
+                          fontSize:'.95rem',
+                          fontWeight:500,
+                          color: r.plSign === '+' ? 'var(--sage)'
+                               : r.plSign === '-' ? '#b05252'
+                               : 'var(--text-sec)',
+                        }}>
+                          {r.myPL}
+                        </span>
                       </td>
+
                       <td>
                         {r.dbStatus === 'closed' ? (
                           <span className='sx-tag sx-tag-done'>Closed</span>
@@ -467,8 +521,8 @@ export default function SeasonPage() {
                           <span className='sx-tag sx-tag-done'>Upcoming</span>
                         )}
                       </td>
+
                       <td>
-                        {/* Only show Invest Now for OPEN seasons where user hasn't joined */}
                         {r.dbStatus === 'open' && !r.mySeasonId ? (
                           <button className='sx-btn-sage' style={{fontSize:'.7rem',padding:'7px 14px',whiteSpace:'nowrap'}} onClick={() => openInvest(r.id)}>
                             Invest Now

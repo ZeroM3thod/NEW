@@ -10,6 +10,18 @@ declare global {
   interface Window { Chart: any }
 }
 
+// ─── P&L helpers ────────────────────────────────────────────────────────────
+const fmtPnL    = (n: number) => n >= 0
+  ? `+$${Math.abs(n).toLocaleString()}`
+  : `-$${Math.abs(n).toLocaleString()}`
+
+const pnlColor  = (n: number) => n >= 0 ? 'var(--sage)'              : '#b05252'
+const pnlArrow  = (n: number) => n >= 0 ? '↑'                        : '↓'
+const pnlBg     = (n: number) => n >= 0 ? 'rgba(74,103,65,.08)'      : 'rgba(155,58,58,.07)'
+const pnlStroke = (n: number) => n >= 0 ? 'var(--sage-l)'            : '#9b3a3a'
+const pnlCls    = (n: number) => n >= 0 ? 'db-stat-up'               : 'db-stat-dn'
+// ────────────────────────────────────────────────────────────────────────────
+
 export default function DashboardPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -55,10 +67,8 @@ export default function DashboardPage() {
 
         if (investments && investments.length > 0) {
           const validInvestments = investments.filter(inv => inv.seasons != null)
-          // Only show as "active investment" if the season is still running/open (not closed)
           const active = validInvestments.find(inv =>
-            inv.status === 'active' &&
-            inv.seasons?.status !== 'closed'
+            inv.status === 'active' && inv.seasons?.status !== 'closed'
           )
           setActiveInvestment(active || null)
           setHistoryInvestments(validInvestments.filter(inv =>
@@ -87,7 +97,6 @@ export default function DashboardPage() {
           setActiveSeason(current || null)
         }
 
-        // Referral stats: count referred users + referral_earned field
         const { data: referrals } = await supabase
           .from('profiles').select('id').eq('referred_by', user.id)
 
@@ -157,12 +166,12 @@ export default function DashboardPage() {
           tooltip: {
             backgroundColor: 'rgba(28,28,28,0.92)', borderColor: 'rgba(184,147,90,0.3)',
             borderWidth: 1, titleColor: '#d4aa72', bodyColor: '#f6f1e9', padding: 12,
-            callbacks: { label: (c: { raw: number }) => `  ROI: +${c.raw}%` },
+            callbacks: { label: (c: { raw: number }) => `  ROI: ${c.raw >= 0 ? '+' : ''}${c.raw}%` },
           },
         },
         scales: {
           x: { grid: { color: 'rgba(184,147,90,0.06)' }, ticks: { color: '#9c9186', font: { family: 'DM Sans', size: 10 } } },
-          y: { grid: { color: 'rgba(184,147,90,0.06)' }, ticks: { color: '#9c9186', font: { family: 'DM Sans', size: 10 }, callback: (v: number) => v + '%' } },
+          y: { grid: { color: 'rgba(184,147,90,0.06)' }, ticks: { color: '#9c9186', font: { family: 'DM Sans', size: 10 }, callback: (v: number) => (v >= 0 ? '+' : '') + v + '%' } },
         },
         interaction: { intersect: false, mode: 'index' },
       },
@@ -217,21 +226,26 @@ export default function DashboardPage() {
     return <div className='db-layout' style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'var(--txt2)',background:'var(--cream)'}}>Loading Dashboard…</div>
   }
 
-  const balance = Number(profile?.balance) || 0
-  const investedTotal = Number(profile?.invested_total) || 0
-  const withdrawable = balance // withdrawable = full balance (no lock)
-  const profitsTotal = Number(profile?.profits_total) || 0
-  const avgRoi = Number(profile?.avg_roi) || 0
-  const firstName = profile?.first_name || profile?.username || 'Investor'
-  const refCode = profile?.referral_code || '—'
-  const commRate = Number(profile?.commission_rate) || 7
+  const balance        = Number(profile?.balance)        || 0
+  const investedTotal  = Number(profile?.invested_total) || 0
+  const withdrawable   = balance
+  const profitsTotal   = Number(profile?.profits_total)  || 0
+  const avgRoi         = Number(profile?.avg_roi)        || 0
+  const firstName      = profile?.first_name || profile?.username || 'Investor'
+  const refCode        = profile?.referral_code || '—'
+  const commRate       = Number(profile?.commission_rate) || 7
 
-  const activeSeasonDays = activeInvestment?.seasons?.duration_days || 90
-  const activeSeasonStart = activeInvestment?.seasons?.start_date || null
-  const activeSeasonName = activeInvestment?.seasons?.name || null
-  const activeSeasonRoi = activeInvestment?.seasons?.roi_range || '—'
-  const myInvestAmount = Number(activeInvestment?.amount) || 0
-  const daysElapsed = activeSeasonStart ? getDaysElapsed(activeSeasonStart) : 0
+  const activeSeasonDays  = activeInvestment?.seasons?.duration_days || 90
+  const activeSeasonStart = activeInvestment?.seasons?.start_date    || null
+  const activeSeasonName  = activeInvestment?.seasons?.name          || null
+  const activeSeasonRoi   = activeInvestment?.seasons?.roi_range     || '—'
+  const myInvestAmount    = Number(activeInvestment?.amount)         || 0
+  const daysElapsed       = activeSeasonStart ? getDaysElapsed(activeSeasonStart) : 0
+
+  // Best ROI across history (handles negative)
+  const bestRoi = historyInvestments.length
+    ? Math.max(...historyInvestments.map(i => Number(i.seasons?.final_roi) || 0))
+    : null
 
   return (
     <>
@@ -278,13 +292,17 @@ export default function DashboardPage() {
                 <div>
                   <div className='db-balance-label' style={{marginBottom:8}}>Total Portfolio · USDT</div>
                   <div className='db-balance-num'>{displayBalance}</div>
+                  {/* ↓ Arrow + sign + colour all driven by profitsTotal sign */}
                   <div className='db-balance-sub' style={{marginTop:8}}>
-                    <span style={{color:'#6a8c60'}}>↑ +${profitsTotal.toLocaleString()}</span>
+                    <span style={{color: pnlColor(profitsTotal)}}>
+                      {pnlArrow(profitsTotal)} {fmtPnL(profitsTotal)}
+                    </span>
                     &nbsp;·&nbsp;all-time profit&nbsp;·&nbsp;
-                    <span style={{color:'var(--gold-l)'}}>+{avgRoi}% avg ROI</span>
+                    <span style={{color:'var(--gold-l)'}}>
+                      {avgRoi >= 0 ? '+' : ''}{avgRoi}% avg ROI
+                    </span>
                   </div>
                 </div>
-                {/* Show season ROI target instead of day counter */}
                 {activeInvestment && activeSeasonName && (
                   <div style={{textAlign:'right'}}>
                     <div className='db-balance-label' style={{marginBottom:6}}>{activeSeasonName}</div>
@@ -295,7 +313,6 @@ export default function DashboardPage() {
                   </div>
                 )}
               </div>
-              {/* Season progress bar - only show for active (non-closed) seasons */}
               {activeInvestment && activeSeasonStart && (
                 <div style={{marginTop:24,position:'relative',zIndex:1}}>
                   <div style={{display:'flex',justifyContent:'space-between',fontSize:'.7rem',color:'rgba(246,241,233,0.35)',letterSpacing:'.06em',textTransform:'uppercase',marginBottom:8}}>
@@ -311,18 +328,36 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* STAT CARDS */}
+            {/* STAT CARDS — profits card auto-turns red when negative */}
             <div className='db-grid-4 db-reveal' style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:20,transitionDelay:'.1s'}}>
               {([
-                {bg:'rgba(184,147,90,0.1)',stroke:'var(--gold)',icon:<><rect x='2' y='7' width='20' height='14' rx='2'/><path d='M16 7V5a2 2 0 00-4 0v2'/></>,lbl:'Invested',val:`$${investedTotal.toLocaleString()}`,sub:'all seasons',cls:'db-stat-gold'},
-                {bg:'rgba(74,103,65,0.1)',stroke:'var(--sage)',icon:<path d='M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6'/>,lbl:'Withdrawable',val:`$${withdrawable.toLocaleString()}`,sub:'available now',cls:'db-stat-up'},
-                {bg:'rgba(74,103,65,0.08)',stroke:'var(--sage-l)',icon:<><polyline points='23 6 13.5 15.5 8.5 10.5 1 18'/><polyline points='17 6 23 6 23 12'/></>,lbl:'Total Profits',val:`+$${profitsTotal.toLocaleString()}`,sub:'all time',cls:'db-stat-up'},
-                {bg:'rgba(184,147,90,0.08)',stroke:'var(--gold)',icon:<><line x1='12' y1='20' x2='12' y2='10'/><line x1='18' y1='20' x2='18' y2='4'/><line x1='6' y1='20' x2='6' y2='16'/></>,lbl:'Avg ROI',val:`+${avgRoi}%`,sub:`${historyInvestments.length} seasons`,cls:'db-stat-gold'},
-              ] as {bg:string;stroke:string;icon:React.ReactNode;lbl:string;val:string;sub:string;cls:string}[]).map((s,i) => (
+                {
+                  bg:'rgba(184,147,90,0.1)', svgColor:'var(--gold)',
+                  icon:<><rect x='2' y='7' width='20' height='14' rx='2'/><path d='M16 7V5a2 2 0 00-4 0v2'/></>,
+                  lbl:'Invested', val:`$${investedTotal.toLocaleString()}`, sub:'all seasons', cls:'db-stat-gold',
+                },
+                {
+                  bg:'rgba(74,103,65,0.1)', svgColor:'var(--sage)',
+                  icon:<path d='M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6'/>,
+                  lbl:'Withdrawable', val:`$${withdrawable.toLocaleString()}`, sub:'available now', cls:'db-stat-up',
+                },
+                {
+                  // ↓ Background, icon stroke, value, and className all react to sign
+                  bg: pnlBg(profitsTotal), svgColor: pnlStroke(profitsTotal),
+                  icon:<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>,
+                  lbl:'Total Profits', val: fmtPnL(profitsTotal), sub:'all time', cls: pnlCls(profitsTotal),
+                },
+                {
+                  bg:'rgba(184,147,90,0.08)', svgColor:'var(--gold)',
+                  icon:<><line x1='12' y1='20' x2='12' y2='10'/><line x1='18' y1='20' x2='18' y2='4'/><line x1='6' y1='20' x2='6' y2='16'/></>,
+                  lbl:'Avg ROI', val:`${avgRoi >= 0 ? '+' : ''}${avgRoi}%`, sub:`${historyInvestments.length} seasons`,
+                  cls: pnlCls(avgRoi),
+                },
+              ] as {bg:string;svgColor:string;icon:React.ReactNode;lbl:string;val:string;sub:string;cls:string}[]).map((s,i) => (
                 <div key={i} className='db-card db-card-hover' style={{padding:'18px 16px'}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
                     <div style={{width:26,height:26,background:s.bg,borderRadius:'var(--r)',display:'flex',alignItems:'center',justifyContent:'center'}}>
-                      <svg width='13' height='13' fill='none' stroke={s.stroke} strokeWidth='1.8' viewBox='0 0 24 24'>{s.icon}</svg>
+                      <svg width='13' height='13' fill='none' stroke={s.svgColor} strokeWidth='1.8' viewBox='0 0 24 24'>{s.icon}</svg>
                     </div>
                     <span style={{fontSize:'.67rem',letterSpacing:'.12em',textTransform:'uppercase',color:'var(--txt2)'}}>{s.lbl}</span>
                   </div>
@@ -351,9 +386,21 @@ export default function DashboardPage() {
                 <div className='db-divider' style={{margin:'16px 0 14px'}}/>
                 <div style={{display:'flex',justifyContent:'space-between'}}>
                   {[
-                    {l:'Best',v:historyInvestments.length?`+${Math.max(...historyInvestments.map(i=>Number(i.seasons?.final_roi)||0))}%`:'N/A',c:'var(--sage)'},
-                    {l:'Avg',v:`+${avgRoi}%`,c:'var(--gold)'},
-                    {l:'Seasons',v:historyInvestments.length+(activeInvestment?1:0),c:'var(--ink)'},
+                    {
+                      l:'Best',
+                      v: bestRoi !== null ? `${bestRoi >= 0 ? '+' : ''}${bestRoi}%` : 'N/A',
+                      c: bestRoi !== null ? pnlColor(bestRoi) : 'var(--txt3)',
+                    },
+                    {
+                      l:'Avg',
+                      v:`${avgRoi >= 0 ? '+' : ''}${avgRoi}%`,
+                      c: pnlColor(avgRoi),
+                    },
+                    {
+                      l:'Seasons',
+                      v: historyInvestments.length + (activeInvestment ? 1 : 0),
+                      c:'var(--ink)',
+                    },
                   ].map((x,i)=>(
                     <div key={i} style={{textAlign:i===2?'right':i===1?'center':'left'}}>
                       <div style={{fontSize:'.67rem',textTransform:'uppercase',letterSpacing:'.1em',color:'var(--txt3)'}}>{x.l}</div>
@@ -376,25 +423,31 @@ export default function DashboardPage() {
                     <div style={{textAlign:'center',padding:'20px 0',color:'var(--txt3)',fontSize:'.8rem'}}>No investment history yet.</div>
                   ) : (
                     <>
-                      {historyInvestments.map((s,i) => (
-                        <div key={i} className='db-season-row'>
-                          <div style={{display:'flex',alignItems:'center',gap:11}}>
-                            <div className='db-season-badge' style={{background:'rgba(74,103,65,0.1)',border:'1px solid rgba(74,103,65,0.2)',color:'var(--sage)'}}>
-                              {(s.seasons?.name||'').split(' ').map((w:string)=>w[0]).join('')}
+                      {historyInvestments.map((s,i) => {
+                        const roi = Number(s.seasons?.final_roi || 0)
+                        return (
+                          <div key={i} className='db-season-row'>
+                            <div style={{display:'flex',alignItems:'center',gap:11}}>
+                              <div className='db-season-badge' style={{background: pnlBg(roi), border:`1px solid ${pnlColor(roi)}33`, color: pnlColor(roi)}}>
+                                {(s.seasons?.name||'').split(' ').map((w:string)=>w[0]).join('')}
+                              </div>
+                              <div>
+                                <div style={{fontSize:'.82rem',fontWeight:500,color:'var(--ink)'}}>{s.seasons?.name||'—'}</div>
+                                <div style={{fontSize:'.68rem',color:'var(--txt3)'}}>{s.seasons?.period||''}</div>
+                              </div>
                             </div>
-                            <div>
-                              <div style={{fontSize:'.82rem',fontWeight:500,color:'var(--ink)'}}>{s.seasons?.name||'—'}</div>
-                              <div style={{fontSize:'.68rem',color:'var(--txt3)'}}>{s.seasons?.period||''}</div>
+                            <div style={{textAlign:'right'}}>
+                              {/* ROI value — green or red */}
+                              <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.1rem',color: pnlColor(roi),fontWeight:500}}>
+                                {roi >= 0 ? '+' : ''}{roi}%
+                              </div>
+                              <div className='db-tag' style={{marginTop:3,background: pnlBg(roi),border:`1px solid ${pnlColor(roi)}33`,color: pnlColor(roi)}}>
+                                {roi >= 0 ? 'Profit' : 'Loss'}
+                              </div>
                             </div>
                           </div>
-                          <div style={{textAlign:'right'}}>
-                            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.1rem',color:'var(--sage)',fontWeight:500}}>
-                              +{s.seasons?.final_roi||0}%
-                            </div>
-                            <div className='db-tag db-tag-sage' style={{marginTop:3}}>Done</div>
-                          </div>
-                        </div>
-                      ))}
+                        )
+                      })}
                       {activeInvestment && (
                         <div className='db-season-row' style={{borderColor:'rgba(184,147,90,0.25)',background:'rgba(184,147,90,0.04)'}}>
                           <div style={{display:'flex',alignItems:'center',gap:11}}>
@@ -444,10 +497,9 @@ export default function DashboardPage() {
               </div>
               <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:2}}>
                 {[
-                  {l:'Referrals',v:referralStats.count.toString(),c:'var(--ink)'},
-                  // Referral earned = commission from referees' profits (tracked in referral_earned field)
-                  {l:'Commission Earned',v:`$${referralStats.earned.toLocaleString()}`,c:'var(--sage)'},
-                  {l:'Rate',v:`${commRate}%`,c:'var(--gold)'},
+                  {l:'Referrals',          v:referralStats.count.toString(), c:'var(--ink)'},
+                  {l:'Commission Earned',  v:`$${referralStats.earned.toLocaleString()}`, c:'var(--sage)'},
+                  {l:'Rate',               v:`${commRate}%`,                 c:'var(--gold)'},
                 ].map((r,i) => (
                   <div key={i} style={{background:'var(--parchment)',border:'1px solid var(--border)',padding:'14px 16px',borderRadius:'var(--r)'}}>
                     <div style={{fontSize:'.67rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--txt3)',marginBottom:6}}>{r.l}</div>

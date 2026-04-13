@@ -60,6 +60,12 @@ export default function UserSidebar({ open, onClose }: Props) {
 
   const go = (href: string) => { router.push(href); onClose(); };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    router.push('/auth/signin');
+    onClose();
+  };
+
   return (
     <>
       <div className={`usr-sb-overlay${open ? ' open' : ''}`} onClick={onClose} />
@@ -83,6 +89,12 @@ export default function UserSidebar({ open, onClose }: Props) {
               {n.label}
             </button>
           ))}
+          <button className="usr-logout-btn" onClick={handleLogout}>
+            <svg fill="none" stroke="currentColor" strokeWidth="1.6" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6a2.25 2.25 0 00-2.25 2.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M12 9l-3 3m0 0l3 3m-3-3h12.75" />
+            </svg>
+            Logout
+          </button>
         </nav>
         <div className="usr-sb-footer">
           <div className="usr-user-row" onClick={() => go('/profile')} style={{ cursor: 'pointer' }}>

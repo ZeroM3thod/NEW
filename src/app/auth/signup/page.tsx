@@ -360,6 +360,7 @@ export default function SignUpPage() {
       email,
       password: pw,
       options:{
+         emailRedirectTo: `${window.location.origin}/auth/signin`,
         data:{
           first_name: first,
           last_name: last,

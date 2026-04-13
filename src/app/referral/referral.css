@@ -75,7 +75,6 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .rf-btn-copy.copied{background:var(--sage);color:var(--cream)}
 .rf-share-row{display:flex;align-items:center;gap:7px;margin-top:14px;flex-wrap:wrap}
 .rf-share-btn{display:flex;align-items:center;gap:5px;padding:6px 11px;background:transparent;border:1px solid var(--border);border-radius:var(--radius);font-family:'DM Sans',sans-serif;font-size:.67rem;letter-spacing:.06em;text-transform:uppercase;color:var(--text-sec);cursor:pointer;transition:all .22s}
-.rf-share-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.8;flex-shrink:0}
 .rf-share-btn:hover{border-color:var(--gold);color:var(--gold)}
 
 /* ── STAT CARDS ── */
@@ -99,21 +98,18 @@ body::before{content:'';position:fixed;inset:0;z-index:0;pointer-events:none;bac
 .rf-step-num{width:26px;height:26px;border-radius:50%;background:var(--ink);color:var(--gold-l);font-family:'Cormorant Garamond',serif;font-size:.9rem;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0}
 .rf-step-title{font-size:.77rem;font-weight:500;color:var(--ink);margin-bottom:3px}
 .rf-step-desc{font-size:.68rem;color:var(--text-sec);line-height:1.5}
-.rf-comm-strip{margin-top:14px;padding:12px 14px;background:rgba(184,147,90,.07);border:1px solid var(--border);border-radius:8px;display:flex;align-items:flex-start;gap:10px;flex-wrap:wrap}
-.rf-comm-strip-icon{width:28px;height:28px;background:rgba(184,147,90,.12);border-radius:6px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
-.rf-comm-strip-icon svg{width:14px;height:14px;stroke:var(--gold);fill:none;stroke-width:1.8}
-.rf-comm-rate{font-family:'Cormorant Garamond',serif;font-size:1.15rem;color:var(--gold);font-weight:500}
-.rf-comm-desc{font-size:.7rem;color:var(--text-sec);margin-top:2px}
 
 /* ── TABLE ── */
 .rf-table-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;overflow:hidden}
 .rf-table-head{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:10px}
 .rf-table-title{font-family:'Cormorant Garamond',serif;font-size:1.05rem;font-weight:400;color:var(--ink)}
 .rf-table-sub{font-size:.67rem;color:var(--text-sec);margin-top:2px}
+
+/* ✅ Desktop table — scrollable */
 .rf-tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
 .rf-tbl-wrap::-webkit-scrollbar{height:3px}
 .rf-tbl-wrap::-webkit-scrollbar-thumb{background:var(--gold)}
-table.rf-dtbl{width:100%;border-collapse:collapse;font-size:.77rem;min-width:540px}
+table.rf-dtbl{width:100%;border-collapse:collapse;font-size:.77rem;min-width:480px}
 .rf-dtbl th{padding:10px 12px;background:var(--parchment);color:var(--text-sec);font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;font-weight:400;border-bottom:1px solid var(--border);text-align:left;white-space:nowrap}
 .rf-dtbl td{padding:11px 12px;border-bottom:1px solid rgba(184,147,90,.07);color:var(--ink);vertical-align:middle}
 .rf-dtbl tbody tr:last-child td{border-bottom:none}
@@ -123,13 +119,13 @@ table.rf-dtbl{width:100%;border-collapse:collapse;font-size:.77rem;min-width:540
 .rf-td-name{font-weight:500;color:var(--ink);font-size:.78rem}
 .rf-td-sub{font-size:.64rem;color:var(--text-sec)}
 
-/* ── MOBILE TABLE CARDS ── */
+/* ✅ MOBILE CARD VIEW — properly shown on mobile */
 .rf-mob-cards{display:none;flex-direction:column;gap:10px;padding:12px}
-.rf-mob-card{background:var(--cream);border:1px solid var(--border);border-radius:8px;padding:14px}
-.rf-mob-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;gap:8px}
+.rf-mob-card{background:var(--cream);border:1px solid var(--border);border-radius:10px;padding:14px;transition:border-color .2s}
+.rf-mob-card:hover{border-color:rgba(184,147,90,.3)}
+.rf-mob-card-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;gap:8px;flex-wrap:wrap}
 .rf-mob-card-user{display:flex;align-items:center;gap:8px}
-.rf-mob-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid rgba(184,147,90,.06)}
-.rf-mob-row:last-child{border-bottom:none}
+.rf-mob-row{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(184,147,90,.07)}
 .rf-mob-key{font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-sec)}
 
 /* ── BADGES ── */
@@ -155,14 +151,9 @@ table.rf-dtbl{width:100%;border-collapse:collapse;font-size:.77rem;min-width:540
 .rf-page-btn{width:28px;height:28px;display:flex;align-items:center;justify-content:center;background:var(--cream);border:1px solid var(--border);border-radius:var(--radius);font-size:.7rem;color:var(--charcoal);cursor:pointer;transition:all .2s;font-family:'DM Sans',sans-serif}
 .rf-page-btn:hover{border-color:var(--gold);color:var(--gold)}
 .rf-page-btn.active{background:var(--ink);color:var(--gold-l);border-color:var(--ink)}
-.rf-page-btn svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:2}
 
 /* ── EMPTY STATE ── */
-.rf-empty-state{padding:44px 24px;text-align:center}
-.rf-empty-icon{width:44px;height:44px;margin:0 auto 12px;background:rgba(184,147,90,.07);border:1px solid var(--border);border-radius:50%;display:flex;align-items:center;justify-content:center}
-.rf-empty-icon svg{width:20px;height:20px;stroke:var(--gold);fill:none;stroke-width:1.5}
-.rf-empty-title{font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:var(--ink);margin-bottom:4px}
-.rf-empty-desc{font-size:.73rem;color:var(--text-sec)}
+.rf-empty-state{padding:44px 24px;text-align:center;font-size:.79rem;color:var(--text-sec)}
 
 /* ── TOAST ── */
 .rf-toast{position:fixed;top:18px;left:50%;transform:translateX(-50%) translateY(-90px);background:rgba(28,28,28,.97);border:1px solid rgba(184,147,90,.3);border-radius:10px;padding:10px 22px;z-index:9000;color:var(--gold);font-size:.74rem;letter-spacing:.06em;box-shadow:0 8px 28px rgba(0,0,0,.15);transition:transform .4s cubic-bezier(.16,1,.3,1);white-space:nowrap;pointer-events:none;max-width:calc(100vw - 32px);text-align:center}
@@ -186,13 +177,6 @@ table.rf-dtbl{width:100%;border-collapse:collapse;font-size:.77rem;min-width:540
 .rf-ring-label{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;font-family:'Cormorant Garamond',serif;font-size:.82rem;font-weight:500;color:var(--ink)}
 .rf-ring-sublabel{font-family:'DM Sans',sans-serif;font-size:.48rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-sec)}
 
-/* ── EARNINGS ROW ── */
-.rf-earn-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid rgba(184,147,90,.07)}
-.rf-earn-row:last-child{border-bottom:none}
-.rf-earn-label{font-size:.73rem;color:var(--text-sec)}
-.rf-earn-val{font-family:'Cormorant Garamond',serif;font-size:.95rem;color:var(--ink)}
-.rf-earn-val.positive{color:var(--sage)}
-
 /* ── SCROLL REVEAL ── */
 .rf-reveal{opacity:0;transform:translateY(16px);transition:opacity .5s ease,transform .5s ease}
 .rf-reveal.vis{opacity:1;transform:none}
@@ -206,8 +190,12 @@ table.rf-dtbl{width:100%;border-collapse:collapse;font-size:.77rem;min-width:540
   .rf-sidebar.open{transform:translateX(0);box-shadow:4px 0 32px rgba(28,28,28,.22)}
   .rf-main{margin-left:0!important;padding:20px 16px 48px;width:100%}
   .rf-topbar{display:flex}
+  /* ✅ Show mobile cards, hide desktop table */
   .rf-mob-cards{display:flex}
-  .rf-tbl-wrap table{display:none}
+  .rf-tbl-wrap{display:none}
+  /* ✅ Stack info grid on mobile */
+  #rf-info-grid{grid-template-columns:1fr!important}
+  #rf-side-panels{grid-template-columns:1fr!important}
 }
 @media(min-width:901px){
   .rf-topbar{display:none}

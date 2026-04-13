@@ -233,6 +233,13 @@
 }
 .pf-btn-ghost:hover { border-color: var(--gold); color: var(--gold); }
 
+.pf-btn-danger {
+  padding: 10px 20px; background: rgba(220, 53, 69, 0.05); color: #dc3545; border: 1px solid rgba(220, 53, 69, 0.2);
+  font-family: 'DM Sans', sans-serif; font-size: .74rem; letter-spacing: .08em; text-transform: uppercase;
+  cursor: pointer; border-radius: var(--r); transition: all .22s; display: inline-block;
+}
+.pf-btn-danger:hover { background: #dc3545; color: white; border-color: #dc3545; }
+
 /* ── REFERRAL CODE ── */
 .pf-ref-code-box { background: var(--cream); border: 1px solid var(--border); border-radius: var(--r); padding: 11px 14px; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .pf-ref-code-val { font-family: 'Cormorant Garamond', serif; font-size: 1.1rem; font-weight: 500; color: var(--gold); letter-spacing: .14em; }

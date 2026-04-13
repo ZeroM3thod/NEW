@@ -1,4 +1,3 @@
-
 import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -28,10 +27,6 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  // IMPORTANT: Avoid writing any logic between createServerClient and
-  // getUser(). A simple mistake can make it very hard to debug issues with sessions
-  // being lost.
-
   const {
     data: { user },
   } = await supabase.auth.getUser()
@@ -47,20 +42,17 @@ export async function updateSession(request: NextRequest) {
   const maintenanceEndsAt = settings?.maintenance_ends_at ? new Date(settings.maintenance_ends_at) : null
   const now = new Date()
 
-  // Auto-disable maintenance mode if time has passed
   let effectiveMaintenance = isMaintenance
   if (isMaintenance && maintenanceEndsAt && maintenanceEndsAt < now) {
     effectiveMaintenance = false
-    // Note: We don't update the DB here because middleware should be read-only if possible, 
-    // but the UI will behave as if maintenance is off.
   }
 
   const isMaintenancePage = request.nextUrl.pathname.startsWith('/maintenance')
   const isAdminPage = request.nextUrl.pathname.startsWith('/admin')
   const isAuthPage = request.nextUrl.pathname.startsWith('/auth')
+  const isApiPage = request.nextUrl.pathname.startsWith('/api/')  // Allow all API routes without auth
   const isHomePage = request.nextUrl.pathname === '/'
 
-  // Fetch profile to check if user is admin
   let userRole = 'user'
   if (user) {
     const { data: profile } = await supabase
@@ -73,14 +65,12 @@ export async function updateSession(request: NextRequest) {
 
   // Maintenance mode logic
   if (effectiveMaintenance && userRole !== 'admin' && !isAdminPage && !isMaintenancePage) {
-    // 1. Authenticated users (non-admin) are always redirected to maintenance page
     if (user) {
       const url = request.nextUrl.clone()
       url.pathname = '/maintenance'
       return NextResponse.redirect(url)
     }
-    // 2. Unauthenticated users can only access Home and Auth pages
-    if (!isHomePage && !isAuthPage) {
+    if (!isHomePage && !isAuthPage && !isApiPage) {
       const url = request.nextUrl.clone()
       url.pathname = '/maintenance'
       return NextResponse.redirect(url)
@@ -91,9 +81,9 @@ export async function updateSession(request: NextRequest) {
     !user &&
     !request.nextUrl.pathname.startsWith('/auth') &&
     !request.nextUrl.pathname.startsWith('/maintenance') &&
+    !request.nextUrl.pathname.startsWith('/api/') &&  // ✅ Allow API routes without auth
     request.nextUrl.pathname !== '/'
   ) {
-    // no user, potentially respond by redirecting the user to the login page
     const url = request.nextUrl.clone()
     url.pathname = '/auth/signin'
     return NextResponse.redirect(url)
@@ -117,13 +107,6 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * Feel free to modify this pattern to include more paths.
-     */
     '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)',
   ],
 }

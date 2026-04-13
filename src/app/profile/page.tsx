@@ -497,6 +497,13 @@ export default function ProfilePage() {
     formCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
+  /* ── Logout ── */
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/auth/signin')
+  }
+
   /* ── Referral table data ── */
   const users = [
     {
@@ -697,13 +704,20 @@ export default function ProfilePage() {
                   </div>
                 </div>
               </div>
-              <button
-                className='pf-btn-ghost'
-                style={{ flexShrink: 0 }}
-                onClick={scrollToForm}
-              >
-                Edit Profile
-              </button>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
+                <button
+                  className='pf-btn-ghost'
+                  onClick={scrollToForm}
+                >
+                  Edit Profile
+                </button>
+                <button
+                  className='pf-btn-danger'
+                  onClick={handleLogout}
+                >
+                  Logout
+                </button>
+              </div>
             </div>
 
             {/* TWO-COL */}

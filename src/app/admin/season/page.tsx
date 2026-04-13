@@ -8,7 +8,7 @@ import { createClient } from '@/utils/supabase/client';
 ══════════════════════════════ */
 interface AutoClose { finalROI: number }
 interface ActiveSeason {
-  id: string; name: string; entryDate: string; finishDate: string;
+  id: string; name: string; entryDate: string; entryCloseDate: string; finishDate: string;
   roi: string; pool: number; min: number; max: number;
   status: 'upcoming' | 'open' | 'running' | 'closed' | 'paused';
   poolFilled: number;   // actual USDT amount
@@ -16,7 +16,7 @@ interface ActiveSeason {
   dayStart: string; autoClose: AutoClose | null;
 }
 interface PrevSeason {
-  id: string; name: string; entryDate: string; finishDate: string;
+  id: string; name: string; entryDate: string; entryCloseDate: string; finishDate: string;
   roi: string; finalROI: number; pool: number; min: number; max: number;
 }
 interface PoolInvestor {
@@ -89,6 +89,7 @@ export default function AdminSeasonPage() {
   const [smBtnTxt, setSmBtnTxt] = useState('Start Season');
   const [fName, setFName]       = useState('');
   const [fEntry, setFEntry]     = useState('');
+  const [fEntryClose, setFEntryClose] = useState('');
   const [fFinish, setFFinish]   = useState('');
   const [fRoi, setFRoi]         = useState('');
   const [fPool, setFPool]       = useState('');
@@ -163,6 +164,7 @@ export default function AdminSeasonPage() {
             id: s.id,
             name: s.name,
             entryDate:  s.start_date || '',
+            entryCloseDate: s.entry_close_date || '',
             finishDate: s.end_date || '',
             roi:      s.roi_range || '',
             finalROI: Number(s.final_roi) || 0,
@@ -175,6 +177,7 @@ export default function AdminSeasonPage() {
             id: s.id,
             name: s.name,
             entryDate:  s.start_date || '',
+            entryCloseDate: s.entry_close_date || '',
             finishDate: s.end_date || '',
             roi:      s.roi_range || '',
             pool: Number(s.pool_cap) || 0,

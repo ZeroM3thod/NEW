@@ -119,7 +119,7 @@ export default function SeasonPage() {
             statusLabel: s.status === 'open' ? 'Now Open' : 'Running',
             statusClass: s.status === 'open' ? 'sx-tag-open' : 'sx-tag-ending',
             period: s.period || '',
-            entryCloseDate: s.start_date ? new Date(s.start_date) : null,
+            entryCloseDate: s.entry_close_date ? new Date(s.entry_close_date) : null,
             endDate: new Date(s.end_date || Date.now() + 7 * 864e5),
             roi: s.roi_range || '',
             min: Number(s.min_entry) || 100,

@@ -44,6 +44,17 @@ export async function updateSession(request: NextRequest) {
     .maybeSingle()
 
   const isMaintenance = settings?.maintenance_mode || false
+  const maintenanceEndsAt = settings?.maintenance_ends_at ? new Date(settings.maintenance_ends_at) : null
+  const now = new Date()
+
+  // Auto-disable maintenance mode if time has passed
+  let effectiveMaintenance = isMaintenance
+  if (isMaintenance && maintenanceEndsAt && maintenanceEndsAt < now) {
+    effectiveMaintenance = false
+    // Note: We don't update the DB here because middleware should be read-only if possible, 
+    // but the UI will behave as if maintenance is off.
+  }
+
   const isMaintenancePage = request.nextUrl.pathname.startsWith('/maintenance')
   const isAdminPage = request.nextUrl.pathname.startsWith('/admin')
   const isAuthPage = request.nextUrl.pathname.startsWith('/auth')
@@ -61,7 +72,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Maintenance mode logic
-  if (isMaintenance && userRole !== 'admin' && !isAdminPage && !isMaintenancePage) {
+  if (effectiveMaintenance && userRole !== 'admin' && !isAdminPage && !isMaintenancePage) {
     // 1. Authenticated users (non-admin) are always redirected to maintenance page
     if (user) {
       const url = request.nextUrl.clone()

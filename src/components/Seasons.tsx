@@ -100,7 +100,7 @@ export default function Seasons() {
                 <div>
                   <div className="season-name">Season Four</div>
                   <div className="season-period">
-                    May 2025 — Aug 2025 · Entries close in 18 days
+                    May 2025 — Aug 2025 · Limited entry window
                   </div>
                   <div className="season-roi">+24–32%</div>
                   <div className="season-roi-label">Projected ROI Range</div>
@@ -128,7 +128,7 @@ export default function Seasons() {
                 </div>
                 <div className="season-detail-item">
                   <span className="detail-label-dark">Referral Bonus</span>
-                  <strong>5% / Withdrawal</strong>
+                  <strong>7% Profit Share</strong>
                 </div>
               </div>
             </div>

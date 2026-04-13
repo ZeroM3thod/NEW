@@ -87,11 +87,11 @@ export default function UserSidebar({ open, onClose }: Props) {
         <div className="usr-sb-footer">
           <div className="usr-user-row" onClick={() => go('/profile')} style={{ cursor: 'pointer' }}>
             <div className="usr-avatar">
-              {profile ? `${profile.first_name[0]}${profile.last_name[0]}` : '...'}
+              {profile ? `${profile.first_name?.[0] || '?'}${profile.last_name?.[0] || '?'}` : '...'}
             </div>
             <div>
               <div className="usr-user-name">
-                {profile ? `${profile.first_name} ${profile.last_name[0]}.` : 'Loading...'}
+                {profile ? `${profile.first_name} ${profile.last_name?.[0] || ''}.` : 'Loading...'}
               </div>
               <div className="usr-user-tag">Season Investor</div>
             </div>

@@ -73,11 +73,11 @@ export default function ReferralPage() {
       // Milestone logic per PRD
       const count = refUsers.length
       let newRate = 7
-      let target = 10
+      let target = 50 // Default target for level 1 (7% -> 8%)
       
       if (count >= 50) {
         newRate = 12
-        target = 100 // Stretch goal
+        target = 100
       } else if (count >= 25) {
         newRate = 10
         target = 50
@@ -87,7 +87,7 @@ export default function ReferralPage() {
       }
 
       // Update rate in DB if it changed
-      if (newRate > profileData.commission_rate) {
+      if (newRate !== profileData.commission_rate) {
         await supabase.from('profiles').update({ commission_rate: newRate }).eq('id', user.id)
         setProfile({ ...profileData, commission_rate: newRate })
       }

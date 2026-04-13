@@ -66,7 +66,7 @@ export default function AdminWithdrawPage() {
         season: 'S4', // Mock or fetch from investments
         date: new Date(w.created_at).toISOString().split('T')[0],
         note: '',
-        commission: w.amount * 0.05,
+        commission: 0,
         txid: w.tx_hash || '',
         reason: w.rejection_reason || '',
         status: w.status,
@@ -199,8 +199,7 @@ export default function AdminWithdrawPage() {
       <div className="dm-dcell"><div className="dm-dl">Network</div><div className="dm-dv">{w.net}</div></div>
       <div className="dm-dcell"><div className="dm-dl">Season</div><div className="dm-dv">{w.season}</div></div>
       <div className="dm-dcell"><div className="dm-dl">Requested</div><div className="dm-dv">{w.date}</div></div>
-      <div className="dm-dcell"><div className="dm-dl">Referral Commission (5%)</div><div className="dm-dv sage">${w.commission.toFixed(2)}</div></div>
-      <div className="dm-dcell"><div className="dm-dl">Net Payout</div><div className="dm-dv gold">${(w.amt-w.commission).toFixed(2)}</div></div>
+      <div className="dm-dcell"><div className="dm-dl">Net Payout</div><div className="dm-dv gold">${w.amt.toFixed(2)}</div></div>
       <div className="dm-dcell dm-dfull"><div className="dm-dl">Wallet Address</div><div className="dm-dv mono" onClick={()=>copyTxt(w.wallet)} title="Click to copy">{w.wallet}</div></div>
       {w.txid&&<div className="dm-dcell dm-dfull"><div className="dm-dl">Transaction ID (Approved)</div><div className="dm-dv mono" style={{color:'var(--sage)'}}>{w.txid}</div></div>}
       {w.reason&&<div className="dm-dcell dm-dfull"><div className="dm-dl">Rejection Reason</div><div className="dm-dv err-c">{w.reason}</div></div>}
@@ -226,7 +225,7 @@ export default function AdminWithdrawPage() {
             </div>
             {modalMode==='approve'&&curWd&&(
               <div className="dm-conf-note dm-cn-ok">
-                You are approving a withdrawal of <strong>${fmtAmt(curWd.amt)} USDT</strong> for <strong>{curWd.name}</strong>. The referrer earns <strong>${curWd.commission.toFixed(2)}</strong> commission automatically.
+                You are approving a withdrawal of <strong>${fmtAmt(curWd.amt)} USDT</strong> for <strong>{curWd.name}</strong>.
               </div>
             )}
             {modalMode==='reject'&&curWd&&(

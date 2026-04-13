@@ -143,10 +143,10 @@ export default function AdminSidebar({ open, onClose, onToast }: Props) {
       <div className="adm-sb-bottom">
         <div className="adm-sb-user">
           <div className="adm-sb-avatar">
-            {admin ? `${admin.first_name[0]}${admin.last_name[0]}` : 'AD'}
+            {admin ? `${admin.first_name?.[0] || 'A'}${admin.last_name?.[0] || 'D'}` : 'AD'}
           </div>
           <div>
-            <div className="adm-sb-uname">{admin ? `${admin.first_name} ${admin.last_name}` : 'Admin User'}</div>
+            <div className="adm-sb-uname">{admin ? `${admin.first_name} ${admin.last_name || ''}` : 'Admin User'}</div>
             <div className="adm-sb-role">{admin?.role === 'admin' ? 'Super Administrator' : 'Administrator'}</div>
           </div>
         </div>

@@ -329,13 +329,17 @@ export default function AdminSeasonPage() {
 
   /* ── Season modal open ── */
   const openSeasonModal = (editId?: string) => {
-    setFName(''); setFEntry(''); setFFinish(''); setFRoi(''); setFPool(''); setFMin(''); setFMax('');
+    setFName(''); setFEntry(''); setFEntryClose(''); setFFinish(''); setFRoi(''); setFPool(''); setFMin(''); setFMax('');
     setSmEditId(editId || '');
     if (editId) {
-      const s = [...active].find(x => x.id === editId) || prev.find(x => x.id === editId);
+      const s = [...active].find(x => x.id === editId) || (prev.find(x => x.id === editId) as any);
       if (!s) return;
       setSmTitle(`Edit ${s.name}`); setSmSub('Update season details'); setSmBtnTxt('Save Changes');
-      setFName(s.name); setFEntry(s.entryDate.split('T')[0]); setFFinish(s.finishDate.split('T')[0]); setFRoi(s.roi);
+      setFName(s.name); 
+      setFEntry(s.entryDate.split('T')[0]); 
+      setFEntryClose(s.entryCloseDate ? s.entryCloseDate.split('T')[0] : '');
+      setFFinish(s.finishDate.split('T')[0]); 
+      setFRoi(s.roi);
       setFPool(String(s.pool)); setFMin(String(s.min)); setFMax(String(s.max || 50000));
     } else {
       setSmTitle('Create New Season'); setSmSub('Fill in the details to launch a new season'); setSmBtnTxt('Start Season');
@@ -345,8 +349,10 @@ export default function AdminSeasonPage() {
 
   const submitSeasonModal = async () => {
     if (!fName.trim()) { showToast('⚠ Please enter season name', 'err'); return; }
-    if (!fEntry || !fFinish) { showToast('⚠ Please set entry and finish dates', 'err'); return; }
-    if (new Date(fFinish) <= new Date(fEntry)) { showToast('⚠ Finish date must be after entry date', 'err'); return; }
+    if (!fEntry || !fFinish || !fEntryClose) { showToast('⚠ Please set all dates', 'err'); return; }
+    if (new Date(fFinish) <= new Date(fEntry)) { showToast('⚠ Finish date must be after start date', 'err'); return; }
+    if (new Date(fEntryClose) < new Date(fEntry)) { showToast('⚠ Entry close date cannot be before start date', 'err'); return; }
+    if (new Date(fEntryClose) > new Date(fFinish)) { showToast('⚠ Entry close date cannot be after finish date', 'err'); return; }
     if (!fRoi.trim()) { showToast('⚠ Please enter expected ROI range', 'err'); return; }
     const pool = parseFloat(fPool), mn = parseFloat(fMin), mx = parseFloat(fMax);
     if (isNaN(pool) || pool <= 0) { showToast('⚠ Please enter a valid pool size', 'err'); return; }
@@ -356,6 +362,7 @@ export default function AdminSeasonPage() {
     const seasonData = {
       name: fName,
       start_date: fEntry,
+      entry_close_date: fEntryClose,
       end_date: fFinish,
       roi_range: fRoi,
       pool_cap: pool,
@@ -608,13 +615,17 @@ export default function AdminSeasonPage() {
               </div>
               <div className="sm-form-grid-2col">
                 <div className="sm-form-group">
-                  <label className="sm-form-label">Last Entry Date</label>
+                  <label className="sm-form-label">Start Date</label>
                   <input className="sm-form-input" type="date" value={fEntry} onChange={e => setFEntry(e.target.value)} />
                 </div>
                 <div className="sm-form-group">
-                  <label className="sm-form-label">Finish Date</label>
-                  <input className="sm-form-input" type="date" value={fFinish} onChange={e => setFFinish(e.target.value)} />
+                  <label className="sm-form-label">Entry Close Date</label>
+                  <input className="sm-form-input" type="date" value={fEntryClose} onChange={e => setFEntryClose(e.target.value)} />
                 </div>
+              </div>
+              <div className="sm-form-group">
+                <label className="sm-form-label">Finish Date</label>
+                <input className="sm-form-input" type="date" value={fFinish} onChange={e => setFFinish(e.target.value)} />
               </div>
               <div className="sm-form-group">
                 <label className="sm-form-label">Running Period <span style={{ color:'var(--gold)', marginLeft:4 }}>Auto-calculated</span></label>

@@ -1,12 +1,57 @@
-Patch admin dashboard numbers
-In src/app/admin/dashboard/page.tsx, find the setStats({...}) call inside fetchData
-and replace it using the patch in admin-dashboard-patch.txt.
-The change removes K/M abbreviations from:
+🔴 CRITICAL — App-Breaking
+1. Schema vs PRD Mismatch — Two completely different database designs exist
+Your README.MD (PRD) describes tables like wallets, deposit_season_locks, deposit_season_locks, referral_commissions, transactions, platform_settings — but none of these exist in supabase_schema.sql. The actual schema has a simplified profiles table with balance columns inline, a single settings table, and no wallets table at all. Every piece of code referencing wallets, deposit_locked, platform_settings, or transactions will fail silently or crash. Solution: Pick one design. Either update supabase_schema.sql to match the PRD, or update the PRD to reflect the simplified schema. The code currently follows the simplified schema, so the simpler fix is to update/discard the PRD tables.
+2. Missing entry_close_date column in seasons table
+src/app/season/page.tsx and src/app/admin/season/page.tsx both reference s.entry_close_date / entryCloseDate for the countdown logic. This column does not exist in the schema. The Phase 1 countdown ("Entry window closes in") required by GEMINI.md will silently never work — the countdown will always fall through to the end-date path. Solution: Add entry_close_date DATE to the seasons table, or use start_date + duration_days to compute it. Run ALTER TABLE seasons ADD COLUMN entry_close_date DATE;
+3. status column missing from profiles table
+src/app/admin/user/page.tsx filters users by .eq('status', statusFilter) with values like 'Active', 'Suspended', 'Pending'. The profiles table in the schema has no status column, only role. Every filter pill in user management returns 0 results or crashes. Solution: Add status TEXT DEFAULT 'active' CHECK (status IN ('active','suspended','pending')) to profiles in a migration.
+4. Settings table missing deposit address columns
+src/app/deposit/page.tsx queries from('settings').select('usdt_bep20_address, usdt_trc20_address'). These columns do not exist in the settings table (which only has maintenance_mode, maintenance_ends_at, base_referral_rate). The wallet addresses fall back to hardcoded values silently. Solution: Add those columns: ALTER TABLE settings ADD COLUMN usdt_bep20_address TEXT, ADD COLUMN usdt_trc20_address TEXT;
+5. Duplicate admin dashboard files
+You have two identical files — src/app/admin/dashboard/page.tsx AND src/app/admin/dashboard/dashboard_page.tsx — with exactly the same content. dashboard_page.tsx is never imported anywhere and is dead code, but it will confuse future development and increase bundle size. Solution: Delete dashboard_page.tsx.
 
-totalInvested
-platformBalance
-totalPaidOut
-avgSeasonROI (now shows sign e.g. +23.40%)
-payoutRate (now shows 2 decimal places)
+🟠 SERIOUS — Features Broken or Incorrect
+6. User email displayed as username@email.com (known bug, GEMINI.md item)
+In admin/dashboard/page.tsx the line email: u.username + '@email.com' is a known placeholder. Email is stored in auth.users, not in profiles. To fetch real emails you need to use the Supabase service role client in a server-side API route, because auth.users is not accessible from the browser client. Solution: Create GET /api/admin/users using supabaseAdmin.auth.admin.listUsers() which returns real emails, then merge with profile data.
+7. Profile fields referenced that don't exist in schema
+dashboard/page.tsx references profile.avg_roi, profile.active_season_id, and profile.commission_rate. None of these are in the profiles table schema. They return undefined, so avg ROI always shows 0% and active season shows nothing. Solution: Either add these columns (avg_roi NUMERIC DEFAULT 0, commission_rate NUMERIC DEFAULT 7) to profiles, or compute them dynamically from investments table joins.
+8. Season close logic doesn't increment seasons_completed / handle 10-season lock
+The PRD and GEMINI.md require that when a season closes, deposit_season_locks.seasons_completed is incremented. But the deposit_season_locks table doesn't exist in the schema, and the season close logic in admin/season/page.tsx (confirmCloseSeason) has no such logic. Deposits are never "unlocked" after 10 seasons. Solution: Since the simplified schema doesn't use deposit locking, remove all references to it from the PRD, or implement the full PRD schema.
+9. Commission rate inconsistency — 5% vs 7%
+src/components/Referral.tsx says 7% commission. README.MD says 5%. supabase_schema.sql defaults to 7.0. src/app/referral/page.tsx shows whatever is in profile.commission_rate. The homepage hero text says 5%. This inconsistency erodes trust. Pick one number and apply it everywhere. and make sure it is 7% commission of every profits not investments.
+10. RLS admin policy has circular reference
+In supabase_schema.sql, the admin RLS policy is:
+sqlUSING (EXISTS (SELECT 1 FROM public.profiles WHERE id = auth.uid() AND role = 'admin'))
+This query reads profiles while a policy on profiles is being evaluated — a circular dependency. It can cause infinite recursion or unpredictable behavior in Supabase. Solution: Use a security definer function or check auth.jwt() ->> 'role' instead, or use Supabase's built-in auth.users role claim.
+11. Middleware has non-standard export structure
+src/middleware.ts defines updateSession and middleware as two separate exports. The Next.js middleware system only calls the middleware export, but updateSession is also being called as a function inside middleware — this is fine functionally, but the file also contains a duplicate export async function middleware which, combined with updateSession, means the auth logic runs twice on some requests. Also the check !isHomePage && !isAuthPage for maintenance mode is too loose — it blocks the / route check unnecessarily.
+12. UserSidebar.tsx and AdminSidebar.tsx crash on null profile names
+Both do profile.first_name[0] and profile.last_name[0]. If a user's first_name or last_name is null or empty string (possible for the very first admin user who signs up before the trigger adds metadata), this throws a runtime crash. Solution: Add optional chaining: profile?.first_name?.[0] ?? '?'
 
+🟡 FUNCTIONAL ISSUES — Things That Don't Work As Expected
+13. ESLint version conflict (in error.md)
+eslint@8.57.1 is installed but eslint-config-next@16.2.3 requires >=9.0.0. This means npm run lint will never work. Solution: Remove eslint from devDependencies so Next.js installs its own version automatically, or run npm install eslint@^9 --save-dev.
+14. Season user page: entry_close_date is null so Phase 1 countdown never shows
+Even if you're in status === 'open', since s.entry_close_date doesn't exist, s.entryCloseDate is always null. The countdown label will always show "Season finishes in" (Phase 2), never "Entry window closes in" (Phase 1). This directly violates GEMINI.md requirement.
+15. src/app/season/page.tsx doesn't remove "Invest Now" button when entry is closed
+GEMINI.md says: once entry deadline passes, remove "Invest Now". The page uses s.status === 'open' to show/hide the button, but since entry_close_date doesn't exist, there's no way for the UI to switch from "open" to the "entry closed" state mid-season without an admin manually changing the season status.
+16. Deposit admin confirm logic adds to balance immediately (not deposit_locked)
+admin/deposit/page.tsx → doConfirm() adds d.amt directly to wallets.balance (or profiles.balance). GEMINI.md says deposits should go to deposit_locked first, and only unlock after 10 seasons. The code bypasses this entirely. If you intend to keep the simplified model (no lock), that's fine — but GEMINI.md must be updated to reflect that.
+17. Season Four hardcoded "Entries close in 18 days" in Seasons.tsx
+The original Seasons.tsx fetches season data from the DB and shows s.period. The new hardcoded version shows "Entries close in 18 days" forever. This is acceptable for a static homepage but will become misleading once Season 4 actually closes. Solution (optional): After Season 4 ends, update the hardcoded text manually, or switch back to a DB-driven component.
+18. admin/withdraw/page.tsx approves but doesn't trigger referral commission
+The PRD says: when a withdrawal is approved, 5% referral commission should be sent to the referrer. The admin withdraw approve function (doApprove) in the code only updates the withdrawal status and deducts balance — it never checks profile.referred_by or credits the referrer. Solution: After marking withdrawal as approved, query the user's referred_by, compute withdrawal.amount * 0.05, and add it to the referrer's balance.
+19. maintenance/page.tsx fetches settings but admin toggle writes to a different path
+The maintenance page reads from settings table with id=1. The admin settings page writes to the same place. This is consistent. However, the auto-disable logic (cron job checking if maintenance_end_time has passed) is described in the PRD but never implemented. Maintenance mode will stay on forever even after the countdown hits zero on the admin page — the countdown in the admin UI is cosmetic only, the actual setting doesn't auto-clear. Solution: Add a Supabase Edge Function with a cron trigger, or add a client-side redirect check in middleware.ts that reads maintenance_ends_at and auto-clears when expired.
+20. referral/page.tsx commission rate milestone update writes to DB every page load
+The referral page has this logic: if the user now has 50+ referrals, update their commission_rate to 12%. But this runs on every page load inside fetchData, meaning it re-writes the DB every time someone visits the referral page (even if no change occurred). This causes unnecessary DB writes and could cause rate limiting. Solution: Only trigger the update if newRate > profileData.commission_rate, which the code already checks — but the await supabase.from('profiles').update(...) still fires every time because the condition newRate > profileData.commission_rate might always be true if the column isn't being saved. Add a check: if (newRate !== profileData.commission_rate).
 
+🔵 DATABASE SQL ISSUES
+21. supabase-2.sql disables RLS entirely
+The file contains ALTER TABLE public.profiles DISABLE ROW LEVEL SECURITY;. This was probably a debug step that was never reversed. If this was run in production, ALL users can read ALL other users' data with no restriction. Solution: Run ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY; immediately if this was applied.
+22. supabase-4.sql creates overlapping policies
+It creates both "Public read all profiles" (allows everyone) AND "Admins full access" (also allows all operations for admins). The "public read" policy is too broad — it allows anyone, even unauthenticated users, to read all profiles. This means wallet balances, referral codes, phone numbers, and countries of all users are publicly readable. Solution: Change it to USING (auth.role() = 'authenticated') so only logged-in users can read profiles.
+23. supabase-5.sql migration references non-existent columns
+The migration adds referral_earned to profiles and tries to backfill withdrawable_total = balance. But then the handle_new_user function explicitly inserts referral_earned: 0 — this is fine. However the migration tries UPDATE public.profiles SET withdrawable_total = balance WHERE withdrawable_total != balance which will fail if withdrawable_total doesn't exist yet. Order of operations matters in migrations.
+24. The handle_new_user trigger in supabase_schema.sql is different from supabase-5.sql
+The original trigger doesn't insert referral_earned. The supabase-5.sql migration replaces the trigger to add it. If you run the schema file after the migration, you'll overwrite the updated trigger with the old one, losing referral_earned. Solution: Keep only one canonical version of the trigger (the one from supabase-5.sql) and remove the old one from the schema file.

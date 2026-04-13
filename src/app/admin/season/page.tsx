@@ -10,30 +10,33 @@ interface AutoClose { finalROI: number }
 interface ActiveSeason {
   id: string; name: string; entryDate: string; finishDate: string;
   roi: string; pool: number; min: number; max: number;
-  status: 'upcoming' | 'open' | 'running' | 'closed' | 'paused'; poolFilled: number; investors: number;
+  status: 'upcoming' | 'open' | 'running' | 'closed' | 'paused';
+  poolFilled: number;   // actual USDT amount
+  investors: number;
   dayStart: string; autoClose: AutoClose | null;
 }
 interface PrevSeason {
   id: string; name: string; entryDate: string; finishDate: string;
   roi: string; finalROI: number; pool: number; min: number; max: number;
 }
+interface PoolInvestor {
+  id: string; name: string; username: string; email: string; amount: number; joinedAt: string;
+}
 
 /* ══════════════════════════════
-   HELPERS
+   HELPERS — NO K/M ABBREVIATIONS
 ══════════════════════════════ */
 function fmt(n: number) { return Number(n).toLocaleString('en-US') }
+
+/** Full dollar amount, no K/M abbreviation */
 function fmtUSDT(n: number) {
-  if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 1_000)     return '$' + (n / 1_000).toFixed(0) + 'K';
-  return '$' + fmt(n);
+  return '$' + Number(n).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
+
 function fmtDate(d: string) {
   if (!d) return '—';
-  try {
-    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  } catch (e) {
-    return d;
-  }
+  try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+  catch { return d; }
 }
 function calcRunningDays(start: string, end: string) {
   if (!start || !end) return 0;
@@ -44,11 +47,6 @@ function calcDaysCurrent(dayStart: string) {
   if (!dayStart) return 0;
   const s = new Date(dayStart), now = new Date();
   return Math.max(0, Math.round((now.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
-}
-function getRunStart(entryDate: string) {
-  const d = new Date(entryDate);
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split('T')[0];
 }
 function calcPeriodStr(entryDate: string, finishDate: string) {
   if (!entryDate || !finishDate) return '— Select dates above —';
@@ -98,35 +96,56 @@ export default function AdminSeasonPage() {
   const [fMax, setFMax]         = useState('');
 
   // Close Modal state
-  const [cmOpen, setCmOpen]       = useState(false);
-  const [cmId, setCmId]           = useState('');
-  const [cmName, setCmName]       = useState('');
-  const [cmDates, setCmDates]     = useState('');
-  const [cmRoi, setCmRoi]         = useState('');
-  const [cmAuto, setCmAuto]       = useState(false);
+  const [cmOpen, setCmOpen]         = useState(false);
+  const [cmId, setCmId]             = useState('');
+  const [cmName, setCmName]         = useState('');
+  const [cmDates, setCmDates]       = useState('');
+  const [cmRoi, setCmRoi]           = useState('');
+  const [cmAuto, setCmAuto]         = useState(false);
   const [cmActiveRoi, setCmActiveRoi] = useState<number | null>(null);
 
   // Date Modal state
-  const [dmOpen, setDmOpen]       = useState(false);
-  const [dmId, setDmId]           = useState('');
-  const [dmSub, setDmSub]         = useState('');
-  const [dmDate, setDmDate]       = useState('');
+  const [dmOpen, setDmOpen]   = useState(false);
+  const [dmId, setDmId]       = useState('');
+  const [dmSub, setDmSub]     = useState('');
+  const [dmDate, setDmDate]   = useState('');
+
+  // ── Pool Modal state ──
+  const [poolOpen, setPoolOpen]         = useState(false);
+  const [poolSeasonName, setPoolSeasonName] = useState('');
+  const [poolSeasonId, setPoolSeasonId] = useState('');
+  const [poolInvestors, setPoolInvestors] = useState<PoolInvestor[]>([]);
+  const [poolTotal, setPoolTotal]       = useState(0);
+  const [poolLoading, setPoolLoading]   = useState(false);
 
   const [loading, setLoading] = useState(true);
 
   const [aggStats, setAggStats] = useState({
-    avgROI: '+0%',
-    totalPool: '$0'
+    avgROI: '+0.00%',
+    totalPool: '$0.00'
   });
 
   /* ── Fetch Data ── */
   const fetchData = useCallback(async () => {
     setLoading(true);
     const { data: seasons, error } = await supabase.from('seasons').select('*').order('created_at', { ascending: false });
-    
+
     if (error) {
       showToast('✕ Error fetching seasons', 'err');
     } else if (seasons) {
+      // Fetch all active investments to get real investor counts and pool totals
+      const { data: allInvestments } = await supabase
+        .from('investments')
+        .select('season_id, amount, user_id')
+        .eq('status', 'active');
+
+      const investorCounts: Record<string, number> = {};
+      const poolActuals: Record<string, number> = {};
+      allInvestments?.forEach(inv => {
+        investorCounts[inv.season_id] = (investorCounts[inv.season_id] || 0) + 1;
+        poolActuals[inv.season_id]    = (poolActuals[inv.season_id] || 0) + Number(inv.amount);
+      });
+
       const activeArr: ActiveSeason[] = [];
       const prevArr: PrevSeason[] = [];
       let totalPoolAll = 0;
@@ -134,34 +153,36 @@ export default function AdminSeasonPage() {
       let closedCount = 0;
 
       seasons.forEach(s => {
-        totalPoolAll += Number(s.current_pool || 0);
+        const actualPool = poolActuals[s.id] || Number(s.current_pool) || 0;
+        totalPoolAll += actualPool;
+
         if (s.status === 'closed') {
           closedCount++;
           totalROI += Number(s.final_roi || 0);
           prevArr.push({
             id: s.id,
             name: s.name,
-            entryDate: s.start_date || '',
+            entryDate:  s.start_date || '',
             finishDate: s.end_date || '',
-            roi: s.roi_range || '',
+            roi:      s.roi_range || '',
             finalROI: Number(s.final_roi) || 0,
             pool: Number(s.pool_cap) || 0,
-            min: Number(s.min_entry) || 0,
-            max: 50000 
+            min:  Number(s.min_entry) || 0,
+            max:  50000
           });
         } else {
           activeArr.push({
             id: s.id,
             name: s.name,
-            entryDate: s.start_date || '',
+            entryDate:  s.start_date || '',
             finishDate: s.end_date || '',
-            roi: s.roi_range || '',
+            roi:      s.roi_range || '',
             pool: Number(s.pool_cap) || 0,
-            min: Number(s.min_entry) || 0,
-            max: 50000,
+            min:  Number(s.min_entry) || 0,
+            max:  50000,
             status: s.status as any,
-            poolFilled: (Number(s.current_pool) / Number(s.pool_cap)) * 100 || 0,
-            investors: 0,
+            poolFilled: actualPool,
+            investors: investorCounts[s.id] || 0,
             dayStart: s.start_date || '',
             autoClose: null
           });
@@ -171,16 +192,14 @@ export default function AdminSeasonPage() {
       setActive(activeArr);
       setPrev(prevArr);
       setAggStats({
-        avgROI: `${(closedCount > 0 ? (totalROI / closedCount) : 0).toFixed(1)}%`,
+        avgROI:    `${(closedCount > 0 ? (totalROI / closedCount) : 0).toFixed(2)}%`,
         totalPool: fmtUSDT(totalPoolAll)
       });
     }
     setLoading(false);
   }, [supabase]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   /* ── Toast ── */
   const showToast = useCallback((msg: string, cls = '') => {
@@ -246,9 +265,9 @@ export default function AdminSeasonPage() {
 
   /* ── Body lock ── */
   useEffect(() => {
-    document.body.style.overflow = (sidebarOpen || smOpen || cmOpen || dmOpen) ? 'hidden' : '';
+    document.body.style.overflow = (sidebarOpen || smOpen || cmOpen || dmOpen || poolOpen) ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [sidebarOpen, smOpen, cmOpen, dmOpen]);
+  }, [sidebarOpen, smOpen, cmOpen, dmOpen, poolOpen]);
 
   /* ── Auto-close scheduling ── */
   const cancelAutoClose = useCallback((id: string) => {
@@ -259,10 +278,8 @@ export default function AdminSeasonPage() {
     const s = active.find(x => x.id === id);
     if (!s || !s.autoClose) return;
     const roi = s.autoClose.finalROI;
-    
     const { error } = await supabase.from('seasons').update({ status: 'closed', final_roi: roi }).eq('id', id);
     if (error) { showToast('✕ Auto-close failed', 'err'); return; }
-
     showToast(`⏰ ${s.name} auto-closed with +${roi}% ROI`, 'ok');
     fetchData();
     cancelAutoClose(id);
@@ -276,6 +293,39 @@ export default function AdminSeasonPage() {
     if (msUntil <= 0) { executeAutoClose(s.id); return; }
     autoCloseTimers.current[s.id] = setTimeout(() => executeAutoClose(s.id), msUntil);
   }, [cancelAutoClose, executeAutoClose]);
+
+  /* ── Open Pool Modal ── */
+  const openPoolModal = useCallback(async (seasonId: string, seasonName: string) => {
+    setPoolSeasonId(seasonId);
+    setPoolSeasonName(seasonName);
+    setPoolOpen(true);
+    setPoolLoading(true);
+    setPoolInvestors([]);
+    setPoolTotal(0);
+
+    const { data, error } = await supabase
+      .from('investments')
+      .select('id, amount, joined_at, profiles(first_name, last_name, email, username)')
+      .eq('season_id', seasonId)
+      .eq('status', 'active')
+      .order('amount', { ascending: false });
+
+    if (!error && data) {
+      const mapped: PoolInvestor[] = data.map((inv: any) => ({
+        id: inv.id,
+        name: `${inv.profiles?.first_name || ''} ${inv.profiles?.last_name || ''}`.trim() || '—',
+        username: inv.profiles?.username || '—',
+        email: inv.profiles?.email || '—',
+        amount: Number(inv.amount),
+        joinedAt: inv.joined_at
+          ? new Date(inv.joined_at).toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' })
+          : '—'
+      }));
+      setPoolInvestors(mapped);
+      setPoolTotal(mapped.reduce((sum, inv) => sum + inv.amount, 0));
+    }
+    setPoolLoading(false);
+  }, [supabase]);
 
   /* ── Season modal open ── */
   const openSeasonModal = (editId?: string) => {
@@ -316,13 +366,12 @@ export default function AdminSeasonPage() {
     if (smEditId) {
       const { error } = await supabase.from('seasons').update(seasonData).eq('id', smEditId);
       if (error) { showToast('✕ Error updating season', 'err'); return; }
-      showToast(`✓ Season updated`, 'ok');
+      showToast('✓ Season updated', 'ok');
     } else {
       const { error } = await supabase.from('seasons').insert([seasonData]);
       if (error) { showToast('✕ Error launching season', 'err'); return; }
-      showToast(`✓ Season launched`, 'ok');
+      showToast('✓ Season launched', 'ok');
     }
-    
     setSmOpen(false);
     fetchData();
   };
@@ -331,10 +380,8 @@ export default function AdminSeasonPage() {
   const togglePause = async (id: string) => {
     const s = active.find(x => x.id === id); if (!s) return;
     const newStatus = s.status === 'running' ? 'paused' : 'running';
-    
     const { error } = await supabase.from('seasons').update({ status: newStatus }).eq('id', id);
     if (error) { showToast('✕ Error updating status', 'err'); return; }
-
     showToast(newStatus === 'running' ? `▶ ${s.name} resumed` : `⏸ ${s.name} paused`, 'ok');
     fetchData();
   };
@@ -348,10 +395,8 @@ export default function AdminSeasonPage() {
     const s = active.find(x => x.id === dmId);
     if (!s || !dmDate) { showToast('⚠ Please select a date', 'err'); return; }
     if (new Date(dmDate) <= new Date(s.entryDate)) { showToast('⚠ Date must be after entry date', 'err'); return; }
-    
     const { error } = await supabase.from('seasons').update({ end_date: dmDate }).eq('id', dmId);
     if (error) { showToast('✕ Error updating date', 'err'); return; }
-
     setDmOpen(false);
     showToast(`✓ ${s.name} finish date updated to ${fmtDate(dmDate)}`, 'ok');
     fetchData();
@@ -366,11 +411,12 @@ export default function AdminSeasonPage() {
     setCmAuto(!!s.autoClose); setCmActiveRoi(s.autoClose?.finalROI ?? null);
     setCmOpen(true);
   };
+
   const confirmCloseSeason = async () => {
     const roi = parseFloat(cmRoi);
     if (isNaN(roi)) { showToast('⚠ Please enter a Final ROI', 'err'); return; }
     const s = active.find(x => x.id === cmId); if (!s) return;
-    
+
     if (cmAuto) {
       const updated = { ...s, autoClose: { finalROI: roi } };
       setActive(a => a.map(x => x.id === cmId ? updated : x));
@@ -379,36 +425,20 @@ export default function AdminSeasonPage() {
       showToast(`⏰ Auto-Close set for ${s.name} — closes on ${fmtDate(s.finishDate)} with +${roi}% ROI`, 'ok');
     } else {
       setLoading(true);
+      const { data: investments } = await supabase.from('investments').select('*').eq('season_id', cmId).eq('status', 'active');
 
-      // 1. Fetch all active investments for this season
-      const { data: investments, error: invErr } = await supabase
-        .from('investments')
-        .select('*')
-        .eq('season_id', cmId)
-        .eq('status', 'active');
-      
-      if (invErr) { showToast('✕ Error fetching investments', 'err'); setLoading(false); return; }
-
-      // 2. Process payouts: return principal + profit to each investor
       if (investments && investments.length > 0) {
         for (const inv of investments) {
           const principal = Number(inv.amount);
-          const profit = principal * (roi / 100);
+          const profit    = principal * (roi / 100);
           const totalReturn = principal + profit;
 
-          // Fetch investor profile (need referred_by for commission)
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('balance, profits_total, invested_total, referred_by')
-            .eq('id', inv.user_id)
-            .single();
-          
+          const { data: profile } = await supabase.from('profiles').select('balance, profits_total, invested_total, referred_by').eq('id', inv.user_id).single();
           if (profile) {
-            const newBalance = Number(profile.balance) + totalReturn;
+            const newBalance      = Number(profile.balance) + totalReturn;
             const newProfitsTotal = Number(profile.profits_total) + profit;
             const newInvestedTotal = Math.max(0, Number(profile.invested_total) - principal);
 
-            // Update investor balance — withdrawable_total = balance (no lock)
             await supabase.from('profiles').update({
               balance: newBalance,
               withdrawable_total: newBalance,
@@ -416,25 +446,16 @@ export default function AdminSeasonPage() {
               invested_total: newInvestedTotal,
             }).eq('id', inv.user_id);
 
-            // Mark investment as completed
             await supabase.from('investments').update({ status: 'completed' }).eq('id', inv.id);
 
-            // 3. Referral commission: 7% of PROFIT to referrer (not 7% of investment amount)
             if (profile.referred_by && profit > 0) {
-              const REFERRAL_RATE = 0.07;
-              const commission = profit * REFERRAL_RATE;
-
-              const { data: referrer } = await supabase
-                .from('profiles')
-                .select('balance, referral_earned')
-                .eq('id', profile.referred_by)
-                .single();
-
+              const commission = profit * 0.07;
+              const { data: referrer } = await supabase.from('profiles').select('balance, referral_earned').eq('id', profile.referred_by).single();
               if (referrer) {
                 const newRefBalance = Number(referrer.balance) + commission;
                 await supabase.from('profiles').update({
                   balance: newRefBalance,
-                  withdrawable_total: newRefBalance,  // withdrawable = full balance
+                  withdrawable_total: newRefBalance,
                   referral_earned: (Number(referrer.referral_earned) || 0) + commission,
                 }).eq('id', profile.referred_by);
               }
@@ -443,20 +464,16 @@ export default function AdminSeasonPage() {
         }
       }
 
-      // 4. Close the season and set final ROI
-      const { error } = await supabase
-        .from('seasons')
-        .update({ status: 'closed', final_roi: roi })
-        .eq('id', cmId);
-
+      const { error } = await supabase.from('seasons').update({ status: 'closed', final_roi: roi }).eq('id', cmId);
       if (error) { showToast('✕ Error closing season', 'err'); setLoading(false); return; }
-      
+
       setCmOpen(false);
       const count = investments?.length || 0;
       showToast(`✓ ${s.name} closed. Payouts processed for ${count} investor${count !== 1 ? 's' : ''}.`, 'ok');
       fetchData();
     }
   };
+
   const cancelAutoCloseUI = (id: string) => {
     cancelAutoClose(id);
     setActive(a => a.map(x => x.id === id ? { ...x, autoClose: null } : x));
@@ -474,6 +491,102 @@ export default function AdminSeasonPage() {
 
       {/* Overlay */}
       <div className={`adm-sb-overlay${sidebarOpen?' show':''}`} onClick={() => setSidebarOpen(false)} />
+
+      {/* ── POOL MODAL ── */}
+      <div className={`sm-modal-overlay${poolOpen?' open':''}`} onClick={e => { if (e.target === e.currentTarget) setPoolOpen(false); }}>
+        <div className="sm-modal-box" style={{ maxWidth: 680 }}>
+          <div className="sm-modal-header">
+            <div>
+              <div className="sm-modal-title">Pool Details — {poolSeasonName}</div>
+              <div style={{ fontSize:'.67rem', color:'var(--text-sec)', marginTop:2 }}>
+                All active investments in this season
+              </div>
+            </div>
+            <button className="sm-modal-close" onClick={() => setPoolOpen(false)}>
+              <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+          <div className="sm-modal-body" style={{ padding: 0 }}>
+            {/* Total invested hero */}
+            <div style={{ padding:'20px 22px 16px', background:'var(--ink)', position:'relative', overflow:'hidden' }}>
+              <div style={{ position:'absolute', width:200, height:200, borderRadius:'50%', background:'radial-gradient(circle,rgba(184,147,90,.1) 0%,transparent 70%)', top:-60, right:-40, pointerEvents:'none' }}/>
+              <div style={{ fontSize:'.62rem', letterSpacing:'.14em', textTransform:'uppercase', color:'rgba(246,241,233,.4)', marginBottom:8, position:'relative', zIndex:1 }}>
+                Total Invested in this Season
+              </div>
+              <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'2.4rem', fontWeight:300, color:'var(--gold-l)', lineHeight:1, position:'relative', zIndex:1 }}>
+                {poolLoading ? '...' : fmtUSDT(poolTotal)}
+              </div>
+              <div style={{ fontSize:'.72rem', color:'rgba(246,241,233,.4)', marginTop:6, position:'relative', zIndex:1 }}>
+                {poolLoading ? '' : `${poolInvestors.length} active investor${poolInvestors.length !== 1 ? 's' : ''}`}
+              </div>
+            </div>
+
+            {/* Investor list */}
+            {poolLoading ? (
+              <div style={{ padding:'32px', textAlign:'center', color:'var(--text-sec)', fontSize:'.82rem' }}>Loading investment data…</div>
+            ) : poolInvestors.length === 0 ? (
+              <div style={{ padding:'32px', textAlign:'center', color:'var(--text-sec)', fontSize:'.82rem' }}>
+                No active investments in this season yet.
+              </div>
+            ) : (
+              <div style={{ overflowX:'auto' }}>
+                <table style={{ width:'100%', borderCollapse:'collapse', fontSize:'.78rem' }}>
+                  <thead>
+                    <tr>
+                      {['#', 'Investor', 'Email', 'Username', 'Amount (USDT)', 'Joined'].map(h => (
+                        <th key={h} style={{ padding:'10px 14px', background:'var(--parchment)', color:'var(--text-sec)', fontSize:'.6rem', letterSpacing:'.12em', textTransform:'uppercase', fontWeight:400, borderBottom:'1px solid var(--border)', textAlign:'left', whiteSpace:'nowrap' }}>
+                          {h}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {poolInvestors.map((inv, i) => (
+                      <tr key={inv.id} style={{ borderBottom:'1px solid rgba(184,147,90,.07)' }}>
+                        <td style={{ padding:'11px 14px', color:'var(--text-sec)', fontSize:'.7rem' }}>{i + 1}</td>
+                        <td style={{ padding:'11px 14px' }}>
+                          <div style={{ fontWeight:500, fontSize:'.8rem', color:'var(--ink)' }}>{inv.name}</div>
+                        </td>
+                        <td style={{ padding:'11px 14px' }}>
+                          <div style={{ fontSize:'.72rem', color:'var(--text-sec)', fontFamily:'monospace' }}>{inv.email}</div>
+                        </td>
+                        <td style={{ padding:'11px 14px' }}>
+                          <div style={{ fontSize:'.72rem', color:'var(--text-sec)' }}>@{inv.username}</div>
+                        </td>
+                        <td style={{ padding:'11px 14px' }}>
+                          <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1rem', color:'var(--sage)', fontWeight:500 }}>
+                            {fmtUSDT(inv.amount)}
+                          </div>
+                        </td>
+                        <td style={{ padding:'11px 14px' }}>
+                          <div style={{ fontSize:'.7rem', color:'var(--text-sec)' }}>{inv.joinedAt}</div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                  <tfoot>
+                    <tr style={{ background:'var(--parchment)' }}>
+                      <td colSpan={4} style={{ padding:'12px 14px', fontSize:'.7rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--text-sec)', fontWeight:500 }}>
+                        Total ({poolInvestors.length} investors)
+                      </td>
+                      <td style={{ padding:'12px 14px' }}>
+                        <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1.1rem', color:'var(--gold)', fontWeight:600 }}>
+                          {fmtUSDT(poolTotal)}
+                        </div>
+                      </td>
+                      <td />
+                    </tr>
+                  </tfoot>
+                </table>
+              </div>
+            )}
+
+            <div style={{ padding:'14px 22px', borderTop:'1px solid var(--border)', display:'flex', justifyContent:'flex-end' }}>
+              <button className="sm-btn-ghost" onClick={() => setPoolOpen(false)}>Close</button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* ── CREATE/EDIT SEASON MODAL ── */}
       <div className={`sm-modal-overlay${smOpen?' open':''}`} onClick={e => { if (e.target === e.currentTarget) setSmOpen(false); }}>
@@ -682,18 +795,18 @@ export default function AdminSeasonPage() {
               </div>
             </div>
 
-            {/* Stat strip */}
+            {/* Stat strip — full numbers */}
             <div className="sm-reveal" style={{ display:'grid', gap:10, gridTemplateColumns:'repeat(2,1fr)', marginBottom:24 }}>
               <style>{`@media(min-width:640px){.sm-stats-strip{grid-template-columns:repeat(4,1fr)!important}}`}</style>
               {[
-                ['Active Seasons', String(active.length), 'var(--ink)'],
-                ['Total Seasons Run', String(active.length + prev.length), 'var(--ink)'],
-                ['Avg Final ROI', aggStats.avgROI, 'var(--gold)'],
-                ['Total Pool (All Seasons)', aggStats.totalPool, 'var(--ink)'],
+                ['Active Seasons',          String(active.length),                    'var(--ink)'],
+                ['Total Seasons Run',        String(active.length + prev.length),      'var(--ink)'],
+                ['Avg Final ROI',            aggStats.avgROI,                          'var(--gold)'],
+                ['Total Pool (All Seasons)', aggStats.totalPool,                       'var(--ink)'],
               ].map(([lbl, val, col]) => (
                 <div key={lbl} className="sm-card" style={{ padding:'16px 18px' }}>
                   <div style={{ fontSize:'.58rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--text-sec)', marginBottom:4 }}>{lbl}</div>
-                  <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1.6rem', color:col }}>{val}</div>
+                  <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1.4rem', color:col }}>{val}</div>
                 </div>
               ))}
             </div>
@@ -722,12 +835,12 @@ export default function AdminSeasonPage() {
               ) : (
                 <div style={{ display:'grid', gap:14 }}>
                   {active.map(s => {
-                    const runStart  = s.entryDate;
-                    const totalDays = calcRunningDays(runStart, s.finishDate);
-                    const curDay    = Math.min(calcDaysCurrent(s.dayStart), totalDays);
-                    const dayPct    = totalDays > 0 ? Math.round(curDay / totalDays * 100) : 0;
-                    const isRunning = s.status === 'running';
-                    const hasAuto   = !!s.autoClose;
+                    const totalDays  = calcRunningDays(s.entryDate, s.finishDate);
+                    const curDay     = Math.min(calcDaysCurrent(s.dayStart), totalDays);
+                    const dayPct     = totalDays > 0 ? Math.round(curDay / totalDays * 100) : 0;
+                    const poolPct    = s.pool > 0 ? Math.min(100, Math.round((s.poolFilled / s.pool) * 100)) : 0;
+                    const isRunning  = s.status === 'running';
+                    const hasAuto    = !!s.autoClose;
 
                     return (
                       <div key={s.id} className={`sm-season-card${s.status==='paused'?' paused':''}`}>
@@ -751,15 +864,15 @@ export default function AdminSeasonPage() {
                           </div>
                         )}
 
-                        {/* Meta grid */}
+                        {/* Meta grid — full numbers */}
                         <div className="sm-season-meta-grid">
                           {[
-                            ['Start Date', fmtDate(s.entryDate), ''],
-                            ['Finish Date', fmtDate(s.finishDate), ''],
-                            ['Running Period', `${totalDays} days`, ''],
-                            ['Expected ROI', s.roi, 'gold'],
-                            ['Pool Size', fmtUSDT(s.pool), ''],
-                            ['Min / Max Entry', `${fmtUSDT(s.min)} / ${fmtUSDT(s.max)}`, ''],
+                            ['Start Date',       fmtDate(s.entryDate),                              ''],
+                            ['Finish Date',      fmtDate(s.finishDate),                             ''],
+                            ['Running Period',   `${totalDays} days`,                               ''],
+                            ['Expected ROI',     s.roi,                                             'gold'],
+                            ['Pool Cap',         fmtUSDT(s.pool),                                   ''],
+                            ['Min / Max Entry',  `${fmtUSDT(s.min)} / ${fmtUSDT(s.max)}`,           ''],
                           ].map(([lbl, val, cls]) => (
                             <div key={lbl}>
                               <div className="sm-meta-lbl">{lbl}</div>
@@ -780,19 +893,30 @@ export default function AdminSeasonPage() {
                           <div>
                             <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
                               <span style={{ fontSize:'.6rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--text-sec)' }}>Pool Filled</span>
-                              <span style={{ fontSize:'.6rem', color:'var(--text-sec)' }}>{s.poolFilled.toFixed(1)}% · {fmt(s.investors)} investors</span>
+                              <span style={{ fontSize:'.6rem', color:'var(--text-sec)' }}>{poolPct}% · {s.investors} investor{s.investors!==1?'s':''}</span>
                             </div>
-                            <div className="sm-pool-bar"><div className="sm-pool-fill" style={{ width:`${s.poolFilled}%`, background:'linear-gradient(90deg,var(--sage),var(--sage-l))' }}/></div>
+                            <div className="sm-pool-bar"><div className="sm-pool-fill" style={{ width:`${poolPct}%`, background:'linear-gradient(90deg,var(--sage),var(--sage-l))' }}/></div>
+                            <div style={{ fontSize:'.62rem', color:'var(--text-sec)', marginTop:3 }}>
+                              {fmtUSDT(s.poolFilled)} / {fmtUSDT(s.pool)}
+                            </div>
                           </div>
                         </div>
 
-                        {/* Actions */}
+                        {/* Actions — includes Pool button */}
                         <div className="sm-season-actions">
                           <button className="sm-btn-sage sm-btn-sm" onClick={() => togglePause(s.id)}>
                             {isRunning ? '⏸ Pause Season' : '▶ Resume Season'}
                           </button>
                           <button className="sm-btn-ghost sm-btn-sm" onClick={() => openDateModal(s.id)}>📅 Change Finish Date</button>
                           <button className="sm-btn-ghost sm-btn-sm" onClick={() => openSeasonModal(s.id)}>✏ Edit</button>
+                          {/* ── POOL BUTTON ── */}
+                          <button
+                            className="sm-btn-ghost sm-btn-sm"
+                            style={{ borderColor:'rgba(74,103,65,.3)', color:'var(--sage)' }}
+                            onClick={() => openPoolModal(s.id, s.name)}
+                          >
+                            💰 Pool ({s.investors})
+                          </button>
                           <button className="sm-btn-danger sm-btn-sm" onClick={() => openCloseModal(s.id)}>
                             ✕ {hasAuto ? 'Update Close Settings' : 'Close Season'}
                           </button>
@@ -826,14 +950,13 @@ export default function AdminSeasonPage() {
                       <thead>
                         <tr>
                           <th>Season</th><th>Period</th><th>Running Days</th>
-                          <th>Final ROI</th><th>Pool Size</th><th>Min / Max Entry</th>
+                          <th>Final ROI</th><th>Pool Size</th><th>Min Entry</th>
                           <th>Status</th><th>Action</th>
                         </tr>
                       </thead>
                       <tbody>
                         {prev.map(s => {
-                          const rs   = s.entryDate;
-                          const days = calcRunningDays(rs, s.finishDate);
+                          const days     = calcRunningDays(s.entryDate, s.finishDate);
                           const roiColor = s.finalROI >= 20 ? 'var(--sage)' : s.finalROI >= 10 ? 'var(--gold)' : 'var(--error)';
                           return (
                             <tr key={s.id}>
@@ -849,7 +972,7 @@ export default function AdminSeasonPage() {
                                 <span style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1.05rem', color:roiColor, fontWeight:500 }}>+{s.finalROI}%</span>
                               </td>
                               <td style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'.95rem', color:'var(--ink)' }}>{fmtUSDT(s.pool)}</td>
-                              <td style={{ fontSize:'.72rem', color:'var(--text-sec)' }}>{fmtUSDT(s.min)} / {fmtUSDT(s.max)}</td>
+                              <td style={{ fontSize:'.72rem', color:'var(--text-sec)' }}>{fmtUSDT(s.min)}</td>
                               <td><span className="sm-badge sm-b-closed">Closed</span></td>
                               <td><button className="sm-btn-ghost sm-btn-sm" onClick={() => openSeasonModal(s.id)}>Edit</button></td>
                             </tr>

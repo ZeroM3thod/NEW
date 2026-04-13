@@ -80,14 +80,14 @@ export default function AdminDashboardPage() {
 
     setStats({
       totalUsers: (userCount || 0).toLocaleString(),
-      totalInvested: `$${(totalInv / 1000).toFixed(1)}K`, // Using K if under 1M for better visibility in dev
-      platformBalance: `$${(totalBal / 1000).toFixed(1)}K`,
-      activeSeasons: String(seasonCount || 0),
+      totalInvested:    '$' + (totalInv).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      platformBalance:  '$' + (totalBal).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      activeSeasons:    String(seasonCount || 0),
       pendingWithdrawals: pendingWdCount || 0,
-      totalPaidOut: `$${(totalPaidOutValue / 1000).toFixed(1)}K`,
-      avgSeasonROI: `${avgROIValue.toFixed(1)}%`,
-      seasonsRun: String(seasonsRunCount),
-      payoutRate: `${payoutRateValue.toFixed(1)}%`
+      totalPaidOut:     '$' + (totalPaidOutValue).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }),
+      avgSeasonROI:     `${avgROIValue >= 0 ? '+' : ''}${avgROIValue.toFixed(2)}%`,
+      seasonsRun:       String(seasonsRunCount),
+      payoutRate:       `${payoutRateValue.toFixed(2)}%`
     });
 
     // 3. Recent Users

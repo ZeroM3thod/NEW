@@ -45,7 +45,7 @@ const COUNTRY_CODES = [
   { code: 'CD', name: 'Congo (DRC)',             dial: '+243', flag: '🇨🇩' },
   { code: 'CG', name: 'Congo (Republic)',        dial: '+242', flag: '🇨🇬' },
   { code: 'CR', name: 'Costa Rica',              dial: '+506', flag: '🇨🇷' },
-  { code: 'CI', name: 'Côte d\'Ivoire',          dial: '+225', flag: '🇨🇮' },
+  { code: 'CI', name: "Côte d'Ivoire",           dial: '+225', flag: '🇨🇮' },
   { code: 'HR', name: 'Croatia',                 dial: '+385', flag: '🇭🇷' },
   { code: 'CU', name: 'Cuba',                    dial: '+53',  flag: '🇨🇺' },
   { code: 'CY', name: 'Cyprus',                  dial: '+357', flag: '🇨🇾' },
@@ -186,6 +186,8 @@ export default function SignUpPage() {
   const animRef    = useRef<number>(0);
   const toastTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
   const unTimer    = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const emailTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
+  const phoneTimer = useRef<ReturnType<typeof setTimeout>|null>(null);
 
   const [toast, setToast] = useState({msg:'',type:'' as ToastType,show:false});
 
@@ -198,22 +200,25 @@ export default function SignUpPage() {
   const [rLastCls, setRLastCls] = useState('');
   const [rLastMsg, setRLastMsg] = useState('');
 
+  /* Username */
   const [rUn, setRUn]           = useState('');
   const [rUnCls, setRUnCls]     = useState('');
   const [rUnMsg, setRUnMsg]     = useState('');
   const [rUnChecking, setRUnChecking] = useState(false);
 
+  /* Email */
   const [rEmail, setREmail]     = useState('');
   const [rEmailCls, setREmailCls] = useState('');
   const [rEmailMsg, setREmailMsg] = useState('');
+  const [rEmailChecking, setREmailChecking] = useState(false);
 
-  /* phone: dial code + number */
-  const [rDialCode, setRDialCode] = useState('BD'); // ISO code key
+  /* Phone */
+  const [rDialCode, setRDialCode] = useState('BD');
   const [rPhone, setRPhone]     = useState('');
   const [rPhoneCls, setRPhoneCls] = useState('');
   const [rPhoneMsg, setRPhoneMsg] = useState('');
+  const [rPhoneChecking, setRPhoneChecking] = useState(false);
 
-  /* country name */
   const [rCountry, setRCountry] = useState('');
   const [rCountryCls, setRCountryCls] = useState('');
 
@@ -237,7 +242,6 @@ export default function SignUpPage() {
   const [rTermsMsg, setRTermsMsg] = useState('');
   const [rLoading, setRLoading] = useState(false);
 
-  /* Derived */
   const selectedCountry = COUNTRY_CODES.find(c => c.code === rDialCode) || COUNTRY_CODES.find(c => c.code === 'BD')!;
 
   /* ── Pre-fill ref from URL ── */
@@ -288,13 +292,13 @@ export default function SignUpPage() {
   const strengthColor=(score:number)=>score<=1?'#b05252':score<=2?'#b8935a':'#4a6741';
   const strengthLabel=(score:number)=>['','Weak','Fair','Good','Strong'][score]||'';
 
-  /* When user picks a dial code, also pre-fill country name if empty */
   const handleDialChange = (code: string) => {
     setRDialCode(code);
     const found = COUNTRY_CODES.find(c => c.code === code);
     if (found && !rCountry) setRCountry(found.name);
   };
 
+  /* ── Username live check ── */
   const handleUnInput=(val:string)=>{
     setRUn(val); setRUnCls(''); setRUnMsg(''); setRUnChecking(false);
     if(unTimer.current) clearTimeout(unTimer.current);
@@ -306,11 +310,64 @@ export default function SignUpPage() {
     unTimer.current=setTimeout(async()=>{
       const {data,error}=await supabase.from('profiles').select('username').eq('username',v).maybeSingle();
       setRUnChecking(false);
-      if(data){setRUnCls('fi-err');setRUnMsg('✕ Username taken. Try another.');}
+      if(data){setRUnCls('fi-err');setRUnMsg('✕ Username already taken. Try another.');}
       else if(error){setRUnCls('fi-err');setRUnMsg('✕ Error checking username.');}
-      else{setRUnCls('fi-good');setRUnMsg('✓ Username available!');}
-    },900);
+      else{setRUnCls('fi-good');setRUnMsg('✓ Username is available!');}
+    },600);
   };
+
+  /* ── Email live check ── */
+  const handleEmailInput=(val:string)=>{
+    setREmail(val); setREmailCls(''); setREmailMsg(''); setREmailChecking(false);
+    if(emailTimer.current) clearTimeout(emailTimer.current);
+    const v=val.trim();
+    if(!v) return;
+    if(!EMAIL_RX.test(v)){setREmailCls('fi-err');setREmailMsg('⚠ Enter a valid email address.');return;}
+    setREmailChecking(true); setREmailMsg('Checking availability…');
+    emailTimer.current=setTimeout(async()=>{
+      const {data,error}=await supabase.from('profiles').select('email').eq('email',v).maybeSingle();
+      setREmailChecking(false);
+      if(data){setREmailCls('fi-err');setREmailMsg('✕ Email already registered. Try signing in instead.');}
+      else if(error){setREmailCls('fi-err');setREmailMsg('✕ Error checking email.');}
+      else{setREmailCls('fi-good');setREmailMsg('✓ Email is available!');}
+    },600);
+  };
+
+  /* ── Phone live check ── */
+  const handlePhoneInput=(val:string)=>{
+    setRPhone(val); setRPhoneCls(''); setRPhoneMsg(''); setRPhoneChecking(false);
+    if(phoneTimer.current) clearTimeout(phoneTimer.current);
+    const num=val.trim();
+    if(!num) return;
+    if(num.length<5){setRPhoneCls('fi-err');setRPhoneMsg('⚠ Phone number is too short.');return;}
+    const fullPhone=`${selectedCountry.dial}${num}`;
+    setRPhoneChecking(true); setRPhoneMsg('Checking availability…');
+    phoneTimer.current=setTimeout(async()=>{
+      const {data,error}=await supabase.from('profiles').select('phone_number').eq('phone_number',fullPhone).maybeSingle();
+      setRPhoneChecking(false);
+      if(data){setRPhoneCls('fi-err');setRPhoneMsg('✕ Phone number already registered.');}
+      else if(error){setRPhoneCls('fi-err');setRPhoneMsg('✕ Error checking phone number.');}
+      else{setRPhoneCls('fi-good');setRPhoneMsg('✓ Phone number is available!');}
+    },600);
+  };
+
+  /* Re-check phone when dial code changes */
+  useEffect(()=>{
+    if(!rPhone.trim()) return;
+    setRPhoneCls(''); setRPhoneMsg(''); setRPhoneChecking(false);
+    if(phoneTimer.current) clearTimeout(phoneTimer.current);
+    const num=rPhone.trim();
+    if(num.length<5) return;
+    const fullPhone=`${selectedCountry.dial}${num}`;
+    setRPhoneChecking(true); setRPhoneMsg('Checking availability…');
+    phoneTimer.current=setTimeout(async()=>{
+      const {data,error}=await supabase.from('profiles').select('phone_number').eq('phone_number',fullPhone).maybeSingle();
+      setRPhoneChecking(false);
+      if(data){setRPhoneCls('fi-err');setRPhoneMsg('✕ Phone number already registered.');}
+      else if(error){setRPhoneCls('fi-err');setRPhoneMsg('✕ Error checking phone number.');}
+      else{setRPhoneCls('fi-good');setRPhoneMsg('✓ Phone number is available!');}
+    },600);
+  },[rDialCode]); // eslint-disable-line
 
   const handleRefBlur=async()=>{
     const val=rRef.trim();
@@ -339,10 +396,13 @@ export default function SignUpPage() {
     else{setRLastCls('fi-good');setRLastMsg('');}
 
     if(!un||un.length<3){setRUnCls('fi-err');setRUnMsg('⚠ Username must be at least 3 characters.');valid=false;}
+    else if(rUnCls==='fi-err'){valid=false;} // already showing an error
 
     if(!email){setREmailCls('fi-err');setREmailMsg('⚠ Email is required.');valid=false;}
     else if(!EMAIL_RX.test(email)){setREmailCls('fi-err');setREmailMsg('⚠ Enter a valid email address.');valid=false;}
-    else{setREmailCls('fi-good');setREmailMsg('');}
+    else if(rEmailCls==='fi-err'){valid=false;} // already showing "already registered"
+
+    if(rPhoneCls==='fi-err'){valid=false;} // phone already in use
 
     if(!pw||pw.length<8){setRPwCls('fi-err');setRPwMsg('⚠ Password must be at least 8 characters.');valid=false;}
     if(!cpw){setRCpwCls('fi-err');setRCpwMsg('⚠ Please confirm your password.');setRCpwMsgType('err');valid=false;}
@@ -352,6 +412,18 @@ export default function SignUpPage() {
     else setRTermsMsg('');
 
     if(!valid){showToast('⚠ Please fix the errors above.','err');return;}
+
+    // Final server-side uniqueness check before submitting
+    const [unCheck, emailCheck, phoneCheck] = await Promise.all([
+      supabase.from('profiles').select('username').eq('username',un.toLowerCase()).maybeSingle(),
+      supabase.from('profiles').select('email').eq('email',email).maybeSingle(),
+      phone ? supabase.from('profiles').select('phone_number').eq('phone_number',`${selectedCountry.dial}${phone}`).maybeSingle() : Promise.resolve({data:null,error:null}),
+    ]);
+
+    if(unCheck.data){setRUnCls('fi-err');setRUnMsg('✕ Username already taken. Try another.');showToast('⚠ Username is already taken.','err');return;}
+    if(emailCheck.data){setREmailCls('fi-err');setREmailMsg('✕ Email already registered. Try signing in instead.');showToast('⚠ Email is already registered.','err');return;}
+    if(phoneCheck.data){setRPhoneCls('fi-err');setRPhoneMsg('✕ Phone number already registered.');showToast('⚠ Phone number is already in use.','err');return;}
+
     setRLoading(true);
 
     const fullPhone = phone ? `${selectedCountry.dial}${phone}` : '';
@@ -360,7 +432,7 @@ export default function SignUpPage() {
       email,
       password: pw,
       options:{
-         emailRedirectTo: `${window.location.origin}/auth/signin`,
+        emailRedirectTo: `${window.location.origin}/auth/signin`,
         data:{
           first_name: first,
           last_name: last,
@@ -383,6 +455,14 @@ export default function SignUpPage() {
   const EyeOpen=()=>(<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>);
   const EyeClosed=()=>(<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>);
 
+  /* Shared spinner for live checking */
+  const CheckingSpinner = () => (
+    <span style={{display:'inline-flex',alignItems:'center',gap:5}}>
+      <span style={{width:10,height:10,borderRadius:'50%',border:'1.5px solid rgba(184,147,90,.3)',borderTopColor:'var(--gold)',animation:'spin .7s linear infinite',display:'inline-block'}}/>
+      Checking…
+    </span>
+  );
+
   return (
     <>
       <canvas ref={canvasRef} style={{position:'fixed',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:0,opacity:.055}}/>
@@ -404,7 +484,7 @@ export default function SignUpPage() {
 
           <form className="form-stack" onSubmit={handleRegister} noValidate>
 
-            {/* First Name + Last Name — side by side */}
+            {/* First Name + Last Name */}
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
               <div className="fg">
                 <label className="fl">First Name</label>
@@ -420,62 +500,63 @@ export default function SignUpPage() {
               </div>
             </div>
 
-            {/* Username */}
+            {/* Username — live check */}
             <div className="fg">
               <label className="fl">Username</label>
               <input className={`fi${rUnCls?' '+rUnCls:''}`} type="text" placeholder="rakib.investor" autoComplete="off"
                 value={rUn} onChange={e=>handleUnInput(e.target.value)}/>
-              {rUnMsg&&(
+              {(rUnMsg||rUnChecking)&&(
                 <div className={`msg ${rUnCls==='fi-err'?'msg-err':rUnCls==='fi-good'?'msg-ok':'msg-info'}`}>
-                  {rUnChecking?<span className="un-checking"><span className="un-spinner"/>{rUnMsg}</span>:rUnMsg}
+                  {rUnChecking?<CheckingSpinner/>:rUnMsg}
                 </div>
               )}
             </div>
 
-            {/* Email */}
+            {/* Email — live check */}
             <div className="fg">
               <label className="fl">Email Address</label>
               <input className={`fi${rEmailCls?' '+rEmailCls:''}`} type="email" placeholder="you@example.com" autoComplete="email"
-                value={rEmail} onChange={e=>setREmail(e.target.value)}/>
-              {rEmailMsg&&<div className="msg msg-err">{rEmailMsg}</div>}
+                value={rEmail} onChange={e=>handleEmailInput(e.target.value)}/>
+              {(rEmailMsg||rEmailChecking)&&(
+                <div className={`msg ${rEmailCls==='fi-err'?'msg-err':rEmailCls==='fi-good'?'msg-ok':'msg-info'}`}>
+                  {rEmailChecking?<CheckingSpinner/>:rEmailMsg}
+                </div>
+              )}
             </div>
 
-            {/* Phone — country dial code + number */}
+            {/* Phone — live check */}
             <div className="fg">
               <label className="fl">Phone Number</label>
-              <div className="phone-row" style={{gap:0,border:'1px solid var(--border)',borderRadius:'var(--radius)',overflow:'hidden',background:'var(--cream)'}}>
+              <div style={{display:'flex',gap:0,border:`1px solid ${rPhoneCls==='fi-err'?'var(--error)':rPhoneCls==='fi-good'?'rgba(74,103,65,.4)':'var(--border)'}`,borderRadius:'var(--radius)',overflow:'hidden',background:'var(--cream)',transition:'border-color .2s'}}>
                 {/* Dial code selector */}
                 <div style={{position:'relative',flexShrink:0}}>
                   <select
                     value={rDialCode}
                     onChange={e=>handleDialChange(e.target.value)}
-                    style={{
-                      padding:'11px 28px 11px 10px',height:'100%',background:'var(--parchment)',
-                      border:'none',borderRight:'1px solid var(--border)',
-                      fontFamily:"'DM Sans',sans-serif",fontSize:'.82rem',color:'var(--ink)',
-                      outline:'none',cursor:'pointer',appearance:'none',WebkitAppearance:'none',
-                      minWidth:90,
-                    }}
+                    style={{padding:'11px 28px 11px 10px',height:'100%',background:'var(--parchment)',border:'none',borderRight:'1px solid var(--border)',fontFamily:"'DM Sans',sans-serif",fontSize:'.82rem',color:'var(--ink)',outline:'none',cursor:'pointer',appearance:'none',WebkitAppearance:'none',minWidth:90}}
                   >
                     {COUNTRY_CODES.map(c=>(
                       <option key={c.code} value={c.code}>{c.flag} {c.dial}</option>
                     ))}
                   </select>
-                  {/* Chevron */}
                   <span style={{position:'absolute',right:7,top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'.6rem',color:'var(--text-secondary)'}}>▼</span>
                 </div>
                 {/* Number input */}
                 <input
-                  className={`fi${rPhoneCls?' '+rPhoneCls:''}`}
+                  className="fi"
                   type="tel" placeholder="1712-345678" autoComplete="tel"
-                  value={rPhone} onChange={e=>setRPhone(e.target.value)}
-                  style={{border:'none',borderRadius:0,flex:1,background:'transparent'}}
+                  value={rPhone} onChange={e=>handlePhoneInput(e.target.value)}
+                  style={{border:'none',borderRadius:0,flex:1,background:'transparent',boxShadow:'none'}}
                 />
               </div>
-              {rPhoneMsg&&<div className="msg msg-err">{rPhoneMsg}</div>}
+              {(rPhoneMsg||rPhoneChecking)&&(
+                <div className={`msg ${rPhoneCls==='fi-err'?'msg-err':rPhoneCls==='fi-good'?'msg-ok':'msg-info'}`}>
+                  {rPhoneChecking?<CheckingSpinner/>:rPhoneMsg}
+                </div>
+              )}
             </div>
 
-            {/* Country name */}
+            {/* Country */}
             <div className="fg">
               <label className="fl">Country</label>
               <select
@@ -483,13 +564,10 @@ export default function SignUpPage() {
                 value={rCountry}
                 onChange={e=>{
                   setRCountry(e.target.value);
-                  // Also sync dial code when country changes
                   const found=COUNTRY_CODES.find(c=>c.name===e.target.value);
                   if(found) setRDialCode(found.code);
                 }}
-                style={{appearance:'none',WebkitAppearance:'none',
-                  backgroundImage:"url(\"data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9' stroke='%236b6459' stroke-width='1.8' fill='none'/%3E%3C/svg%3E\")",
-                  backgroundRepeat:'no-repeat',backgroundPosition:'right 12px center',backgroundSize:'16px',paddingRight:34,cursor:'pointer'}}
+                style={{appearance:'none',WebkitAppearance:'none',backgroundImage:"url(\"data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9' stroke='%236b6459' stroke-width='1.8' fill='none'/%3E%3C/svg%3E\")",backgroundRepeat:'no-repeat',backgroundPosition:'right 12px center',backgroundSize:'16px',paddingRight:34,cursor:'pointer'}}
               >
                 <option value="">Select your country…</option>
                 {COUNTRY_CODES.map(c=>(
@@ -569,6 +647,7 @@ export default function SignUpPage() {
 
       <style>{`
         @keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
+        @keyframes spin { to { transform: rotate(360deg); } }
       `}</style>
     </>
   );

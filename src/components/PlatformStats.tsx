@@ -1,42 +1,12 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { createClient } from '@/utils/supabase/client';
+const statCards = [
+  { trend: '↑ Active', number: '50', suffix: 'K+', desc: 'Verified Investors' },
+  { trend: '↑ Growing', number: '100', suffix: 'M+', desc: 'USDT Total Invested' },
+  { trend: 'Last Season', number: '28', suffix: '.4%', desc: 'Season 3 ROI' },
+  { trend: 'All Time', number: '4.2', suffix: 'M+', desc: 'USDT Paid Out' },
+];
 
 export default function PlatformStats() {
-  const supabase = createClient();
-  const [stats, setStats] = useState<any[]>([]);
-
-  useEffect(() => {
-    async function fetchStats() {
-      // Get last completed season for ROI
-      const { data: lastSeason } = await supabase
-        .from('seasons')
-        .select('*')
-        .eq('status', 'closed')
-        .order('end_date', { ascending: false })
-        .limit(1)
-        .single();
-
-      // Mocking aggregated data for now as we don't have complex aggregation queries yet
-      // In a real app, these would come from a RPC or a summary table
-      const statCards = [
-        { trend: '↑ Active', number: '50', suffix: 'K+', desc: 'Verified Investors' },
-        { trend: '↑ Growing', number: '100', suffix: 'M+', desc: 'USDT Total Invested' },
-        { 
-          trend: 'Last Season', 
-          number: lastSeason ? lastSeason.final_roi.toString() : '28', 
-          suffix: '%', 
-          desc: lastSeason ? `${lastSeason.name} ROI` : 'Season 3 ROI' 
-        },
-        { trend: 'All Time', number: '4.2', suffix: 'M+', desc: 'USDT Paid Out' },
-      ];
-      setStats(statCards);
-    }
-    fetchStats();
-  }, []);
-
-  if (stats.length === 0) return null;
-
   return (
     <>
       <section className="platform-stats">
@@ -54,7 +24,7 @@ export default function PlatformStats() {
             </p>
           </div>
           <div className="stats-grid reveal">
-            {stats.map((card, i) => (
+            {statCards.map((card, i) => (
               <div key={i} className="stat-card">
                 <div className="stat-trend">{card.trend}</div>
                 <div className="stat-number">

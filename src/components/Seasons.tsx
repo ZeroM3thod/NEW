@@ -1,136 +1,327 @@
 'use client';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
-import { createClient } from '@/utils/supabase/client';
 
 export default function Seasons() {
   const router = useRouter();
-  const supabase = createClient();
-  const [seasons, setSeasons] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    async function fetchSeasons() {
-      // Card 1 & 2: last two completed
-      const { data: completed } = await supabase
-        .from('seasons')
-        .select('*')
-        .eq('status', 'closed')
-        .order('end_date', { ascending: false })
-        .limit(2);
-
-      // Card 3: currently running
-      const { data: running } = await supabase
-        .from('seasons')
-        .select('*')
-        .eq('status', 'running')
-        .limit(1);
-
-      // Card 4: upcoming/open
-      const { data: open } = await supabase
-        .from('seasons')
-        .select('*')
-        .eq('status', 'open')
-        .limit(1);
-
-      const combined = [
-        ...(completed || []).reverse(),
-        ...(running || []),
-        ...(open || [])
-      ];
-      setSeasons(combined);
-      setLoading(false);
-    }
-    fetchSeasons();
-  }, []);
-
-  if (loading) return null;
 
   return (
     <>
       <section className="seasons" id="seasons">
         <div className="seasons-inner">
+
+          {/* ── HEADER ── */}
           <div className="seasons-header reveal">
             <div>
               <span className="section-label">Investment Seasons</span>
-              <h2 className="section-title">Structured cycles,<br/>predictable returns</h2>
+              <h2 className="section-title">Structured cycles,<br />predictable returns</h2>
             </div>
-            {seasons.find(s => s.status === 'open') && (
-              <button className="btn-primary" onClick={() => router.push('/signup')}>
-                Join {seasons.find(s => s.status === 'open').name}
-              </button>
-            )}
+            <button className="btn-primary" onClick={() => router.push('/auth/signup')}>
+              Join Season 4
+            </button>
           </div>
+
+          {/* ── GRID ── */}
           <div className="seasons-grid reveal">
-            {seasons.map((s,i)=>(
-              <div key={i} className={`season-card ${s.status === 'open' ? 'active season-card--full' : ''}`}>
-                <div className="season-tag">
-                  {s.status === 'closed' ? 'Completed' : s.status === 'running' ? 'Running' : 'Now Open · Limited Slots'}
+
+            {/* Season One */}
+            <div className="season-card">
+              <div className="season-tag">Completed</div>
+              <div className="season-name">Season One</div>
+              <div className="season-period">Jan 2023 — Apr 2023</div>
+              <div className="season-roi">+18.2%</div>
+              <div className="season-roi-label">Final ROI</div>
+              <div className="season-detail">
+                <div className="season-detail-item">
+                  <span>Total Pool</span>
+                  <strong>$12M</strong>
                 </div>
-                {s.status === 'open' ? (
-                  <div className="season4-body">
-                    <div>
-                      <div className="season-name">{s.name}</div>
-                      <div className="season-period">{s.period} · Entries close soon</div>
-                      <div className="season-roi">{s.roi_range}</div>
-                      <div className="season-roi-label">Projected ROI Range</div>
-                    </div>
-                    <button className="btn-primary" style={{whiteSpace:'nowrap',padding:'12px 28px'}} onClick={() => router.push('/signup')}>Invest Now</button>
-                  </div>
-                ) : (
-                  <>
-                    <div className="season-name">{s.name}</div>
-                    <div className="season-period">{s.period}</div>
-                    <div className="season-roi">{s.status === 'closed' ? `+${s.final_roi}%` : s.roi_range}</div>
-                    <div className="season-roi-label">{s.status === 'closed' ? 'Final ROI' : 'Expected ROI'}</div>
-                  </>
-                )}
-                
-                <div className="season-detail" style={s.status === 'open' ? {marginTop:'20px'} : {}}>
-                  {s.status === 'open' ? (
-                    <>
-                      <div className="season-detail-item"><span style={{color:'rgba(246,241,233,.4)'}}>Min. Entry</span><strong>${s.min_entry} USDT</strong></div>
-                      <div className="season-detail-item"><span style={{color:'rgba(246,241,233,.4)'}}>Pool Cap</span><strong>${(s.pool_cap/1000000).toFixed(0)}M</strong></div>
-                      <div className="season-detail-item"><span style={{color:'rgba(246,241,233,.4)'}}>Duration</span><strong>{s.duration_days} Days</strong></div>
-                      <div className="season-detail-item"><span style={{color:'rgba(246,241,233,.4)'}}>Referral Bonus</span><strong>{s.referral_bonus}% / Withdrawal</strong></div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="season-detail-item"><span>Total Pool</span><strong>${(s.current_pool/1000000).toFixed(1)}M</strong></div>
-                      <div className="season-detail-item"><span>Duration</span><strong>{s.duration_days} Days</strong></div>
-                    </>
-                  )}
+                <div className="season-detail-item">
+                  <span>Investors</span>
+                  <strong>8,400</strong>
+                </div>
+                <div className="season-detail-item">
+                  <span>Duration</span>
+                  <strong>90 Days</strong>
                 </div>
               </div>
-            ))}
+            </div>
+
+            {/* Season Two */}
+            <div className="season-card">
+              <div className="season-tag">Completed</div>
+              <div className="season-name">Season Two</div>
+              <div className="season-period">Jun 2023 — Sep 2023</div>
+              <div className="season-roi">+23.7%</div>
+              <div className="season-roi-label">Final ROI</div>
+              <div className="season-detail">
+                <div className="season-detail-item">
+                  <span>Total Pool</span>
+                  <strong>$31M</strong>
+                </div>
+                <div className="season-detail-item">
+                  <span>Investors</span>
+                  <strong>19,200</strong>
+                </div>
+                <div className="season-detail-item">
+                  <span>Duration</span>
+                  <strong>90 Days</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Season Three */}
+            <div className="season-card">
+              <div className="season-tag">Completed</div>
+              <div className="season-name">Season Three</div>
+              <div className="season-period">Nov 2023 — Feb 2024</div>
+              <div className="season-roi">+28.4%</div>
+              <div className="season-roi-label">Final ROI</div>
+              <div className="season-detail">
+                <div className="season-detail-item">
+                  <span>Total Pool</span>
+                  <strong>$57M</strong>
+                </div>
+                <div className="season-detail-item">
+                  <span>Investors</span>
+                  <strong>34,800</strong>
+                </div>
+                <div className="season-detail-item">
+                  <span>Duration</span>
+                  <strong>90 Days</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Season Four — active / full-width on desktop */}
+            <div className="season-card active season-card--full">
+              <div className="season-tag">Now Open · Limited Slots</div>
+
+              <div className="season4-body">
+                <div>
+                  <div className="season-name">Season Four</div>
+                  <div className="season-period">
+                    May 2025 — Aug 2025 · Entries close in 18 days
+                  </div>
+                  <div className="season-roi">+24–32%</div>
+                  <div className="season-roi-label">Projected ROI Range</div>
+                </div>
+                <button
+                  className="btn-primary season4-cta"
+                  onClick={() => router.push('/auth/signup')}
+                >
+                  Invest Now
+                </button>
+              </div>
+
+              <div className="season-detail season-detail--active">
+                <div className="season-detail-item">
+                  <span className="detail-label-dark">Min. Entry</span>
+                  <strong>$100 USDT</strong>
+                </div>
+                <div className="season-detail-item">
+                  <span className="detail-label-dark">Pool Cap</span>
+                  <strong>$80M</strong>
+                </div>
+                <div className="season-detail-item">
+                  <span className="detail-label-dark">Duration</span>
+                  <strong>90 Days</strong>
+                </div>
+                <div className="season-detail-item">
+                  <span className="detail-label-dark">Referral Bonus</span>
+                  <strong>5% / Withdrawal</strong>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
+
       <style jsx>{`
-        .seasons{padding:100px 5%}
-        .seasons-inner{max-width:1200px;margin:0 auto}
-        .seasons-header{display:grid;grid-template-columns:1fr auto;align-items:end;gap:20px;margin-bottom:56px}
-        .seasons-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:2px}
-        .season-card{background:var(--surface);border:1px solid var(--border);padding:36px 28px;position:relative;overflow:hidden;cursor:pointer;transition:all .35s}
-        .season-card::after{content:'';position:absolute;inset:0;background:var(--ink);opacity:0;transition:opacity .35s;z-index:0}
-        .season-card:hover::after{opacity:.03}
-        .season-card>*{position:relative;z-index:1}
-        .season-card.active{background:var(--ink);border-color:var(--ink)}
-        .season-card.active *{color:var(--cream)!important}
-        .season-card.active .season-tag{background:rgba(255,255,255,.1);color:var(--gold-light)!important}
-        .season-card.active .season-roi{color:var(--gold-light)!important}
-        .season-card--full{grid-column:span 3}
-        .season-tag{display:inline-block;font-size:.65rem;letter-spacing:.15em;text-transform:uppercase;padding:4px 10px;border-radius:100px;background:rgba(184,147,90,.1);color:var(--gold);margin-bottom:20px}
-        .season-name{font-family:'Cormorant Garamond',serif;font-size:1.6rem;font-weight:500;color:var(--ink);margin-bottom:6px}
-        .season-period{font-size:.75rem;color:var(--text-secondary);margin-bottom:28px;letter-spacing:.05em}
-        .season-roi{font-family:'Cormorant Garamond',serif;font-size:2.8rem;font-weight:300;color:var(--sage);line-height:1;margin-bottom:4px}
-        .season-roi-label{font-size:.7rem;text-transform:uppercase;letter-spacing:.1em;color:var(--text-secondary);margin-bottom:24px}
-        .season-detail{display:flex;justify-content:space-between;padding-top:20px;border-top:1px solid var(--border)}
-        .season-card.active .season-detail{border-color:rgba(255,255,255,.1)}
-        .season-detail-item span{display:block;font-size:.65rem;text-transform:uppercase;letter-spacing:.08em;color:var(--text-secondary);margin-bottom:4px}
-        .season-detail-item strong{font-size:.9rem;font-weight:500;color:var(--ink)}
-        .season4-body{display:grid;grid-template-columns:1fr auto;gap:20px;align-items:start}
-        @media(max-width:900px){.seasons-grid{grid-template-columns:1fr}.seasons-header{grid-template-columns:1fr}.season-card--full{grid-column:span 1}.season4-body{grid-template-columns:1fr}}
+        /* ── SECTION ── */
+        .seasons {
+          padding: 100px 5%;
+        }
+        .seasons-inner {
+          max-width: 1200px;
+          margin: 0 auto;
+        }
+
+        /* ── HEADER ── */
+        .seasons-header {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          align-items: end;
+          gap: 20px;
+          margin-bottom: 56px;
+        }
+
+        /* ── GRID ── */
+        .seasons-grid {
+          display: grid;
+          grid-template-columns: repeat(3, 1fr);
+          gap: 2px;
+        }
+
+        /* ── CARD BASE ── */
+        .season-card {
+          background: var(--surface);
+          border: 1px solid var(--border);
+          padding: 36px 28px;
+          position: relative;
+          overflow: hidden;
+          cursor: pointer;
+          transition: all 0.35s;
+        }
+        .season-card::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background: var(--ink);
+          opacity: 0;
+          transition: opacity 0.35s;
+          z-index: 0;
+        }
+        .season-card:hover::after { opacity: 0.03; }
+        .season-card > * { position: relative; z-index: 1; }
+
+        /* ── ACTIVE CARD ── */
+        .season-card.active {
+          background: var(--ink);
+          border-color: var(--ink);
+        }
+        .season-card.active * { color: var(--cream) !important; }
+        .season-card.active .season-tag {
+          background: rgba(255,255,255,0.1);
+          color: var(--gold-light) !important;
+        }
+        .season-card.active .season-roi {
+          color: var(--gold-light) !important;
+        }
+
+        /* Season 4 spans all 3 cols on desktop */
+        .season-card--full { grid-column: span 3; }
+
+        /* ── CARD CONTENT ── */
+        .season-tag {
+          display: inline-block;
+          font-size: 0.65rem;
+          letter-spacing: 0.15em;
+          text-transform: uppercase;
+          padding: 4px 10px;
+          border-radius: 100px;
+          background: rgba(184,147,90,0.1);
+          color: var(--gold);
+          margin-bottom: 20px;
+        }
+        .season-name {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 1.6rem;
+          font-weight: 500;
+          color: var(--ink);
+          margin-bottom: 6px;
+        }
+        .season-period {
+          font-size: 0.75rem;
+          color: var(--text-secondary);
+          margin-bottom: 28px;
+          letter-spacing: 0.05em;
+        }
+        .season-roi {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: 2.8rem;
+          font-weight: 300;
+          color: var(--sage);
+          line-height: 1;
+          margin-bottom: 4px;
+        }
+        .season-roi-label {
+          font-size: 0.7rem;
+          text-transform: uppercase;
+          letter-spacing: 0.1em;
+          color: var(--text-secondary);
+          margin-bottom: 24px;
+        }
+
+        /* ── DETAIL ROW ── */
+        .season-detail {
+          display: flex;
+          justify-content: space-between;
+          flex-wrap: wrap;
+          gap: 12px;
+          padding-top: 20px;
+          border-top: 1px solid var(--border);
+        }
+        .season-card.active .season-detail {
+          border-color: rgba(255,255,255,0.1);
+        }
+        .season-detail-item span {
+          display: block;
+          font-size: 0.65rem;
+          text-transform: uppercase;
+          letter-spacing: 0.08em;
+          color: var(--text-secondary);
+          margin-bottom: 4px;
+        }
+        .season-detail-item strong {
+          font-size: 0.9rem;
+          font-weight: 500;
+          color: var(--ink);
+        }
+        .detail-label-dark {
+          color: rgba(246,241,233,0.4) !important;
+        }
+
+        /* ── SEASON 4 TWO-COL BODY ── */
+        .season4-body {
+          display: grid;
+          grid-template-columns: 1fr auto;
+          gap: 20px;
+          align-items: start;
+        }
+        .season4-cta {
+          white-space: nowrap;
+          padding: 12px 28px;
+          flex-shrink: 0;
+        }
+        .season-detail--active {
+          margin-top: 20px;
+        }
+
+        /* ═══════════════
+           RESPONSIVE
+        ═══════════════ */
+        @media (max-width: 900px) {
+          /* Header stacks */
+          .seasons-header {
+            grid-template-columns: 1fr;
+          }
+
+          /* All cards single column — Season 4 no longer spans */
+          .seasons-grid {
+            grid-template-columns: 1fr;
+          }
+          .season-card--full {
+            grid-column: span 1;
+          }
+
+          /* Season 4 inner body stacks */
+          .season4-body {
+            grid-template-columns: 1fr;
+          }
+          .season4-cta {
+            width: 100%;
+            text-align: center;
+          }
+        }
+
+        @media (max-width: 560px) {
+          /* Wrap detail items into 2-col mini grid */
+          .season-detail {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+          }
+        }
       `}</style>
     </>
   );

@@ -1,74 +1,43 @@
-PS C:\Users\KHAN GADGET\Desktop\NEW> npm run lint
+PS C:\Users\KHAN GADGET\Desktop\NEW>
+ *  History restored 
 
-> vaultx-nextjs@0.1.0 lint
-> next lint
+PS C:\Users\KHAN GADGET\Desktop\NEW> npm run dev
 
-? How would you like to configure ESLint? https://nextjs.org/docs/basic-features/eslint
+> vaultx-nextjs@0.1.0 dev
+> next dev
 
-Installing devDependencies (npm):
-- eslint@^8
-- eslint-config-next
+  ▲ Next.js 14.2.35
+  - Local:        http://localhost:3000
+  - Environments: .env.local
 
-npm error code ERESOLVE
-npm error ERESOLVE unable to resolve dependency tree
-npm error
-npm error While resolving: vaultx-nextjs@0.1.0
-npm error Found: eslint@8.57.1
-npm error node_modules/eslint
-npm error   dev eslint@"^8" from the root project
-npm error
-npm error Could not resolve dependency:
-npm error peer eslint@">=9.0.0" from eslint-config-next@16.2.3
-npm error node_modules/eslint-config-next
-npm error   dev eslint-config-next@"*" from the root project
-npm error
-npm error Fix the upstream dependency conflict, or retry
-npm error this command with --force or --legacy-peer-deps
-npm error to accept an incorrect (and potentially broken) dependency resolution.
-npm error
-npm error
-npm error For a full report see:
-npm error C:\Users\KHAN GADGET\AppData\Local\npm-cache\_logs\2026-04-11T06_08_01_326Z-eresolve-report.txt
-npm error A complete log of this run can be found in: C:\Users\KHAN GADGET\AppData\Local\npm-cache\_logs\2026-04-11T06_08_01_326Z-debug-0.log
-undefined
-PS C:\Users\KHAN GADGET\Desktop\NEW> npm run lint
+ ✓ Starting...
+ ✓ Ready in 6.5s
+ ○ Compiling /src/middleware ...
+ ✓ Compiled /src/middleware in 1201ms (124 modules)
+ ○ Compiling / ...
+ ✓ Compiled / in 9.7s (638 modules)
+ GET / 200 in 11200ms
+ ○ Compiling /api/contact ...
+ ✓ Compiled /api/contact in 2.6s (391 modules)
+ POST /api/contact 200 in 6452ms
+<w> [webpack.cache.PackFileCacheStrategy] Serializing big strings (215kiB) impacts deserialization performance (consider using Buffer instead and decode when needed)
+ ⨯ ./node_modules\next\dist\compiled\client-only\error.js
+'client-only' cannot be imported from a Server Component module. It should only be used from a Client Component.
 
-> vaultx-nextjs@0.1.0 lint
-> next lint
+Import trace for requested module:
+  ./node_modules\next\dist\compiled\client-only\error.js
+  ./node_modules\styled-jsx\dist\index\index.js
+  ./node_modules\styled-jsx\style.js
+  ./src\components\StatsTicker.tsx
+  ./src\app\page.tsx
+ ○ Compiling /_error ...
+ ⨯ ./node_modules\next\dist\compiled\client-only\error.js
+'client-only' cannot be imported from a Server Component module. It should only be used from a Client Component.
 
-? How would you like to configure ESLint? https://nextjs.org/docs/basic-features/eslint
-
-Installing devDependencies (npm):
-- eslint@^8
-- eslint-config-next
-
-npm error code ERESOLVE
-npm error ERESOLVE unable to resolve dependency tree
-npm error
-npm error While resolving: vaultx-nextjs@0.1.0
-npm error Found: eslint@8.57.1
-npm error node_modules/eslint
-npm error   dev eslint@"^8" from the root project
-npm error
-npm error Could not resolve dependency:
-npm error peer eslint@">=9.0.0" from eslint-config-next@16.2.3
-npm error node_modules/eslint-config-next
-npm error   dev eslint-config-next@"*" from the root project
-npm error
-npm error Fix the upstream dependency conflict, or retry
-npm error this command with --force or --legacy-peer-deps
-npm error to accept an incorrect (and potentially broken) dependency resolution.
-npm error
-npm error
-npm error For a full report see:
-npm error C:\Users\KHAN GADGET\AppData\Local\npm-cache\_logs\2026-04-11T06_08_26_451Z-eresolve-report.txt
-npm error A complete log of this run can be found in: C:\Users\KHAN GADGET\AppData\Local\npm-cache\_logs\2026-04-11T06_08_26_451Z-debug-0.log
-undefined
-PS C:\Users\KHAN GADGET\Desktop\NEW> npm run lint
-
-> vaultx-nextjs@0.1.0 lint
-> next lint
-
-? How would you like to configure ESLint? https://nextjs.org/docs/basic-features/eslint
- ⚠ If you set up ESLint yourself, we recommend adding the Next.js ESLint plugin. See https://nextjs.org/docs/basic-features/eslint#migrating-existing-config
-PS C:\Users\KHAN GADGET\Desktop\NEW> 
+Import trace for requested module:
+  ./node_modules\next\dist\compiled\client-only\error.js
+  ./node_modules\styled-jsx\dist\index\index.js
+  ./node_modules\styled-jsx\style.js
+  ./src\components\StatsTicker.tsx
+  ./src\app\page.tsx
+ GET / 500 in 7792ms

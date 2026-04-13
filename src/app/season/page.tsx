@@ -95,7 +95,7 @@ export default function SeasonPage() {
             statusLabel: s.status === 'open' ? 'Now Open' : 'Running',
             statusClass: s.status === 'open' ? 'sx-tag-open' : 'sx-tag-ending',
             period: s.period || '',
-            entryCloseDate: s.entry_close_date ? new Date(s.entry_close_date) : null,
+            entryCloseDate: s.start_date ? new Date(s.start_date) : null,
             endDate: new Date(s.end_date || Date.now() + 7 * 864e5),
             roi: s.roi_range || '',
             min: Number(s.min_entry) || 100,
@@ -117,7 +117,7 @@ export default function SeasonPage() {
           id: s.id,
           name: s.name,
           period: s.period || '',
-          roi: isClosed && finalRoi !== null ? `+${finalRoi}%` : (s.roi_range ? `${s.roi_range} (est)` : '—'),
+          roi: isClosed && finalRoi !== null ? `${finalRoi}%` : (s.roi_range ? `${s.roi_range}` : '—'),
           finalRoi,
           myInv: myInv ? `$${Number(myInv.amount).toLocaleString()}` : '—',
           myPL: (isClosed && myInv && finalRoi !== null)
@@ -358,8 +358,9 @@ export default function SeasonPage() {
                 </div>
               ) : seasons.map(s => {
                 const pct = Math.round((s.poolFilled / s.pool) * 100)
-                const isOpen = s.status === 'open'
-                const isRunning = s.status === 'running'
+                const isEntryExpired = s.entryCloseDate && s.entryCloseDate.getTime() <= Date.now()
+                const isOpen = s.status === 'open' && !isEntryExpired
+                const isRunning = s.status === 'running' || (s.status === 'open' && isEntryExpired)
 
                 return (
                   <div key={s.id} className='sx-season-card'>

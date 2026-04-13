@@ -209,6 +209,7 @@ export default function AdminUserPage() {
       first_name: firstName,
       last_name: lastName,
       username: formState.username,
+      email: formState.email,
       phone_number: formState.phone,
       country: formState.country,
       balance: formState.balance,

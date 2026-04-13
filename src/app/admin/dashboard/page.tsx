@@ -39,7 +39,11 @@ export default function AdminDashboardPage() {
     totalInvested: '$0',
     platformBalance: '$0',
     activeSeasons: '0',
-    pendingWithdrawals: 0
+    pendingWithdrawals: 0,
+    totalPaidOut: '$0',
+    avgSeasonROI: '0%',
+    seasonsRun: '0',
+    payoutRate: '0%'
   });
   const [recentUsers, setRecentUsers] = useState<User[]>([]);
   const [activeSeasons, setActiveSeasons] = useState<Season[]>([]);
@@ -49,7 +53,7 @@ export default function AdminDashboardPage() {
 
   /* ── Fetch Data ── */
   const fetchData = useCallback(async () => {
-    // 1. Stats
+    // 1. Basic Stats
     const { count: userCount } = await supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'user');
     const { data: invData } = await supabase.from('investments').select('amount');
     const totalInv = invData?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
@@ -58,29 +62,49 @@ export default function AdminDashboardPage() {
     const { count: seasonCount } = await supabase.from('seasons').select('*', { count: 'exact', head: true }).in('status', ['open', 'running']);
     const { count: pendingWdCount } = await supabase.from('withdrawals').select('*', { count: 'exact', head: true }).eq('status', 'pending');
 
+    // 2. Advanced Stats (Real-time)
+    const { data: approvedWd } = await supabase.from('withdrawals').select('amount').eq('status', 'approved');
+    const totalPaidOutValue = approvedWd?.reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+
+    const { data: closedSeasons } = await supabase.from('seasons').select('final_roi').eq('status', 'closed');
+    const seasonsRunCount = closedSeasons?.length || 0;
+    const avgROIValue = seasonsRunCount > 0 
+      ? (closedSeasons?.reduce((acc, curr) => acc + Number(curr.final_roi || 0), 0) || 0) / seasonsRunCount 
+      : 0;
+
+    const { count: rejectedWdCount } = await supabase.from('withdrawals').select('*', { count: 'exact', head: true }).eq('status', 'rejected');
+    const approvedWdCount = approvedWd?.length || 0;
+    const payoutRateValue = (approvedWdCount + (rejectedWdCount || 0)) > 0
+      ? (approvedWdCount / (approvedWdCount + (rejectedWdCount || 0))) * 100
+      : 100;
+
     setStats({
       totalUsers: (userCount || 0).toLocaleString(),
-      totalInvested: `$${(totalInv / 1000000).toFixed(1)}M`,
-      platformBalance: `$${(totalBal / 1000000).toFixed(1)}M`,
+      totalInvested: `$${(totalInv / 1000).toFixed(1)}K`, // Using K if under 1M for better visibility in dev
+      platformBalance: `$${(totalBal / 1000).toFixed(1)}K`,
       activeSeasons: String(seasonCount || 0),
-      pendingWithdrawals: pendingWdCount || 0
+      pendingWithdrawals: pendingWdCount || 0,
+      totalPaidOut: `$${(totalPaidOutValue / 1000).toFixed(1)}K`,
+      avgSeasonROI: `${avgROIValue.toFixed(1)}%`,
+      seasonsRun: String(seasonsRunCount),
+      payoutRate: `${payoutRateValue.toFixed(1)}%`
     });
 
-    // 2. Recent Users
-    const { data: recUsers } = await supabase.from('profiles').select('*').order('created_at', { ascending: false }).limit(7);
+    // 3. Recent Users
+    const { data: recUsers } = await supabase.from('profiles').select('*').eq('role', 'user').order('created_at', { ascending: false }).limit(7);
     if (recUsers) {
       setRecentUsers(recUsers.map(u => ({
         init: (u.first_name?.[0] || '') + (u.last_name?.[0] || ''),
         name: `${u.first_name} ${u.last_name}`,
         un: `@${u.username}`,
-        email: u.username + '@email.com', // Profile doesn't have email, mock it or use username
+        email: u.email || '—',
         joined: new Date(u.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
         balance: `$${Number(u.balance).toLocaleString()}`,
-        status: 'active'
+        status: u.status || 'active'
       })));
     }
 
-    // 3. Withdraw Requests
+    // 4. Withdraw Requests
     const { data: pndWd } = await supabase.from('withdrawals').select('*, profiles(first_name, last_name, username)').eq('status', 'pending').order('created_at', { ascending: false }).limit(5);
     if (pndWd) {
       setWdState(pndWd.map((w: any) => ({
@@ -91,12 +115,12 @@ export default function AdminDashboardPage() {
         amt: `$${Number(w.amount).toLocaleString()}`,
         wallet: w.address,
         date: new Date(w.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-        season: 'S' + (w.season_id ? '?' : '—'), // season info might need join
+        season: 'Pending',
         status: 'pending'
       })));
     }
 
-    // 4. Active Seasons
+    // 5. Active Seasons
     const { data: seasons } = await supabase.from('seasons').select('*').in('status', ['open', 'running']).order('created_at', { ascending: false }).limit(3);
     if (seasons) {
       setActiveSeasons(seasons.map(s => {
@@ -110,19 +134,49 @@ export default function AdminDashboardPage() {
           period: `${start.toLocaleDateString('en-GB', { month: 'short' })}–${end.toLocaleDateString('en-GB', { month: 'short', year: 'numeric' })}`,
           roi: s.roi_range || '20–30%',
           filled: (Number(s.current_pool) / Number(s.pool_cap)) * 100 || 0,
-          investors: 0, // Need to count from investments
+          investors: 0, 
           day: Math.max(0, Math.min(daysPassed, totalDays)),
           total: totalDays
         };
       }));
     }
 
-    // 5. Chart Data (Mocking for now as complex aggregation is needed, but will use some real points)
-    const months = ['Sep','Oct','Nov','Dec','Jan','Feb','Mar','Apr'];
+    // 6. Dynamic Chart Data
+    const { data: invHistory } = await supabase.from('investments').select('amount, joined_at').order('joined_at', { ascending: true });
+    const { data: userHistory } = await supabase.from('profiles').select('created_at').eq('role', 'user').order('created_at', { ascending: true });
+
+    const monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    const last8Months = [];
+    for (let i = 7; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      last8Months.push({
+        month: d.getMonth(),
+        year: d.getFullYear(),
+        label: monthNames[d.getMonth()]
+      });
+    }
+
+    const investedByMonth = last8Months.map(m => {
+      const total = invHistory?.filter(inv => {
+        const id = new Date(inv.joined_at);
+        return id.getMonth() === m.month && id.getFullYear() === m.year;
+      }).reduce((acc, curr) => acc + Number(curr.amount), 0) || 0;
+      return total / 1000; // In K
+    });
+
+    const usersByMonth = last8Months.map(m => {
+      const count = userHistory?.filter(u => {
+        const ud = new Date(u.created_at);
+        return ud.getMonth() === m.month && ud.getFullYear() === m.year;
+      }).length || 0;
+      return count;
+    });
+
     setChartData({
-      labels: months,
-      invested: [8.2, 12.4, 18.6, 24.1, 31.8, 42.3, 58.7, totalInv / 1000000],
-      users: [4200, 8100, 12400, 18900, 24800, 34200, 43100, userCount || 50421]
+      labels: last8Months.map(m => m.label),
+      invested: investedByMonth,
+      users: usersByMonth
     });
 
   }, [supabase]);
@@ -445,7 +499,12 @@ export default function AdminDashboardPage() {
                 </div>
                 <div className="adm-chart-card" style={{ padding:'16px 20px' }}>
                   <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-                    {[['$4.3M','Total Paid Out'],['+23.4%','Avg Season ROI'],['99.8%','Payout Rate'],['7','Seasons Run']].map(([v,l]) => (
+                    {[
+                      [stats.totalPaidOut, 'Total Paid Out'],
+                      [stats.avgSeasonROI, 'Avg Season ROI'],
+                      [stats.payoutRate,   'Payout Rate'],
+                      [stats.seasonsRun,   'Seasons Run']
+                    ].map(([v,l]) => (
                       <div key={l} className="adm-mini-stat"><div className="adm-mini-val">{v}</div><div className="adm-mini-lbl">{l}</div></div>
                     ))}
                   </div>

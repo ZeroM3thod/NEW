@@ -42,6 +42,9 @@ export default function DashboardPage() {
   const [activeSeason, setActiveSeason] = useState<any>(null)
   const [loading, setLoading] = useState(true)
 
+  // ── FIX: compute avg ROI dynamically from history investments ──
+  const [computedAvgRoi, setComputedAvgRoi] = useState(0)
+
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const chartRef = useRef<HTMLCanvasElement>(null)
   const chartInstance = useRef<any>(null)
@@ -71,9 +74,22 @@ export default function DashboardPage() {
             inv.status === 'active' && inv.seasons?.status !== 'closed'
           )
           setActiveInvestment(active || null)
-          setHistoryInvestments(validInvestments.filter(inv =>
+
+          const completed = validInvestments.filter(inv =>
             inv.status === 'completed' || inv.seasons?.status === 'closed'
-          ))
+          )
+          setHistoryInvestments(completed)
+
+          // ── FIX: calculate avg ROI from closed seasons ──
+          const closedWithRoi = completed.filter(inv =>
+            inv.seasons?.status === 'closed' && inv.seasons?.final_roi != null
+          )
+          if (closedWithRoi.length > 0) {
+            const sum = closedWithRoi.reduce((acc: number, inv: any) =>
+              acc + Number(inv.seasons.final_roi), 0)
+            const avg = Math.round((sum / closedWithRoi.length) * 100) / 100
+            setComputedAvgRoi(avg)
+          }
 
           if (active?.seasons) {
             const startDate = active.seasons.start_date
@@ -230,10 +246,12 @@ export default function DashboardPage() {
   const investedTotal  = Number(profile?.invested_total) || 0
   const withdrawable   = balance
   const profitsTotal   = Number(profile?.profits_total)  || 0
-  const avgRoi         = Number(profile?.avg_roi)        || 0
+  const commRate       = Number(profile?.commission_rate) || 7
   const firstName      = profile?.first_name || profile?.username || 'Investor'
   const refCode        = profile?.referral_code || '—'
-  const commRate       = Number(profile?.commission_rate) || 7
+
+  // ── FIX: use computed avg ROI instead of profile.avg_roi ──
+  const avgRoi = computedAvgRoi
 
   const activeSeasonDays  = activeInvestment?.seasons?.duration_days || 90
   const activeSeasonStart = activeInvestment?.seasons?.start_date    || null
@@ -242,7 +260,7 @@ export default function DashboardPage() {
   const myInvestAmount    = Number(activeInvestment?.amount)         || 0
   const daysElapsed       = activeSeasonStart ? getDaysElapsed(activeSeasonStart) : 0
 
-  // Best ROI across history (handles negative)
+  // Best ROI across history
   const bestRoi = historyInvestments.length
     ? Math.max(...historyInvestments.map(i => Number(i.seasons?.final_roi) || 0))
     : null
@@ -292,12 +310,12 @@ export default function DashboardPage() {
                 <div>
                   <div className='db-balance-label' style={{marginBottom:8}}>Total Portfolio · USDT</div>
                   <div className='db-balance-num'>{displayBalance}</div>
-                  {/* ↓ Arrow + sign + colour all driven by profitsTotal sign */}
                   <div className='db-balance-sub' style={{marginTop:8}}>
                     <span style={{color: pnlColor(profitsTotal)}}>
                       {pnlArrow(profitsTotal)} {fmtPnL(profitsTotal)}
                     </span>
                     &nbsp;·&nbsp;all-time profit&nbsp;·&nbsp;
+                    {/* ── FIX: use computed avgRoi ── */}
                     <span style={{color:'var(--gold-l)'}}>
                       {avgRoi >= 0 ? '+' : ''}{avgRoi}% avg ROI
                     </span>
@@ -328,7 +346,7 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* STAT CARDS — profits card auto-turns red when negative */}
+            {/* STAT CARDS */}
             <div className='db-grid-4 db-reveal' style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:20,transitionDelay:'.1s'}}>
               {([
                 {
@@ -342,16 +360,20 @@ export default function DashboardPage() {
                   lbl:'Withdrawable', val:`$${withdrawable.toLocaleString()}`, sub:'available now', cls:'db-stat-up',
                 },
                 {
-                  // ↓ Background, icon stroke, value, and className all react to sign
                   bg: pnlBg(profitsTotal), svgColor: pnlStroke(profitsTotal),
                   icon:<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>,
                   lbl:'Total Profits', val: fmtPnL(profitsTotal), sub:'all time', cls: pnlCls(profitsTotal),
                 },
                 {
+                  // ── FIX: use computed avgRoi ──
                   bg:'rgba(184,147,90,0.08)', svgColor:'var(--gold)',
                   icon:<><line x1='12' y1='20' x2='12' y2='10'/><line x1='18' y1='20' x2='18' y2='4'/><line x1='6' y1='20' x2='6' y2='16'/></>,
-                  lbl:'Avg ROI', val:`${avgRoi >= 0 ? '+' : ''}${avgRoi}%`, sub:`${historyInvestments.length} seasons`,
-                  cls: pnlCls(avgRoi),
+                  lbl:'Avg ROI',
+                  val: historyInvestments.length === 0
+                    ? '—'
+                    : `${avgRoi >= 0 ? '+' : ''}${avgRoi}%`,
+                  sub:`${historyInvestments.filter(i => i.seasons?.status === 'closed').length} seasons`,
+                  cls: historyInvestments.length === 0 ? 'db-stat-gold' : pnlCls(avgRoi),
                 },
               ] as {bg:string;svgColor:string;icon:React.ReactNode;lbl:string;val:string;sub:string;cls:string}[]).map((s,i) => (
                 <div key={i} className='db-card db-card-hover' style={{padding:'18px 16px'}}>
@@ -393,8 +415,8 @@ export default function DashboardPage() {
                     },
                     {
                       l:'Avg',
-                      v:`${avgRoi >= 0 ? '+' : ''}${avgRoi}%`,
-                      c: pnlColor(avgRoi),
+                      v: historyInvestments.length === 0 ? '—' : `${avgRoi >= 0 ? '+' : ''}${avgRoi}%`,
+                      c: historyInvestments.length === 0 ? 'var(--txt3)' : pnlColor(avgRoi),
                     },
                     {
                       l:'Seasons',
@@ -437,7 +459,6 @@ export default function DashboardPage() {
                               </div>
                             </div>
                             <div style={{textAlign:'right'}}>
-                              {/* ROI value — green or red */}
                               <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.1rem',color: pnlColor(roi),fontWeight:500}}>
                                 {roi >= 0 ? '+' : ''}{roi}%
                               </div>

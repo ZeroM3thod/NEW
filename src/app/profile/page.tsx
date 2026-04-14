@@ -213,6 +213,7 @@ export default function ProfilePage() {
   const [profile, setProfile] = useState<any>(null)
   const [referrals, setReferrals] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
+  const [pwResetSent, setPwResetSent] = useState(false)
 
   /* form fields */
   const [fName, setFName] = useState('')
@@ -290,6 +291,26 @@ export default function ProfilePage() {
     if (toastTimer.current) clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToastShow(false), 3000)
   }, [])
+
+  const handlePasswordChange = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user?.email) {
+      showToast('Could not find your email address.', 'err');
+      return;
+    }
+
+    const { error } = await supabase.auth.resetPasswordForEmail(user.email, {
+      redirectTo: `${window.location.origin}/auth/forget/password`,
+    });
+
+    if (error) {
+      showToast('✕ ' + error.message, 'err');
+    } else {
+      showToast('✓ Password reset link sent to ' + user.email, 'ok');
+      setPwResetSent(true);
+      setTimeout(() => setPwResetSent(false), 30000);
+    }
+  };
 
   /* ── BG Canvas ── */
   useEffect(() => {
@@ -928,14 +949,10 @@ export default function ProfilePage() {
                       <button
                         className='pf-btn-ghost'
                         style={{ fontSize: '.7rem', padding: '7px 14px' }}
-                        onClick={() =>
-                          showToast(
-                            'Password reset link sent to your email.',
-                            'ok',
-                          )
-                        }
+                        onClick={handlePasswordChange}
+                        disabled={pwResetSent}
                       >
-                        Change
+                        {pwResetSent ? 'Link Sent ✓' : 'Change'}
                       </button>
                     </div>
 

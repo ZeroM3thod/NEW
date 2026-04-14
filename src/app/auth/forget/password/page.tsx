@@ -1,20 +1,23 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { Suspense } from 'react';
+import { createClient } from '@/utils/supabase/client';
 
 type ToastType = 'ok' | 'err' | '';
 
 function SetPasswordContent() {
   const router       = useRouter();
-  const searchParams = useSearchParams();
+  const supabase     = createClient();
   const canvasRef    = useRef<HTMLCanvasElement>(null);
   const animRef      = useRef<number>(0);
   const toastTimer   = useRef<ReturnType<typeof setTimeout>|null>(null);
 
-  const [toast, setToast]   = useState({msg:'',type:'' as ToastType,show:false});
-  const [email, setEmail]   = useState('');
+  const [toast, setToast]         = useState({msg:'',type:'' as ToastType,show:false});
+  const [sessionReady, setSessionReady] = useState(false);
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [invalidLink, setInvalidLink] = useState(false);
 
   const [pw, setPw]         = useState('');
   const [pwCls, setPwCls]   = useState('');
@@ -36,10 +39,41 @@ function SetPasswordContent() {
   const [reqNum,   setReqNum]   = useState(false);
   const [reqSym,   setReqSym]   = useState(false);
 
-  useEffect(()=>{
-    const e = searchParams.get('email');
-    if(e) setEmail(e);
-  },[searchParams]);
+  // Listen for PASSWORD_RECOVERY event from Supabase
+  useEffect(() => {
+    // Supabase client auto-processes the hash fragment (#access_token=...&type=recovery)
+    // We need to listen for the auth state change
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        setSessionReady(true);
+        setCheckingSession(false);
+      } else if (event === 'SIGNED_IN' && session) {
+        // User arrived via recovery link and is now signed in
+        setSessionReady(true);
+        setCheckingSession(false);
+      }
+    });
+
+    // Also check existing session (e.g. page refresh after recovery link clicked)
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session) {
+        setSessionReady(true);
+      }
+      // If no session after a short wait, the link may be invalid
+      setTimeout(() => {
+        setCheckingSession(false);
+      }, 2000);
+    });
+
+    return () => subscription.unsubscribe();
+  }, [supabase]);
+
+  // If session check completes with no session, mark link as invalid
+  useEffect(() => {
+    if (!checkingSession && !sessionReady) {
+      setInvalidLink(true);
+    }
+  }, [checkingSession, sessionReady]);
 
   /* BG Canvas */
   useEffect(()=>{
@@ -94,7 +128,7 @@ function SetPasswordContent() {
     else{setCpwCls('fi-err');setCpwMsg('✕ Passwords do not match.');setCpwMsgType('err');}
   };
 
-  const handleSubmit=(e:React.FormEvent)=>{
+  const handleSubmit=async(e:React.FormEvent)=>{
     e.preventDefault();
     setPwCls('');setPwMsg('');setCpwCls('');setCpwMsg('');
     let valid=true;
@@ -105,11 +139,23 @@ function SetPasswordContent() {
     if(!cpw){setCpwCls('fi-err');setCpwMsg('⚠ Please confirm your new password.');setCpwMsgType('err');valid=false;}
     else if(pw!==cpw){setCpwCls('fi-err');setCpwMsg('✕ Passwords do not match.');setCpwMsgType('err');valid=false;}
     if(!valid){showToast('⚠ Please fix the errors above.','err');return;}
+
     setLoading(true);
-    setTimeout(()=>{
-      setLoading(false);setSuccess(true);
+
+    // Actually update the password in Supabase
+    const { error } = await supabase.auth.updateUser({ password: pw });
+
+    setLoading(false);
+
+    if (error) {
+      showToast('✕ ' + error.message, 'err');
+      setPwCls('fi-err');
+    } else {
+      setSuccess(true);
       showToast('✓ Password updated successfully!','ok');
-    },1500);
+      // Sign out all other sessions for security
+      await supabase.auth.signOut({ scope: 'others' });
+    }
   };
 
   const EyeOpen=()=>(
@@ -123,6 +169,61 @@ function SetPasswordContent() {
       <line x1="1" y1="1" x2="23" y2="23"/>
     </svg>
   );
+
+  // Show loading while checking session
+  if (checkingSession) {
+    return (
+      <>
+        <canvas ref={canvasRef} style={{position:'fixed',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:0,opacity:.055}}/>
+        <div className="page-shell">
+          <div className="auth-card" style={{textAlign:'center',animation:'fadeView .35s ease both'}}>
+            <div className="card-logo">
+              <div className="logo-icon"/>
+              <div className="logo-name">Vault<span style={{color:'var(--gold)'}}>X</span></div>
+            </div>
+            <div style={{padding:'20px 0',color:'var(--text-sec)',fontSize:'.85rem'}}>
+              Verifying reset link…
+            </div>
+          </div>
+        </div>
+        <style>{`@keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }`}</style>
+      </>
+    );
+  }
+
+  // Show error if link is invalid/expired
+  if (invalidLink) {
+    return (
+      <>
+        <canvas ref={canvasRef} style={{position:'fixed',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:0,opacity:.055}}/>
+        <div className={`toast${toast.show?' show':''}${toast.type?' '+toast.type:''}`}>{toast.msg}</div>
+        <a className="back-btn" href="/auth/signin">
+          <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+          Back to Login
+        </a>
+        <div className="page-shell">
+          <div className="auth-card" style={{animation:'fadeView .35s ease both'}}>
+            <div className="card-logo">
+              <div className="logo-icon"/>
+              <div className="logo-name">Vault<span style={{color:'var(--gold)'}}>X</span></div>
+            </div>
+            <div className="success-state">
+              <div className="success-icon" style={{background:'rgba(155,58,58,.1)',border:'1px solid rgba(155,58,58,.25)'}}>⚠️</div>
+              <div className="success-title">Link Expired or Invalid</div>
+              <p className="success-body">
+                This password reset link has expired or is invalid. Please request a new one.
+              </p>
+              <button className="btn-primary" style={{marginTop:4}} onClick={()=>router.push('/auth/signin')}>
+                <span>Request New Link →</span>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div className="page-caption">© 2025 VaultX · All rights reserved</div>
+        <style>{`@keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }`}</style>
+      </>
+    );
+  }
 
   return (
     <>
@@ -138,17 +239,13 @@ function SetPasswordContent() {
         <div className="auth-card" style={{animation:'fadeView .35s ease both'}}>
           <div className="card-logo">
             <div className="logo-icon"/>
-            <div className="logo-name">Vault<span>X</span></div>
+            <div className="logo-name">Vault<span style={{color:'var(--gold)'}}>X</span></div>
           </div>
 
           {!success?(
             <>
               <h1 className="card-heading">Set new password</h1>
-              <p className="card-sub">
-                {email?(
-                  <>Resetting password for <strong style={{color:'var(--gold)'}}>{email}</strong></>
-                ):'Choose a strong password for your account.'}
-              </p>
+              <p className="card-sub">Choose a strong, unique password for your account.</p>
 
               <form className="form-stack" onSubmit={handleSubmit} noValidate>
                 {/* New Password */}
@@ -218,7 +315,7 @@ function SetPasswordContent() {
               </p>
               <div style={{background:'rgba(74,103,65,.06)',border:'1px solid rgba(74,103,65,.18)',borderRadius:8,padding:'13px 16px',width:'100%',textAlign:'center'}}>
                 <div style={{fontSize:'.71rem',color:'var(--sage)',fontWeight:300,lineHeight:1.7}}>
-                  ✓ All active sessions have been logged out for your security.
+                  ✓ All other active sessions have been logged out for your security.
                 </div>
               </div>
               <button className="btn-primary" style={{marginTop:4}} onClick={()=>router.push('/auth/signin')}>

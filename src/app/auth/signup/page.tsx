@@ -308,7 +308,8 @@ export default function SignUpPage() {
     if(!/^[a-z0-9._]+$/.test(v)){setRUnCls('fi-err');setRUnMsg('⚠ Only letters, numbers, dots and underscores.');return;}
     setRUnChecking(true); setRUnMsg('Checking availability…');
     unTimer.current=setTimeout(async()=>{
-      const {data,error}=await supabase.from('profiles').select('username').eq('username',v).maybeSingle();
+      // ── FIX: Case-insensitive username check ──
+      const {data,error}=await supabase.from('profiles').select('username').ilike('username',v).maybeSingle();
       setRUnChecking(false);
       if(data){setRUnCls('fi-err');setRUnMsg('✕ Username already taken. Try another.');}
       else if(error){setRUnCls('fi-err');setRUnMsg('✕ Error checking username.');}
@@ -320,12 +321,13 @@ export default function SignUpPage() {
   const handleEmailInput=(val:string)=>{
     setREmail(val); setREmailCls(''); setREmailMsg(''); setREmailChecking(false);
     if(emailTimer.current) clearTimeout(emailTimer.current);
-    const v=val.trim();
+    const v=val.trim().toLowerCase();
     if(!v) return;
     if(!EMAIL_RX.test(v)){setREmailCls('fi-err');setREmailMsg('⚠ Enter a valid email address.');return;}
     setREmailChecking(true); setREmailMsg('Checking availability…');
     emailTimer.current=setTimeout(async()=>{
-      const {data,error}=await supabase.from('profiles').select('email').eq('email',v).maybeSingle();
+      // ── FIX: Case-insensitive email check ──
+      const {data,error}=await supabase.from('profiles').select('email').ilike('email',v).maybeSingle();
       setREmailChecking(false);
       if(data){setREmailCls('fi-err');setREmailMsg('✕ Email already registered. Try signing in instead.');}
       else if(error){setREmailCls('fi-err');setREmailMsg('✕ Error checking email.');}
@@ -387,7 +389,7 @@ export default function SignUpPage() {
   const handleRegister=async(e:React.FormEvent)=>{
     e.preventDefault();
     let valid=true;
-    const first=rFirst.trim(), last=rLast.trim(), un=rUn.trim(), email=rEmail.trim(), phone=rPhone.trim(), pw=rPw, cpw=rCpw;
+    const first=rFirst.trim(), last=rLast.trim(), un=rUn.trim(), email=rEmail.trim().toLowerCase(), phone=rPhone.trim(), pw=rPw, cpw=rCpw;
 
     if(!first||first.length<1){setRFirstCls('fi-err');setRFirstMsg('⚠ First name is required.');valid=false;}
     else{setRFirstCls('fi-good');setRFirstMsg('');}
@@ -396,13 +398,13 @@ export default function SignUpPage() {
     else{setRLastCls('fi-good');setRLastMsg('');}
 
     if(!un||un.length<3){setRUnCls('fi-err');setRUnMsg('⚠ Username must be at least 3 characters.');valid=false;}
-    else if(rUnCls==='fi-err'){valid=false;} // already showing an error
+    else if(rUnCls==='fi-err'){valid=false;}
 
     if(!email){setREmailCls('fi-err');setREmailMsg('⚠ Email is required.');valid=false;}
     else if(!EMAIL_RX.test(email)){setREmailCls('fi-err');setREmailMsg('⚠ Enter a valid email address.');valid=false;}
-    else if(rEmailCls==='fi-err'){valid=false;} // already showing "already registered"
+    else if(rEmailCls==='fi-err'){valid=false;}
 
-    if(rPhoneCls==='fi-err'){valid=false;} // phone already in use
+    if(rPhoneCls==='fi-err'){valid=false;}
 
     if(!pw||pw.length<8){setRPwCls('fi-err');setRPwMsg('⚠ Password must be at least 8 characters.');valid=false;}
     if(!cpw){setRCpwCls('fi-err');setRCpwMsg('⚠ Please confirm your password.');setRCpwMsgType('err');valid=false;}
@@ -413,22 +415,36 @@ export default function SignUpPage() {
 
     if(!valid){showToast('⚠ Please fix the errors above.','err');return;}
 
-    // Final server-side uniqueness check before submitting
+    setRLoading(true);
+
+    // ── FIX: Final server-side uniqueness checks (case-insensitive) ──
     const [unCheck, emailCheck, phoneCheck] = await Promise.all([
-      supabase.from('profiles').select('username').eq('username',un.toLowerCase()).maybeSingle(),
-      supabase.from('profiles').select('email').eq('email',email).maybeSingle(),
-      phone ? supabase.from('profiles').select('phone_number').eq('phone_number',`${selectedCountry.dial}${phone}`).maybeSingle() : Promise.resolve({data:null,error:null}),
+      supabase.from('profiles').select('username').ilike('username', un).maybeSingle(),
+      supabase.from('profiles').select('email').ilike('email', email).maybeSingle(),
+      phone
+        ? supabase.from('profiles').select('phone_number').eq('phone_number',`${selectedCountry.dial}${phone}`).maybeSingle()
+        : Promise.resolve({data:null,error:null}),
     ]);
 
-    if(unCheck.data){setRUnCls('fi-err');setRUnMsg('✕ Username already taken. Try another.');showToast('⚠ Username is already taken.','err');return;}
-    if(emailCheck.data){setREmailCls('fi-err');setREmailMsg('✕ Email already registered. Try signing in instead.');showToast('⚠ Email is already registered.','err');return;}
-    if(phoneCheck.data){setRPhoneCls('fi-err');setRPhoneMsg('✕ Phone number already registered.');showToast('⚠ Phone number is already in use.','err');return;}
-
-    setRLoading(true);
+    if(unCheck.data){
+      setRUnCls('fi-err');setRUnMsg('✕ Username already taken. Try another.');
+      showToast('⚠ Username is already taken.','err');
+      setRLoading(false);return;
+    }
+    if(emailCheck.data){
+      setREmailCls('fi-err');setREmailMsg('✕ Email already registered. Try signing in instead.');
+      showToast('⚠ Email is already registered.','err');
+      setRLoading(false);return;
+    }
+    if(phoneCheck.data){
+      setRPhoneCls('fi-err');setRPhoneMsg('✕ Phone number already registered.');
+      showToast('⚠ Phone number is already in use.','err');
+      setRLoading(false);return;
+    }
 
     const fullPhone = phone ? `${selectedCountry.dial}${phone}` : '';
 
-    const {error}=await supabase.auth.signUp({
+    const { error, data } = await supabase.auth.signUp({
       email,
       password: pw,
       options:{
@@ -436,7 +452,7 @@ export default function SignUpPage() {
         data:{
           first_name: first,
           last_name: last,
-          username: un,
+          username: un.toLowerCase(), // ── FIX: always store lowercase
           phone: fullPhone,
           country: rCountry.trim() || selectedCountry.name,
           referral_by_code: rRef.trim() || null,
@@ -445,17 +461,29 @@ export default function SignUpPage() {
     });
 
     setRLoading(false);
-    if(error){showToast('✕ '+error.message,'err');}
-    else{
-      showToast('✓ Account created! Please check your email.','ok');
-      setTimeout(()=>router.push('/auth/signin'),2500);
+
+    if(error){
+      showToast('✕ '+error.message,'err');
+      return;
     }
+
+    // ── FIX: Detect Supabase's "silent duplicate email" behaviour ──
+    // When email already exists and email confirmation is ON, Supabase
+    // returns data.user with an EMPTY identities array instead of an error.
+    if(data?.user && (!data.user.identities || data.user.identities.length === 0)){
+      setREmailCls('fi-err');
+      setREmailMsg('✕ Email already registered. Try signing in instead.');
+      showToast('⚠ An account with this email already exists.','err');
+      return;
+    }
+
+    showToast('✓ Account created! Please check your email to confirm.','ok');
+    setTimeout(()=>router.push('/auth/signin'),2500);
   };
 
   const EyeOpen=()=>(<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>);
   const EyeClosed=()=>(<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>);
 
-  /* Shared spinner for live checking */
   const CheckingSpinner = () => (
     <span style={{display:'inline-flex',alignItems:'center',gap:5}}>
       <span style={{width:10,height:10,borderRadius:'50%',border:'1.5px solid rgba(184,147,90,.3)',borderTopColor:'var(--gold)',animation:'spin .7s linear infinite',display:'inline-block'}}/>
@@ -500,7 +528,7 @@ export default function SignUpPage() {
               </div>
             </div>
 
-            {/* Username — live check */}
+            {/* Username */}
             <div className="fg">
               <label className="fl">Username</label>
               <input className={`fi${rUnCls?' '+rUnCls:''}`} type="text" placeholder="rakib.investor" autoComplete="off"
@@ -512,7 +540,7 @@ export default function SignUpPage() {
               )}
             </div>
 
-            {/* Email — live check */}
+            {/* Email */}
             <div className="fg">
               <label className="fl">Email Address</label>
               <input className={`fi${rEmailCls?' '+rEmailCls:''}`} type="email" placeholder="you@example.com" autoComplete="email"
@@ -524,11 +552,10 @@ export default function SignUpPage() {
               )}
             </div>
 
-            {/* Phone — live check */}
+            {/* Phone */}
             <div className="fg">
               <label className="fl">Phone Number</label>
               <div style={{display:'flex',gap:0,border:`1px solid ${rPhoneCls==='fi-err'?'var(--error)':rPhoneCls==='fi-good'?'rgba(74,103,65,.4)':'var(--border)'}`,borderRadius:'var(--radius)',overflow:'hidden',background:'var(--cream)',transition:'border-color .2s'}}>
-                {/* Dial code selector */}
                 <div style={{position:'relative',flexShrink:0}}>
                   <select
                     value={rDialCode}
@@ -541,7 +568,6 @@ export default function SignUpPage() {
                   </select>
                   <span style={{position:'absolute',right:7,top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'.6rem',color:'var(--text-secondary)'}}>▼</span>
                 </div>
-                {/* Number input */}
                 <input
                   className="fi"
                   type="tel" placeholder="1712-345678" autoComplete="tel"

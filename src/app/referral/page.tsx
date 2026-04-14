@@ -38,10 +38,7 @@ export default function ReferralPage() {
 
   const fetchData = useCallback(async () => {
     const { data: { user } } = await supabase.auth.getUser()
-    if (!user) {
-      router.push('/auth/signin')
-      return
-    }
+    if (!user) { router.push('/auth/signin'); return }
 
     const { data: profileData } = await supabase
       .from('profiles')
@@ -50,82 +47,92 @@ export default function ReferralPage() {
       .single()
     setProfile(profileData)
 
-    // ✅ Fetch referred users with their investments AND season final_roi
+    // ✅ Step 1: Fetch referred user profiles (no nested investments)
     const { data: refUsers } = await supabase
       .from('profiles')
-      .select('*, investments(amount, status, seasons(final_roi, status))')
+      .select('id, first_name, last_name, username, created_at')
       .eq('referred_by', user.id)
 
-    if (refUsers) {
-      const mapped = refUsers.map(u => {
-        const totalInvested = u.investments?.reduce((sum: number, inv: any) => sum + (Number(inv.amount) || 0), 0) || 0
-
-        // ✅ Calculate total profit only from CLOSED seasons
-        const totalProfit = u.investments?.reduce((sum: number, inv: any) => {
-          if (inv.seasons?.status === 'closed' && inv.seasons?.final_roi != null) {
-            return sum + (Number(inv.amount) * Number(inv.seasons.final_roi) / 100)
-          }
-          return sum
-        }, 0) || 0
-
-        // ✅ Commission is 7% of PROFITS (not invested)
-        const commission = totalProfit * ((profileData?.commission_rate || 7) / 100)
-
-        return {
-          name: `${u.first_name} ${u.last_name}`,
-          un: u.username ? `@${u.username}` : u.id.slice(0, 8),
-          init: (u.first_name?.[0] || '') + (u.last_name?.[0] || ''),
-          joined: new Date(u.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-          invested: totalInvested,
-          profit: totalProfit,
-          comm: commission,
-          status: totalInvested > 0 ? 'active' : 'pending',
-        }
-      })
-      setReferrals(mapped)
-
-      const count = refUsers.length
-      let newRate = 7
-      let target = 50
-
-      if (count >= 50) {
-        newRate = 12
-        target = 100
-      } else if (count >= 25) {
-        newRate = 10
-        target = 50
-      } else if (count >= 10) {
-        newRate = 8
-        target = 25
-      }
-
-      if (newRate !== profileData?.commission_rate) {
-        await supabase.from('profiles').update({ commission_rate: newRate }).eq('id', user.id)
-        setProfile({ ...profileData, commission_rate: newRate })
-      }
-
-      const progress = Math.min(100, (count / target) * 100)
-      setMilestoneWidth(`${progress}%`)
-      setRingOffset(2 * Math.PI * 30 * (1 - progress / 100))
+    if (!refUsers || refUsers.length === 0) {
+      setReferrals([])
+      setLoading(false)
+      return
     }
+
+    // ✅ Step 2: Fetch all investments for referred users with season data separately
+    const refUserIds = refUsers.map(u => u.id)
+    const { data: refInvestments } = await supabase
+      .from('investments')
+      .select('user_id, amount, status, seasons(id, final_roi, status)')
+      .in('user_id', refUserIds)
+
+    const allInvs = refInvestments || []
+
+    // ✅ Step 3: Map each referred user with correct profit/commission
+    const mapped = refUsers.map(u => {
+      const userInvs = allInvs.filter(inv => inv.user_id === u.id)
+
+      const totalInvested = userInvs.reduce((sum: number, inv: any) =>
+        sum + Number(inv.amount || 0), 0)
+
+      // ✅ Only count profit from CLOSED seasons
+      const totalProfit = userInvs.reduce((sum: number, inv: any) => {
+        const season = inv.seasons as any
+        if (season && season.status === 'closed' && season.final_roi != null) {
+          return sum + (Number(inv.amount) * Number(season.final_roi) / 100)
+        }
+        return sum
+      }, 0)
+
+      // ✅ Commission = % of profit (not invested amount)
+      const commissionRate = profileData?.commission_rate || 7
+      const commission = totalProfit * (commissionRate / 100)
+
+      return {
+        name: `${u.first_name} ${u.last_name}`,
+        un: u.username ? `@${u.username}` : u.id.slice(0, 8),
+        init: (u.first_name?.[0] || '') + (u.last_name?.[0] || ''),
+        joined: new Date(u.created_at).toLocaleDateString('en-GB', {
+          day: '2-digit', month: 'short', year: 'numeric'
+        }),
+        invested: totalInvested,
+        profit: totalProfit,
+        comm: commission,
+        status: totalInvested > 0 ? 'active' : 'pending',
+      }
+    })
+
+    setReferrals(mapped)
+
+    // ✅ Step 4: Update commission rate based on milestone
+    const count = refUsers.length
+    let newRate = 7
+    let target = 50
+
+    if (count >= 50) { newRate = 12; target = 100 }
+    else if (count >= 25) { newRate = 10; target = 50 }
+    else if (count >= 10) { newRate = 8; target = 25 }
+
+    if (newRate !== profileData?.commission_rate) {
+      await supabase.from('profiles').update({ commission_rate: newRate }).eq('id', user.id)
+      setProfile((prev: any) => ({ ...prev, commission_rate: newRate }))
+    }
+
+    const progress = Math.min(100, (count / target) * 100)
+    setMilestoneWidth(`${progress}%`)
+    setRingOffset(2 * Math.PI * 30 * (1 - progress / 100))
 
     setLoading(false)
   }, [router, supabase])
 
-  useEffect(() => {
-    fetchData()
-  }, [fetchData])
+  useEffect(() => { fetchData() }, [fetchData])
 
   useEffect(() => {
     const obs = new IntersectionObserver(
-      (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) e.target.classList.add('vis')
-        })
-      },
-      { threshold: 0.06 },
+      (entries) => { entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('vis') }) },
+      { threshold: 0.06 }
     )
-    document.querySelectorAll<HTMLElement>('.rf-reveal').forEach((el) => obs.observe(el))
+    document.querySelectorAll<HTMLElement>('.rf-reveal').forEach(el => obs.observe(el))
     return () => obs.disconnect()
   }, [loading])
 
@@ -145,7 +152,9 @@ export default function ReferralPage() {
   const copyRef = (type: 'link' | 'code') => {
     if (!profile) return
     const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://vaultx.io'
-    const text = type === 'link' ? `${baseUrl}/auth/signup?ref=${profile.referral_code}` : profile.referral_code
+    const text = type === 'link'
+      ? `${baseUrl}/auth/signup?ref=${profile.referral_code}`
+      : profile.referral_code
     if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).catch(() => {})
     if (type === 'link') { setLinkCopied(true); setTimeout(() => setLinkCopied(false), 2200) }
     else { setCodeCopied(true); setTimeout(() => setCodeCopied(false), 2200) }
@@ -168,7 +177,7 @@ export default function ReferralPage() {
   }
 
   const getFiltered = () =>
-    filter === 'all' ? referrals : referrals.filter((r) => r.status === filter)
+    filter === 'all' ? referrals : referrals.filter(r => r.status === filter)
 
   const filtered = getFiltered()
   const totalPages = Math.ceil(filtered.length / PER_PAGE) || 1
@@ -180,9 +189,13 @@ export default function ReferralPage() {
     <span className={`rf-badge rf-b-${status}`}>{status}</span>
   )
 
-  if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--txt2)', background: 'var(--cream)' }}>Loading...</div>
+  if (loading) return (
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--txt2)', background: 'var(--cream)' }}>
+      Loading...
+    </div>
+  )
 
-  // ✅ Totals from profits
+  // ✅ Totals from actual profits
   const totalComm = referrals.reduce((sum, r) => sum + r.comm, 0)
   const totalProfit = referrals.reduce((sum, r) => sum + r.profit, 0)
   const thisMonthCount = referrals.filter(r => {
@@ -201,7 +214,7 @@ export default function ReferralPage() {
         <div className='rf-topbar'>
           <button
             className={`rf-ham-btn${hamOpen ? ' is-open' : ''}`}
-            onClick={() => { setSidebarOpen((o) => !o); setHamOpen((o) => !o) }}
+            onClick={() => { setSidebarOpen(o => !o); setHamOpen(o => !o) }}
           >
             <span /><span /><span />
           </button>
@@ -270,12 +283,13 @@ export default function ReferralPage() {
 
               <div className='rf-share-row'>
                 <span style={{ fontSize: '.65rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text-sec)', flexShrink: 0 }}>Share via:</span>
-                {['WhatsApp', 'Telegram', 'Twitter', 'Email'].map((p) => (
+                {['WhatsApp', 'Telegram', 'Twitter', 'Email'].map(p => (
                   <button key={p} className='rf-share-btn' onClick={() => shareVia(p)}>{p}</button>
                 ))}
               </div>
             </div>
 
+            {/* ✅ Stats with real data */}
             <div className='rf-stats-grid rf-reveal' style={{ marginBottom: 14 }}>
               {[
                 {
@@ -287,7 +301,6 @@ export default function ReferralPage() {
                 {
                   icon: (<path d='M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6' />),
                   bg: 'rgba(74,103,65,.1)', sc: 'var(--sage)',
-                  // ✅ Show total commission from profits
                   val: `$${totalComm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                   lbl: 'Total Commission', ch: <>From referrals' profits</>, cup: false, vc: 'var(--sage)',
                 },
@@ -328,7 +341,7 @@ export default function ReferralPage() {
                     { n: '1', t: 'Share Your Link', d: 'Copy your unique referral link or code and share it with friends, colleagues, or your audience.' },
                     { n: '2', t: 'They Register & Invest', d: 'Your referral signs up using your link and makes their first investment into any active season.' },
                     { n: '3', t: 'You Earn Commission', d: `Receive ${profile?.commission_rate || 7}% of every PROFIT your referral earns from their investments, credited automatically.` },
-                  ].map((s) => (
+                  ].map(s => (
                     <div key={s.n} className='rf-step-item'>
                       <div className='rf-step-num'>{s.n}</div>
                       <div>
@@ -391,15 +404,15 @@ export default function ReferralPage() {
                 </div>
               </div>
 
+              {/* Desktop table */}
               <div className='rf-tbl-wrap'>
                 <table className='rf-dtbl'>
                   <thead>
                     <tr>
                       <th>User</th>
                       <th>Joined Date</th>
-                      {/* ✅ Changed from "Total Invested" to "Total Profits" */}
                       <th>Total Profits</th>
-                      <th>Commission (7%)</th>
+                      <th>Commission ({profile?.commission_rate || 7}%)</th>
                       <th>Status</th>
                     </tr>
                   </thead>
@@ -410,39 +423,36 @@ export default function ReferralPage() {
                           <div className='rf-empty-state'>No {filter} referrals yet.</div>
                         </td>
                       </tr>
-                    ) : (
-                      slice.map((r, i) => (
-                        <tr key={i}>
-                          <td>
-                            <div className='rf-td-user'>
-                              <div className='rf-td-av'>{r.init}</div>
-                              <div>
-                                <div className='rf-td-name'>{r.name}</div>
-                                <div className='rf-td-sub'>{r.un}</div>
-                              </div>
+                    ) : slice.map((r, i) => (
+                      <tr key={i}>
+                        <td>
+                          <div className='rf-td-user'>
+                            <div className='rf-td-av'>{r.init}</div>
+                            <div>
+                              <div className='rf-td-name'>{r.name}</div>
+                              <div className='rf-td-sub'>{r.un}</div>
                             </div>
-                          </td>
-                          <td><span className='rf-td-sub'>{r.joined}</span></td>
-                          {/* ✅ Show profit not invested */}
-                          <td>
-                            <span style={{ fontFamily: "'Cormorant Garamond',serif", color: r.profit > 0 ? 'var(--sage)' : 'var(--ink)' }}>
-                              ${r.profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          </td>
-                          <td>
-                            <span style={{ fontFamily: "'Cormorant Garamond',serif", color: 'var(--sage)' }}>
-                              +${r.comm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                            </span>
-                          </td>
-                          <td><BadgeComp status={r.status} /></td>
-                        </tr>
-                      ))
-                    )}
+                          </div>
+                        </td>
+                        <td><span className='rf-td-sub'>{r.joined}</span></td>
+                        <td>
+                          <span style={{ fontFamily: "'Cormorant Garamond',serif", color: r.profit > 0 ? 'var(--sage)' : 'var(--ink)' }}>
+                            ${r.profit.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </td>
+                        <td>
+                          <span style={{ fontFamily: "'Cormorant Garamond',serif", color: r.comm > 0 ? 'var(--sage)' : 'var(--ink)' }}>
+                            +${r.comm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                          </span>
+                        </td>
+                        <td><BadgeComp status={r.status} /></td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
 
-              {/* ✅ Mobile card view */}
+              {/* Mobile card view */}
               <div className='rf-mob-cards'>
                 {slice.length === 0 ? (
                   <div className='rf-empty-state'>No {filter} referrals yet.</div>
@@ -469,8 +479,8 @@ export default function ReferralPage() {
                       </span>
                     </div>
                     <div className='rf-mob-row' style={{ borderBottom: 'none' }}>
-                      <span className='rf-mob-key'>Commission (7%)</span>
-                      <span style={{ fontFamily: "'Cormorant Garamond',serif", color: 'var(--sage)', fontSize: '.95rem' }}>
+                      <span className='rf-mob-key'>Commission ({profile?.commission_rate || 7}%)</span>
+                      <span style={{ fontFamily: "'Cormorant Garamond',serif", color: r.comm > 0 ? 'var(--sage)' : 'var(--ink)', fontSize: '.95rem' }}>
                         +${r.comm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>
                     </div>
@@ -483,7 +493,7 @@ export default function ReferralPage() {
                   Showing {start + 1}–{Math.min(start + PER_PAGE, filtered.length)} of {filtered.length} users
                 </div>
                 <div className='rf-page-btns'>
-                  {Array.from({ length: totalPages }, (_, i) => i + 1).map((n) => (
+                  {Array.from({ length: totalPages }, (_, i) => i + 1).map(n => (
                     <button key={n} className={`rf-page-btn${page === n ? ' active' : ''}`} onClick={() => goPage(n)}>{n}</button>
                   ))}
                 </div>

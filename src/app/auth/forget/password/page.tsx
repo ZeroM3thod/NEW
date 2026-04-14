@@ -39,36 +39,38 @@ function SetPasswordContent() {
   const [reqNum,   setReqNum]   = useState(false);
   const [reqSym,   setReqSym]   = useState(false);
 
-  // Listen for PASSWORD_RECOVERY event from Supabase
   useEffect(() => {
-    // Supabase client auto-processes the hash fragment (#access_token=...&type=recovery)
-    // We need to listen for the auth state change
+    let settled = false;
+
+    // Listen for auth state changes (handles both hash fragment and cookie-based sessions)
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY') {
-        setSessionReady(true);
-        setCheckingSession(false);
-      } else if (event === 'SIGNED_IN' && session) {
-        // User arrived via recovery link and is now signed in
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+        settled = true;
         setSessionReady(true);
         setCheckingSession(false);
       }
     });
 
-    // Also check existing session (e.g. page refresh after recovery link clicked)
+    // Also check for an existing session (set by the /auth/callback route via cookie)
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
+        settled = true;
         setSessionReady(true);
-      }
-      // If no session after a short wait, the link may be invalid
-      setTimeout(() => {
         setCheckingSession(false);
-      }, 2000);
+      } else {
+        // Give auth state change events a moment to fire
+        setTimeout(() => {
+          if (!settled) {
+            setCheckingSession(false);
+          }
+        }, 3000);
+      }
     });
 
     return () => subscription.unsubscribe();
   }, [supabase]);
 
-  // If session check completes with no session, mark link as invalid
+  // Once checking is done with no session, mark as invalid
   useEffect(() => {
     if (!checkingSession && !sessionReady) {
       setInvalidLink(true);
@@ -142,7 +144,6 @@ function SetPasswordContent() {
 
     setLoading(true);
 
-    // Actually update the password in Supabase
     const { error } = await supabase.auth.updateUser({ password: pw });
 
     setLoading(false);
@@ -153,7 +154,6 @@ function SetPasswordContent() {
     } else {
       setSuccess(true);
       showToast('✓ Password updated successfully!','ok');
-      // Sign out all other sessions for security
       await supabase.auth.signOut({ scope: 'others' });
     }
   };

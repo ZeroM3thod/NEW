@@ -7,18 +7,8 @@ PS C:\Users\KHAN GADGET\Desktop\NEW> npm run build
   - Environments: .env.local
 
    Creating an optimized production build ...
- ✓ Compiled successfully
-   Linting and checking validity of types  .Failed to compile.
-
-./src/app/admin/season/page.tsx:332:34
-Type error: Cannot find name 'setFEntryClose'.
-
-  330 |   /* ── Season modal open ── */
-  331 |   const openSeasonModal = (editId?: string) => {
-> 332 |     setFName(''); setFEntry(''); setFEntryClose(''); setFFinish(''); setFRoi(''); setFPool(''); setFMin(''); setFMax('');
-      |                                  ^
-  333 |     setSmEditId(editId || '');
-  334 |     if (editId) {
-  335 |       const s = [...active].find(x => x.id === editId) || (prev.find(x => x.id === editId) as any);
+ ⚠ Attempted to load @next/swc-win32-x64-msvc, but an error occurred: \\?\C:\Users\KHAN GADGET\Desktop\NEW\node_modules\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node is not a valid Win32 application.
+\\?\C:\Users\KHAN GADGET\Desktop\NEW\node_modules\@next\swc-win32-x64-msvc\next-swc.win32-x64-msvc.node
+ ⨯ Failed to load SWC binary for win32/x64, see more info here: https://nextjs.org/docs/messages/failed-loading-swc
 Next.js build worker exited with code: 1 and signal: null
 PS C:\Users\KHAN GADGET\Desktop\NEW> 

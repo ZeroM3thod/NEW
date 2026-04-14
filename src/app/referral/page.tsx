@@ -302,7 +302,7 @@ export default function ReferralPage() {
                   icon: (<path d='M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6' />),
                   bg: 'rgba(74,103,65,.1)', sc: 'var(--sage)',
                   val: `$${totalComm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
-                  lbl: 'Total Commission', ch: <>From referrals' profits</>, cup: false, vc: 'var(--sage)',
+                  lbl: 'Total Commission', ch: <>From referrals' profits</>, v:`$${referralStats.earned.toLocaleString()}`, c:'var(--sage)'},
                 },
                 {
                   icon: (<><circle cx='12' cy='12' r='10' /><path d='M15 9.354a4 4 0 10-4 6.292' /></>),

@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default function AdminSidebar({ open, onClose, onToast }: Props) {
-  const router   = useRouter();
+  const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
   const [admin, setAdmin] = useState<any>(null);
@@ -28,12 +28,13 @@ export default function AdminSidebar({ open, onClose, onToast }: Props) {
         setAdmin(profile);
       }
     }
+
     async function fetchCounts() {
       const { count: withdrawCount } = await supabase
         .from('withdrawals')
         .select('*', { count: 'exact', head: true })
         .eq('status', 'pending');
-      
+
       const { count: depositCount } = await supabase
         .from('deposits')
         .select('*', { count: 'exact', head: true })
@@ -49,6 +50,7 @@ export default function AdminSidebar({ open, onClose, onToast }: Props) {
         users: userCount ? (userCount / 1000).toFixed(0) + 'K' : '0'
       });
     }
+
     fetchAdmin();
     fetchCounts();
   }, []);
@@ -110,47 +112,58 @@ export default function AdminSidebar({ open, onClose, onToast }: Props) {
   };
 
   return (
-    <aside className={`adm-sidebar${open ? ' open' : ''}`}>
-      <div className="adm-sb-top">
-        <div className="adm-sb-logo-mark" />
-        <div>
-          <div className="adm-sb-logo-text">Vault<span>X</span></div>
-          <span className="adm-sb-admin-badge">Admin Panel</span>
-        </div>
-      </div>
-
-      <nav className="adm-sb-nav">
-        {navGroups.map(group => (
-          <div key={group.section}>
-            <span className="adm-sb-section-label">{group.section}</span>
-            {group.items.map(item => (
-              <button
-                key={item.id}
-                className={`adm-sb-item${isActive(item.path) ? ' active' : ''}`}
-                onClick={() => handleClick(item.path, item.label)}
-              >
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  {item.svg}
-                </svg>
-                {item.label}
-                {item.badge && <span className="adm-sb-badge">{item.badge}</span>}
-              </button>
-            ))}
-          </div>
-        ))}
-      </nav>
-
-      <div className="adm-sb-bottom">
-        <div className="adm-sb-user">
-          <div className="adm-sb-avatar">
-            {admin ? `${admin.first_name?.[0] || 'A'}${admin.last_name?.[0] || 'D'}` : 'AD'}
-          </div>
+    <>
+      {/* ==================== SIDEBAR ==================== */}
+      <aside className={`adm-sidebar${open ? ' open' : ''}`}>
+        <div className="adm-sb-top">
+          <div className="adm-sb-logo-mark" />
           <div>
-            <div className="adm-sb-uname">{admin ? `${admin.first_name} ${admin.last_name || ''}` : 'Admin User'}</div>
-            <div className="adm-sb-role">{admin?.role === 'admin' ? 'Super Administrator' : 'Administrator'}</div>
+            <div className="adm-sb-logo-text">Vault<span>X</span></div>
+            <span className="adm-sb-admin-badge">Admin Panel</span>
           </div>
         </div>
-      </div>
-    </aside>
+
+        <nav className="adm-sb-nav">
+          {navGroups.map(group => (
+            <div key={group.section}>
+              <span className="adm-sb-section-label">{group.section}</span>
+              {group.items.map(item => (
+                <button
+                  key={item.id}
+                  className={`adm-sb-item${isActive(item.path) ? ' active' : ''}`}
+                  onClick={() => handleClick(item.path, item.label)}
+                >
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                    {item.svg}
+                  </svg>
+                  {item.label}
+                  {item.badge && <span className="adm-sb-badge">{item.badge}</span>}
+                </button>
+              ))}
+            </div>
+          ))}
+        </nav>
+
+        <div className="adm-sb-bottom">
+          <div className="adm-sb-user">
+            <div className="adm-sb-avatar">
+              {admin ? `${admin.first_name?.[0] || 'A'}${admin.last_name?.[0] || 'D'}` : 'AD'}
+            </div>
+            <div>
+              <div className="adm-sb-uname">{admin ? `${admin.first_name} ${admin.last_name || ''}` : 'Admin User'}</div>
+              <div className="adm-sb-role">{admin?.role === 'admin' ? 'Super Administrator' : 'Administrator'}</div>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* ==================== MOBILE OVERLAY (NO BLUR) ==================== */}
+      {open && (
+        <div 
+          className="adm-sb-overlay show" 
+          onClick={onClose}
+        />
+      )}
+    </>
   );
 }

@@ -12,15 +12,15 @@ const testimonials = [
     initials: 'SN',
     name: 'Sharmin Nahar',
     role: 'Referral Earner · Chittagong',
-    roi: '+5% ×7',
-    text: 'The referral system is genuinely passive income. I referred seven colleagues from my office. Every time one of them withdraws, I get credited automatically. Last month alone I earned extra just from referrals.',
+    roi: '+7% ×5',
+    text: 'The referral system is genuinely passive income. I referred five colleagues from my office. Every time one of them profits, I get credited automatically. Last month alone I earned extra just from referrals.',
   },
   {
     initials: 'AH',
     name: 'Aminul Hossain',
     role: 'Investor since Season 1 · Sylhet',
     roi: '+28.1%',
-    text: 'Season 3 gave me the confidence to invest more seriously. The platform is transparent — you see the pool size, the projected ROI, and the exact end date. That clarity is rare. Already locked in for Season 4.',
+    text: 'Season 2 gave me the confidence to invest more seriously. The platform is transparent — you see the pool size, the projected ROI, and the exact end date. That clarity is rare. Already locked in for Season 4.',
   },
   {
     initials: 'FK',

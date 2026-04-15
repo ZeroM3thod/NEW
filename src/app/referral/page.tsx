@@ -47,10 +47,10 @@ export default function ReferralPage() {
       .single()
     setProfile(profileData)
 
-    // ✅ Step 1: Fetch referred user profiles (no nested investments)
+    // ✅ Step 1: Fetch referred user profiles (include status)
     const { data: refUsers } = await supabase
       .from('profiles')
-      .select('id, first_name, last_name, username, created_at')
+      .select('id, first_name, last_name, username, created_at, status')
       .eq('referred_by', user.id)
 
     if (!refUsers || refUsers.length === 0) {
@@ -59,11 +59,11 @@ export default function ReferralPage() {
       return
     }
 
-    // ✅ Step 2: Fetch all investments for referred users with season data separately
+    // ✅ Step 2: Fetch all investments for referred users with season data
     const refUserIds = refUsers.map(u => u.id)
     const { data: refInvestments } = await supabase
       .from('investments')
-      .select('user_id, amount, status, seasons(id, final_roi, status)')
+      .select('user_id, amount, status, seasons:season_id(id, final_roi, status)')
       .in('user_id', refUserIds)
 
     const allInvs = refInvestments || []
@@ -77,7 +77,8 @@ export default function ReferralPage() {
 
       // ✅ Only count profit from CLOSED seasons
       const totalProfit = userInvs.reduce((sum: number, inv: any) => {
-        const season = inv.seasons as any
+        // Handle both object and array response from Supabase
+        const season = Array.isArray(inv.seasons) ? inv.seasons[0] : inv.seasons
         if (season && season.status === 'closed' && season.final_roi != null) {
           return sum + (Number(inv.amount) * Number(season.final_roi) / 100)
         }
@@ -98,7 +99,7 @@ export default function ReferralPage() {
         invested: totalInvested,
         profit: totalProfit,
         comm: commission,
-        status: totalInvested > 0 ? 'active' : 'pending',
+        status: totalInvested > 0 ? 'active' : (u.status || 'pending'),
       }
     })
 
@@ -163,7 +164,7 @@ export default function ReferralPage() {
 
   const shareVia = (platform: string) => {
     if (!profile) return
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://vaultx.io'
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://vaultx.vercel.app'
     const link = `${baseUrl}/auth/signup?ref=${profile.referral_code}`
     const msg = `Join VaultX and invest with me! ${link}`
     const urls: Record<string, string> = {
@@ -301,7 +302,7 @@ export default function ReferralPage() {
                 {
                   icon: (<path d='M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6' />),
                   bg: 'rgba(74,103,65,.1)', sc: 'var(--sage)',
-                  val: `$${totalComm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
+                  val: `$${(profile?.referral_earned || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
                   lbl: 'Total Commission', ch: <>From referrals' profits</>, cup: false, vc: 'var(--sage)',
                 },
                 {

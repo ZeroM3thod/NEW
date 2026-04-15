@@ -1,9 +1,9 @@
 'use client';
 const statCards = [
   { trend: '↑ Active', number: '50', suffix: 'K+', desc: 'Verified Investors' },
-  { trend: '↑ Growing', number: '100', suffix: 'M+', desc: 'USDT Total Invested' },
-  { trend: 'Last Season', number: '28', suffix: '.4%', desc: 'Season 3 ROI' },
-  { trend: 'All Time', number: '4.2', suffix: 'M+', desc: 'USDT Paid Out' },
+  { trend: '↑ Growing', number: '10', suffix: 'M+', desc: 'USDT Total Invested' },
+  { trend: 'Last Season', number: '28', suffix: '.4%', desc: 'Season 2 ROI' },
+  { trend: 'All Time', number: '14.2', suffix: 'M+', desc: 'USDT Paid Out' },
 ];
 
 export default function PlatformStats() {

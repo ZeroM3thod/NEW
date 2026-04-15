@@ -2,10 +2,10 @@
 
 const stats = [
   { label: 'Active Investors', value: '50,000+' },
-  { label: 'USDT Invested', value: '100M+' },
-  { label: 'Season 3 ROI', value: '+28.4%' },
-  { label: 'Paid Out', value: '$4.2M+' },
-  { label: 'Referral Rate', value: '5% Per Withdrawal' },
+  { label: 'USDT Invested', value: '10M+' },
+  { label: 'Season 2 ROI', value: '+28.4%' },
+  { label: 'Paid Out', value: '$14.2M+' },
+  { label: 'Referral Rate', value: '7% Of Profit' },
   { label: 'On-Time Payouts', value: '99.8%' },
   { label: 'Season 4', value: 'Now Live' },
 ];

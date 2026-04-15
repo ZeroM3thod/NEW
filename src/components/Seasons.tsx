@@ -26,8 +26,8 @@ export default function Seasons() {
             {/* Season One */}
             <div className="season-card">
               <div className="season-tag">Completed</div>
-              <div className="season-name">Season One</div>
-              <div className="season-period">Jan 2023 — Apr 2023</div>
+              <div className="season-name">Season 1</div>
+              <div className="season-period">1st Jan 2025 — 7th Jan 2025</div>
               <div className="season-roi">+18.2%</div>
               <div className="season-roi-label">Final ROI</div>
               <div className="season-detail">
@@ -41,7 +41,7 @@ export default function Seasons() {
                 </div>
                 <div className="season-detail-item">
                   <span>Duration</span>
-                  <strong>90 Days</strong>
+                  <strong>7 Days</strong>
                 </div>
               </div>
             </div>
@@ -49,8 +49,8 @@ export default function Seasons() {
             {/* Season Two */}
             <div className="season-card">
               <div className="season-tag">Completed</div>
-              <div className="season-name">Season Two</div>
-              <div className="season-period">Jun 2023 — Sep 2023</div>
+              <div className="season-name">Season 2</div>
+              <div className="season-period">8th Jan 2025 — 15th Jan 2025</div>
               <div className="season-roi">+23.7%</div>
               <div className="season-roi-label">Final ROI</div>
               <div className="season-detail">
@@ -64,7 +64,7 @@ export default function Seasons() {
                 </div>
                 <div className="season-detail-item">
                   <span>Duration</span>
-                  <strong>90 Days</strong>
+                  <strong>7 Days</strong>
                 </div>
               </div>
             </div>
@@ -72,9 +72,9 @@ export default function Seasons() {
             {/* Season Three */}
             <div className="season-card">
               <div className="season-tag">Completed</div>
-              <div className="season-name">Season Three</div>
-              <div className="season-period">Nov 2023 — Feb 2024</div>
-              <div className="season-roi">+28.4%</div>
+              <div className="season-name">Season 3</div>
+              <div className="season-period">16th Jan 2025 — 23rd Jan 2025</div>
+              <div className="season-roi">+24–32%</div>
               <div className="season-roi-label">Final ROI</div>
               <div className="season-detail">
                 <div className="season-detail-item">
@@ -87,7 +87,7 @@ export default function Seasons() {
                 </div>
                 <div className="season-detail-item">
                   <span>Duration</span>
-                  <strong>90 Days</strong>
+                  <strong>7 Days</strong>
                 </div>
               </div>
             </div>
@@ -98,16 +98,16 @@ export default function Seasons() {
 
               <div className="season4-body">
                 <div>
-                  <div className="season-name">Season Four</div>
+                  <div className="season-name">Season 4</div>
                   <div className="season-period">
-                    May 2025 — Aug 2025 · Limited entry window
+                    24th Jan 2025 — 31st Jan 2025 · Limited entry window
                   </div>
                   <div className="season-roi">+24–32%</div>
                   <div className="season-roi-label">Projected ROI Range</div>
                 </div>
                 <button
                   className="btn-primary season4-cta"
-                  onClick={() => router.push('/auth/signup')}
+                  onClick={() => router.push('/season')}
                 >
                   Invest Now
                 </button>
@@ -116,15 +116,15 @@ export default function Seasons() {
               <div className="season-detail season-detail--active">
                 <div className="season-detail-item">
                   <span className="detail-label-dark">Min. Entry</span>
-                  <strong>$100 USDT</strong>
+                  <strong>$30 USDT</strong>
                 </div>
                 <div className="season-detail-item">
                   <span className="detail-label-dark">Pool Cap</span>
-                  <strong>$80M</strong>
+                  <strong>$1M</strong>
                 </div>
                 <div className="season-detail-item">
                   <span className="detail-label-dark">Duration</span>
-                  <strong>90 Days</strong>
+                  <strong>7 Days</strong>
                 </div>
                 <div className="season-detail-item">
                   <span className="detail-label-dark">Referral Bonus</span>

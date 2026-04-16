@@ -118,7 +118,7 @@ export default function SeasonPage() {
             endDate: new Date(s.end_date || Date.now() + 7 * 864e5),
             roi: s.roi_range || '',
             min: Number(s.min_entry) || 100,
-            max: Number(s.max_entry) || 1000000,
+            max: 500000,
             pool: poolCap,
             poolFilled: actualFilled,
             joined: !!myInv,

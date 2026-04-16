@@ -174,7 +174,7 @@ body::before {
 .adm-sb-role  { font-size:.62rem; color:var(--text-sec); letter-spacing:.04em }
 
 /* ═══════════════════════════════════
-   OVERLAY — NO BLUR
+   OVERLAY — NO
 ═══════════════════════════════════ */
 .adm-sb-overlay {
   display:none;
@@ -209,7 +209,7 @@ body::before {
   display:flex; align-items:center; gap:14px;
   flex-shrink:0; width:100%; overflow:hidden;
 }
-/* Remove blur on mobile to prevent sidebar bleed-through */
+/* Remove on mobile to prevent sidebar bleed-through */
 @media(max-width:1023px) {
   .adm-top-header {
     background:#f6f1e9;

@@ -10,7 +10,6 @@ declare global {
   interface Window { Chart: any }
 }
 
-// ─── P&L helpers ────────────────────────────────────────────────────────────
 const fmtPnL    = (n: number) => n >= 0
   ? `+$${Math.abs(n).toLocaleString()}`
   : `-$${Math.abs(n).toLocaleString()}`
@@ -20,7 +19,16 @@ const pnlArrow  = (n: number) => n >= 0 ? '↑'                        : '↓'
 const pnlBg     = (n: number) => n >= 0 ? 'rgba(74,103,65,.08)'      : 'rgba(155,58,58,.07)'
 const pnlStroke = (n: number) => n >= 0 ? 'var(--sage-l)'            : '#9b3a3a'
 const pnlCls    = (n: number) => n >= 0 ? 'db-stat-up'               : 'db-stat-dn'
-// ────────────────────────────────────────────────────────────────────────────
+
+function pad2(n: number) { return String(n).padStart(2, '0') }
+
+function getLockCountdown(lockedUntil: string): string {
+  const ms = new Date(lockedUntil).getTime() - Date.now()
+  if (ms <= 0) return ''
+  const m = Math.floor(ms / 60000)
+  const s = Math.floor((ms % 60000) / 1000)
+  return `${m}:${pad2(s)}`
+}
 
 export default function DashboardPage() {
   const router = useRouter()
@@ -41,14 +49,18 @@ export default function DashboardPage() {
   const [referralStats, setReferralStats] = useState({ count: 0, earned: 0 })
   const [activeSeason, setActiveSeason] = useState<any>(null)
   const [loading, setLoading] = useState(true)
-
-  // ── FIX: compute avg ROI dynamically from history investments ──
   const [computedAvgRoi, setComputedAvgRoi] = useState(0)
+
+  // Locked amount states
+  const [lockedAmount, setLockedAmount] = useState(0)
+  const [lockedDeposits, setLockedDeposits] = useState<Array<{ id: string; amount: number; lockedUntil: string }>>([])
+  const [lockCountdown, setLockCountdown] = useState<string>('')
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const chartRef = useRef<HTMLCanvasElement>(null)
   const chartInstance = useRef<any>(null)
   const bgCanvasRef = useRef<HTMLCanvasElement>(null)
+  const lockTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   useEffect(() => {
     const fetchData = async () => {
@@ -63,6 +75,28 @@ export default function DashboardPage() {
           setProfile(profileData)
           const bal = Number(profileData.balance) || 0
           setDisplayBalance('$' + bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
+        }
+
+        // Fetch locked deposits (approved, locked_until > NOW())
+        const { data: locked } = await supabase
+          .from('deposits')
+          .select('id, amount, locked_until')
+          .eq('user_id', user.id)
+          .eq('status', 'approved')
+          .gt('locked_until', new Date().toISOString())
+
+        if (locked && locked.length > 0) {
+          const lockedArr = locked.map((d: any) => ({
+            id: d.id,
+            amount: Number(d.amount),
+            lockedUntil: d.locked_until,
+          }))
+          setLockedDeposits(lockedArr)
+          const total = lockedArr.reduce((sum, d) => sum + d.amount, 0)
+          setLockedAmount(total)
+        } else {
+          setLockedDeposits([])
+          setLockedAmount(0)
         }
 
         const { data: investments } = await supabase
@@ -80,15 +114,13 @@ export default function DashboardPage() {
           )
           setHistoryInvestments(completed)
 
-          // ── FIX: calculate avg ROI from closed seasons ──
           const closedWithRoi = completed.filter(inv =>
             inv.seasons?.status === 'closed' && inv.seasons?.final_roi != null
           )
           if (closedWithRoi.length > 0) {
             const sum = closedWithRoi.reduce((acc: number, inv: any) =>
               acc + Number(inv.seasons.final_roi), 0)
-            const avg = Math.round((sum / closedWithRoi.length) * 100) / 100
-            setComputedAvgRoi(avg)
+            setComputedAvgRoi(Math.round((sum / closedWithRoi.length) * 100) / 100)
           }
 
           if (active?.seasons) {
@@ -129,6 +161,35 @@ export default function DashboardPage() {
 
     fetchData()
   }, [router, supabase])
+
+  // Lock countdown timer
+  useEffect(() => {
+    if (lockedDeposits.length === 0) {
+      setLockCountdown('')
+      return
+    }
+    // Find the soonest unlocking deposit
+    const tick = () => {
+      const stillLocked = lockedDeposits.filter(d => new Date(d.lockedUntil).getTime() > Date.now())
+      if (stillLocked.length === 0) {
+        setLockedAmount(0)
+        setLockCountdown('')
+        if (lockTimerRef.current) clearInterval(lockTimerRef.current)
+        return
+      }
+      // Sort by earliest unlock
+      stillLocked.sort((a, b) => new Date(a.lockedUntil).getTime() - new Date(b.lockedUntil).getTime())
+      const earliest = stillLocked[0]
+      const cd = getLockCountdown(earliest.lockedUntil)
+      setLockCountdown(cd)
+      // Recalculate locked total
+      const total = stillLocked.reduce((sum, d) => sum + d.amount, 0)
+      setLockedAmount(total)
+    }
+    tick()
+    lockTimerRef.current = setInterval(tick, 1000)
+    return () => { if (lockTimerRef.current) clearInterval(lockTimerRef.current) }
+  }, [lockedDeposits])
 
   const getDaysElapsed = (startDate: string) => {
     if (!startDate) return 0
@@ -222,10 +283,12 @@ export default function DashboardPage() {
     document.addEventListener('keydown',h)
     return()=>document.removeEventListener('keydown',h)
   }, [])
+
   useEffect(() => {
     document.body.style.overflow = sidebarOpen ? 'hidden' : ''
     return()=>{ document.body.style.overflow='' }
   }, [sidebarOpen])
+
   useEffect(() => {
     const obs=new IntersectionObserver(entries=>entries.forEach(e=>{if(e.isIntersecting){e.target.classList.add('show');obs.unobserve(e.target)}}),{threshold:.12})
     document.querySelectorAll<HTMLElement>('.db-reveal').forEach(el=>obs.observe(el))
@@ -249,9 +312,7 @@ export default function DashboardPage() {
   const commRate       = Number(profile?.commission_rate) || 7
   const firstName      = profile?.first_name || profile?.username || 'Investor'
   const refCode        = profile?.referral_code || '—'
-
-  // ── FIX: use computed avg ROI instead of profile.avg_roi ──
-  const avgRoi = computedAvgRoi
+  const avgRoi         = computedAvgRoi
 
   const activeSeasonDays  = activeInvestment?.seasons?.duration_days || 90
   const activeSeasonStart = activeInvestment?.seasons?.start_date    || null
@@ -260,10 +321,12 @@ export default function DashboardPage() {
   const myInvestAmount    = Number(activeInvestment?.amount)         || 0
   const daysElapsed       = activeSeasonStart ? getDaysElapsed(activeSeasonStart) : 0
 
-  // Best ROI across history
   const bestRoi = historyInvestments.length
     ? Math.max(...historyInvestments.map(i => Number(i.seasons?.final_roi) || 0))
     : null
+
+  // Effective withdrawable = balance - locked deposits
+  const effectiveWithdrawable = Math.max(0, withdrawable - lockedAmount)
 
   return (
     <>
@@ -304,22 +367,62 @@ export default function DashboardPage() {
               </div>
             </div>
 
+            {/* LOCKED AMOUNT ALERT — shown when deposits are locked */}
+            {lockedAmount > 0 && (
+              <div className='db-reveal' style={{ marginBottom: 16, transitionDelay: '.02s' }}>
+                <div style={{
+                  background: 'rgba(155,90,58,.08)', border: '1px solid rgba(155,90,58,.3)',
+                  borderRadius: 10, padding: '14px 18px',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  flexWrap: 'wrap', gap: 10,
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <div style={{ width: 34, height: 34, background: 'rgba(155,90,58,.12)', borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width="16" height="16" fill="none" stroke="rgba(155,90,58,.9)" strokeWidth="2" viewBox="0 0 24 24">
+                        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                      </svg>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '.8rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 2 }}>
+                        ${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT is security-locked
+                      </div>
+                      <div style={{ fontSize: '.68rem', color: 'var(--txt2)' }}>
+                        You can invest these funds now · Withdrawal unlocks in {lockCountdown || '—'}
+                      </div>
+                    </div>
+                  </div>
+                  <button className='db-btn db-btn-outline' style={{ padding: '8px 16px', fontSize: '.7rem', whiteSpace: 'nowrap' }}
+                    onClick={() => router.push('/season')}>
+                    <span>Invest Now</span>
+                  </button>
+                </div>
+              </div>
+            )}
+
             {/* BALANCE HERO */}
             <div className='db-balance-hero db-reveal' style={{marginBottom:20,transitionDelay:'.06s'}}>
               <div style={{display:'flex',flexWrap:'wrap',alignItems:'flex-start',justifyContent:'space-between',gap:16,position:'relative',zIndex:1}}>
                 <div>
                   <div className='db-balance-label' style={{marginBottom:8}}>Total Portfolio · USDT</div>
-                  <div className='db-balance-num'>{displayBalance}</div>
+                  <div className='db-balance-num'>${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                   <div className='db-balance-sub' style={{marginTop:8}}>
                     <span style={{color: pnlColor(profitsTotal)}}>
                       {pnlArrow(profitsTotal)} {fmtPnL(profitsTotal)}
                     </span>
                     &nbsp;·&nbsp;all-time profit&nbsp;·&nbsp;
-                    {/* ── FIX: use computed avgRoi ── */}
                     <span style={{color:'var(--gold-l)'}}>
                       {avgRoi >= 0 ? '+' : ''}{avgRoi}% avg ROI
                     </span>
                   </div>
+                  {/* Show effective withdrawable separately if locked */}
+                  {lockedAmount > 0 && (
+                    <div style={{ marginTop: 8, fontSize: '.72rem', color: 'rgba(246,241,233,0.5)', display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <svg width="11" height="11" fill="none" stroke="rgba(246,241,233,0.5)" strokeWidth="2" viewBox="0 0 24 24">
+                        <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                      </svg>
+                      <span>Withdrawable now: <strong style={{ color: 'rgba(246,241,233,0.75)' }}>${effectiveWithdrawable.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></span>
+                    </div>
+                  )}
                 </div>
                 {activeInvestment && activeSeasonName && (
                   <div style={{textAlign:'right'}}>
@@ -346,7 +449,7 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* STAT CARDS */}
+            {/* STAT CARDS — 4th card is now "Locked Amount" instead of "Avg ROI" */}
             <div className='db-grid-4 db-reveal' style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:20,transitionDelay:'.1s'}}>
               {([
                 {
@@ -357,25 +460,30 @@ export default function DashboardPage() {
                 {
                   bg:'rgba(74,103,65,0.1)', svgColor:'var(--sage)',
                   icon:<path d='M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6'/>,
-                  lbl:'Withdrawable', val:`$${withdrawable.toLocaleString()}`, sub:'available now', cls:'db-stat-up',
+                  lbl:'Withdrawable',
+                  val:`$${effectiveWithdrawable.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
+                  sub: lockedAmount > 0 ? `$${lockedAmount.toLocaleString()} locked` : 'available now',
+                  cls:'db-stat-up',
                 },
                 {
                   bg: pnlBg(profitsTotal), svgColor: pnlStroke(profitsTotal),
                   icon:<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>,
                   lbl:'Total Profits', val: fmtPnL(profitsTotal), sub:'all time', cls: pnlCls(profitsTotal),
                 },
+                // 4th card: Locked Amount (replaces Avg ROI)
                 {
-                  // ── FIX: use computed avgRoi ──
-                  bg:'rgba(184,147,90,0.08)', svgColor:'var(--gold)',
-                  icon:<><line x1='12' y1='20' x2='12' y2='10'/><line x1='18' y1='20' x2='18' y2='4'/><line x1='6' y1='20' x2='6' y2='16'/></>,
-                  lbl:'Avg ROI',
-                  val: historyInvestments.length === 0
-                    ? '—'
-                    : `${avgRoi >= 0 ? '+' : ''}${avgRoi}%`,
-                  sub:`${historyInvestments.filter(i => i.seasons?.status === 'closed').length} seasons`,
-                  cls: historyInvestments.length === 0 ? 'db-stat-gold' : pnlCls(avgRoi),
+                  bg: lockedAmount > 0 ? 'rgba(155,90,58,.1)' : 'rgba(74,103,65,.08)',
+                  svgColor: lockedAmount > 0 ? 'rgba(155,90,58,.9)' : 'var(--sage)',
+                  icon: lockedAmount > 0
+                    ? <><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></>
+                    : <><rect x="3" y="11" width="18" height="11" rx="2" opacity=".4"/><path d="M8 11V8a4 4 0 018 0" opacity=".4"/></>,
+                  lbl: 'Locked Amount',
+                  val: lockedAmount > 0 ? `$${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '$0.00',
+                  sub: lockedAmount > 0 ? `Unlocks in ${lockCountdown || '—'}` : 'No funds locked',
+                  cls: '',
+                  chColor: lockedAmount > 0 ? 'rgba(155,90,58,.9)' : 'var(--sage)',
                 },
-              ] as {bg:string;svgColor:string;icon:React.ReactNode;lbl:string;val:string;sub:string;cls:string}[]).map((s,i) => (
+              ] as {bg:string;svgColor:string;icon:React.ReactNode;lbl:string;val:string;sub:string;cls:string;chColor?:string}[]).map((s,i) => (
                 <div key={i} className='db-card db-card-hover' style={{padding:'18px 16px'}}>
                   <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:14}}>
                     <div style={{width:26,height:26,background:s.bg,borderRadius:'var(--r)',display:'flex',alignItems:'center',justifyContent:'center'}}>
@@ -383,8 +491,8 @@ export default function DashboardPage() {
                     </div>
                     <span style={{fontSize:'.67rem',letterSpacing:'.12em',textTransform:'uppercase',color:'var(--txt2)'}}>{s.lbl}</span>
                   </div>
-                  <div className={`db-stat-num ${s.cls}`}>{s.val}</div>
-                  <div style={{fontSize:'.7rem',color:'var(--txt3)',marginTop:5}}>{s.sub}</div>
+                  <div className={`db-stat-num ${s.cls}`} style={s.chColor ? { color: s.chColor } : {}}>{s.val}</div>
+                  <div style={{fontSize:'.7rem',color: s.chColor || 'var(--txt3)',marginTop:5}}>{s.sub}</div>
                 </div>
               ))}
             </div>
@@ -408,21 +516,9 @@ export default function DashboardPage() {
                 <div className='db-divider' style={{margin:'16px 0 14px'}}/>
                 <div style={{display:'flex',justifyContent:'space-between'}}>
                   {[
-                    {
-                      l:'Best',
-                      v: bestRoi !== null ? `${bestRoi >= 0 ? '+' : ''}${bestRoi}%` : 'N/A',
-                      c: bestRoi !== null ? pnlColor(bestRoi) : 'var(--txt3)',
-                    },
-                    {
-                      l:'Avg',
-                      v: historyInvestments.length === 0 ? '—' : `${avgRoi >= 0 ? '+' : ''}${avgRoi}%`,
-                      c: historyInvestments.length === 0 ? 'var(--txt3)' : pnlColor(avgRoi),
-                    },
-                    {
-                      l:'Seasons',
-                      v: historyInvestments.length + (activeInvestment ? 1 : 0),
-                      c:'var(--ink)',
-                    },
+                    { l:'Best', v: bestRoi !== null ? `${bestRoi >= 0 ? '+' : ''}${bestRoi}%` : 'N/A', c: bestRoi !== null ? pnlColor(bestRoi) : 'var(--txt3)' },
+                    { l:'Avg',  v: historyInvestments.length === 0 ? '—' : `${avgRoi >= 0 ? '+' : ''}${avgRoi}%`, c: historyInvestments.length === 0 ? 'var(--txt3)' : pnlColor(avgRoi) },
+                    { l:'Seasons', v: historyInvestments.length + (activeInvestment ? 1 : 0), c:'var(--ink)' },
                   ].map((x,i)=>(
                     <div key={i} style={{textAlign:i===2?'right':i===1?'center':'left'}}>
                       <div style={{fontSize:'.67rem',textTransform:'uppercase',letterSpacing:'.1em',color:'var(--txt3)'}}>{x.l}</div>
@@ -534,7 +630,7 @@ export default function DashboardPage() {
             {activeSeason && (
               <div className='db-reveal' style={{background:'var(--ink)',borderRadius:'var(--r-lg)',padding:'18px 22px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap',transitionDelay:'.22s'}}>
                 <div>
-                  <div style={{fontSize:'.68rem',letterSpacing:'.16em',textTransform:'uppercase',color:'rgba(246,241,233,0.35)',marginBottom:5}}>
+                  <div style={{fontSize:'.68rem',letterSpacing:'.16em',textTransform:'uppercase',color:'rgba(246,241,233,.35)',marginBottom:5}}>
                     {activeSeason.name} · {activeSeason.status === 'open' ? 'Entry Open' : 'Live'}
                   </div>
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.15rem',fontWeight:400,color:'var(--cream)'}}>

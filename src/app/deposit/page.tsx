@@ -5,7 +5,6 @@ import UserSidebar from '@/components/UserSidebar'
 import { createClient } from '@/utils/supabase/client'
 import React from 'react'
 
-// ✅ All fees set to 0 — user pays exchanger fees directly, not platform
 const ADDRESSES: Record<string, string> = {
   'TRC-20': 'TXkPqV9sZbUmWHvCaZLfwBgY3qNxR8eKdM',
   'ERC-20': '0x4aF3bC2e8f1D9Aa72cE63b5B87dF4e1C9Ab3D5E',
@@ -21,12 +20,15 @@ interface DepHistory {
   id: string
   date: string
   amount: number
-  network: string
-  txnId: string
-  status: 'approved' | 'pending' | 'rejected'
   fee: number
   receive: number
+  network: string
+  wallet: string
+  status: 'approved' | 'pending' | 'rejected'
+  note: string
   reason?: string
+  lockedUntil?: string | null
+  unlockEmailSent?: boolean
 }
 interface DepState {
   amount: number
@@ -34,6 +36,17 @@ interface DepState {
   address: string
   fee: number
   receive: number
+}
+
+function pad2(n: number) { return String(n).padStart(2, '0') }
+
+function getCountdown(lockedUntil: string): string {
+  const ms = new Date(lockedUntil).getTime() - Date.now()
+  if (ms <= 0) return 'Unlocked'
+  const totalSec = Math.ceil(ms / 1000)
+  const m = Math.floor(totalSec / 60)
+  const s = totalSec % 60
+  return `${m}:${pad2(s)}`
 }
 
 export default function DepositPage() {
@@ -60,21 +73,48 @@ export default function DepositPage() {
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
   const [userProfile, setUserProfile] = useState<any>(null)
-  const [liveCount, setLiveCount] = useState(0)
   const [wallets, setWallets] = useState<Record<string, string>>({
     'USDT (BEP-20)': '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
     'USDT (TRC-20)': 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
   })
 
+  // Lock countdown states
+  const [lockCountdowns, setLockCountdowns] = useState<Record<string, string>>({})
+
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bgRef = useRef<HTMLCanvasElement>(null)
   const qrRef = useRef<HTMLCanvasElement>(null)
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const emailCheckRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
   const showToast = useCallback((msg: string) => {
     setToastMsg('✓  ' + msg)
     setToastShow(true)
     if (toastTimer.current) clearTimeout(toastTimer.current)
     toastTimer.current = setTimeout(() => setToastShow(false), 3200)
+  }, [])
+
+  // Check for deposits that just unlocked and send email notification
+  const checkUnlockNotifications = useCallback(async (deposits: DepHistory[]) => {
+    const nowLocked = deposits.filter(
+      d => d.status === 'approved' && d.lockedUntil && !d.unlockEmailSent &&
+           new Date(d.lockedUntil).getTime() < Date.now()
+    )
+    for (const dep of nowLocked) {
+      try {
+        await fetch('/api/unlock-notification', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ depositId: dep.id }),
+        })
+        // Optimistically update local state
+        setHistory(prev => prev.map(d =>
+          d.id === dep.id ? { ...d, unlockEmailSent: true } : d
+        ))
+      } catch (err) {
+        console.error('Failed to send unlock notification', err)
+      }
+    }
   }, [])
 
   const fetchData = useCallback(async () => {
@@ -85,9 +125,6 @@ export default function DepositPage() {
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single()
     setUserProfile(profile)
 
-    const { count } = await supabase.from('seasons').select('*', { count: 'exact', head: true }).eq('status', 'running')
-    setLiveCount(count || 0)
-
     const { data: settings } = await supabase.from('settings').select('usdt_bep20_address, usdt_trc20_address').eq('id', 1).maybeSingle()
     if (settings) {
       setWallets({
@@ -97,26 +134,67 @@ export default function DepositPage() {
     }
 
     const { data: depHistory } = await supabase
-      .from('deposits').select('*').eq('user_id', authUser.id).order('created_at', { ascending: false })
+      .from('deposits')
+      .select('*')
+      .eq('user_id', authUser.id)
+      .order('created_at', { ascending: false })
 
     if (depHistory) {
-      const mapped: DepHistory[] = depHistory.map(d => ({
-        id: d.id.slice(0, 8).toUpperCase(),
+      const mapped: DepHistory[] = depHistory.map((d: any) => ({
+        id: d.id,
         date: new Date(d.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
         amount: d.amount,
+        fee: 0,
+        receive: d.amount,
         network: d.network,
         txnId: d.tx_hash,
         status: d.status,
-        fee: 0,           // ✅ No fee
-        receive: d.amount, // ✅ Receive full amount
-        reason: d.rejection_reason
+        fee2: 0,
+        receive2: d.amount,
+        note: '',
+        reason: d.rejection_reason,
+        lockedUntil: d.locked_until || null,
+        unlockEmailSent: d.unlock_email_sent || false,
       }))
       setHistory(mapped)
+      // Check unlock notifications after loading
+      checkUnlockNotifications(mapped)
     }
     setLoading(false)
-  }, [router, supabase])
+  }, [router, supabase, checkUnlockNotifications])
 
   useEffect(() => { fetchData() }, [fetchData])
+
+  // Countdown timer: update every second
+  useEffect(() => {
+    const tick = () => {
+      const newCountdowns: Record<string, string> = {}
+      let anyLocked = false
+      history.forEach(d => {
+        if (d.lockedUntil && d.status === 'approved') {
+          const ms = new Date(d.lockedUntil).getTime() - Date.now()
+          if (ms > 0) {
+            newCountdowns[d.id] = getCountdown(d.lockedUntil)
+            anyLocked = true
+          } else {
+            newCountdowns[d.id] = 'Unlocked'
+          }
+        }
+      })
+      setLockCountdowns(newCountdowns)
+    }
+    tick()
+    countdownRef.current = setInterval(tick, 1000)
+    return () => { if (countdownRef.current) clearInterval(countdownRef.current) }
+  }, [history])
+
+  // Periodic check for unlock notifications (every 30 seconds)
+  useEffect(() => {
+    emailCheckRef.current = setInterval(() => {
+      checkUnlockNotifications(history)
+    }, 30000)
+    return () => { if (emailCheckRef.current) clearInterval(emailCheckRef.current) }
+  }, [history, checkUnlockNotifications])
 
   useEffect(() => {
     const cvs = bgRef.current; if (!cvs) return
@@ -219,7 +297,6 @@ export default function DepositPage() {
   const goToStep3 = () => {
     if (!selectedNet) { showToast('Please select a network'); return }
     const addr = ADDRESSES[selectedNet]
-    // ✅ Fee is 0, receive = full amount
     setDepState(s => ({ ...s, network: selectedNet, address: addr, fee: 0, receive: s.amount }))
     setTimeout(() => drawQR(addr), 100)
     setStep(3)
@@ -232,16 +309,21 @@ export default function DepositPage() {
     if (txnId.trim().length < 10) { showToast('Transaction ID seems too short'); return }
 
     try {
+      // Set locked_until to 5 minutes from NOW (deposit submission time)
+      const lockedUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+
       const { error } = await supabase.from('deposits').insert({
         user_id: user.id,
         amount: depState.amount,
         network: depState.network,
         tx_hash: txnId.trim(),
-        status: 'pending'
+        status: 'pending',
+        locked_until: lockedUntil,
+        unlock_email_sent: false,
       })
       if (error) throw error
 
-      showToast('Deposit submitted · Pending review')
+      showToast('Deposit submitted · Pending review · 5-min lock starts now')
       fetchData()
 
       setDepState({ amount: 0, network: '', address: '', fee: 0, receive: 0 })
@@ -263,6 +345,16 @@ export default function DepositPage() {
   const stepLabels = ['Amount', 'Network', 'Payment', 'Confirm']
   const info = selectedNet ? NET_FEES[selectedNet] : null
 
+  // Check if a deposit is currently locked
+  const isLocked = (d: DepHistory): boolean => {
+    return !!(d.lockedUntil && new Date(d.lockedUntil).getTime() > Date.now() && d.status === 'approved')
+  }
+
+  // Get total locked amount (only approved deposits)
+  const lockedAmount = history
+    .filter(d => isLocked(d))
+    .reduce((sum, d) => sum + d.amount, 0)
+
   if (loading) return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--txt2)', background: 'var(--cream)' }}>
       Loading...
@@ -275,7 +367,24 @@ export default function DepositPage() {
       <div className={`dp-toast${toastShow ? ' show' : ''}`}>{toastMsg}</div>
       <UserSidebar open={sidebarOpen} onClose={() => { setSidebarOpen(false); setHamburgerOpen(false) }} />
 
-      <div className='dp-layout'>
+      {/* Lock Notice Banner */}
+      {lockedAmount > 0 && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 800,
+          background: 'rgba(155,90,58,0.97)', borderBottom: '1px solid rgba(155,58,58,0.4)',
+          padding: '10px 20px', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 12,
+          fontSize: '.75rem', letterSpacing: '.06em', color: '#f6e0d8',
+        }}>
+          <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+            <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+          </svg>
+          <span>
+            <strong>${lockedAmount.toLocaleString()} USDT</strong> is currently locked — funds will be available for withdrawal after the 5-minute security hold.
+          </span>
+        </div>
+      )}
+
+      <div className='dp-layout' style={{ marginTop: lockedAmount > 0 ? 42 : 0 }}>
         {/* TOPBAR */}
         <div className='dp-topbar'>
           <button className={`dp-hamburger${hamburgerOpen ? ' is-open' : ''}`}
@@ -299,6 +408,15 @@ export default function DepositPage() {
               <h1 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 'clamp(1.6rem,4vw,2.2rem)', fontWeight: 400, color: 'var(--ink)', lineHeight: 1.15 }}>
                 Make a <em style={{ fontStyle: 'italic', color: 'var(--gold)' }}>Deposit</em>
               </h1>
+              {/* Lock info notice */}
+              <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(184,147,90,.06)', border: '1px solid var(--border)', borderRadius: 'var(--r)', display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: '.72rem', color: 'var(--txt2)' }}>
+                <svg width="14" height="14" fill="none" stroke="var(--gold)" strokeWidth="1.8" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: 1 }}>
+                  <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+                <span>
+                  <strong style={{ color: 'var(--ink)' }}>5-minute security lock:</strong> Deposited funds are locked for 5 minutes after submission. During this time you can invest in seasons and earn profits, but cannot withdraw the deposited amount. Profits &amp; referral earnings remain withdrawable at any time.
+                </span>
+              </div>
             </div>
 
             {/* STEP INDICATOR */}
@@ -405,11 +523,17 @@ export default function DepositPage() {
               </div>
               <div style={{ padding: '14px 16px', background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 'var(--r)', marginBottom: 20 }}>
                 <div className='dp-detail-row'><span className='dp-detail-key'>You Send</span><span className='dp-detail-val'>{depState.amount} USDT</span></div>
-                {/* ✅ Fee is Free */}
                 <div className='dp-detail-row'><span className='dp-detail-key'>Transaction Fee</span><span className='dp-detail-val' style={{ color: 'var(--sage)' }}>Free</span></div>
                 <div className='dp-detail-row'><span className='dp-detail-key'>You Receive</span><span className='dp-detail-val' style={{ color: 'var(--sage)', fontWeight: 600 }}>{depState.amount} USDT</span></div>
                 <div className='dp-detail-row'><span className='dp-detail-key'>Network</span><span className='dp-detail-val'>{depState.network}</span></div>
                 <div className='dp-detail-row'><span className='dp-detail-key'>Estimated Time</span><span className='dp-detail-val'>{NET_FEES[depState.network || selectedNet]?.time || '—'}</span></div>
+              </div>
+              {/* Lock notice */}
+              <div style={{ padding: '12px 14px', background: 'rgba(155,90,58,.06)', border: '1px solid rgba(155,90,58,.2)', borderRadius: 'var(--r)', marginBottom: 20, display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: '.71rem', color: 'rgba(155,90,58,.9)' }}>
+                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: 1 }}>
+                  <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
+                </svg>
+                <span>Once approved by admin, your deposit will be <strong>locked for 5 minutes</strong> before it can be withdrawn. You can still invest it in seasons immediately.</span>
               </div>
               <button className='dp-btn dp-btn-dark' style={{ width: '100%' }} onClick={goToStep4}><span>I've Sent the Payment →</span></button>
             </div>
@@ -436,8 +560,14 @@ export default function DepositPage() {
               <div style={{ padding: '14px 16px', background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 'var(--r)', marginBottom: 20 }}>
                 <div className='dp-detail-row'><span className='dp-detail-key'>Amount</span><span className='dp-detail-val'>{depState.amount} USDT</span></div>
                 <div className='dp-detail-row'><span className='dp-detail-key'>Network</span><span className='dp-detail-val'>{depState.network}</span></div>
-                {/* ✅ You receive full amount */}
                 <div className='dp-detail-row'><span className='dp-detail-key'>To Receive</span><span className='dp-detail-val' style={{ color: 'var(--sage)' }}>{depState.amount} USDT</span></div>
+                <div className='dp-detail-row' style={{ borderBottom: 'none' }}>
+                  <span className='dp-detail-key'>Security Lock</span>
+                  <span className='dp-detail-val' style={{ color: 'rgba(155,90,58,.9)', display: 'flex', alignItems: 'center', gap: 4 }}>
+                    <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                    5 minutes after approval
+                  </span>
+                </div>
               </div>
               <button className='dp-btn dp-btn-dark' style={{ width: '100%' }} onClick={confirmDeposit}><span>✓ Confirm Deposit</span></button>
             </div>
@@ -453,28 +583,58 @@ export default function DepositPage() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {history.length === 0 ? (
                   <div style={{ textAlign: 'center', padding: 32, color: 'var(--txt3)', fontSize: '.82rem' }}>No deposit records yet.</div>
-                ) : history.map((d, i) => (
-                  <div key={i} className='dp-hist-row'>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
-                      <div style={{ width: 34, height: 34, background: 'rgba(184,147,90,0.1)', border: '1px solid var(--border)', borderRadius: 'var(--r)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                        <svg width='14' height='14' fill='none' stroke='var(--gold)' strokeWidth='1.8' viewBox='0 0 24 24'><line x1='12' y1='19' x2='12' y2='5' /><polyline points='5 12 12 5 19 12' /></svg>
-                      </div>
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ fontSize: '.82rem', fontWeight: 500, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          {d.id} <span className={`dp-tag dp-tag-${d.status}`}>{d.status}</span>
+                ) : history.map((d, i) => {
+                  const locked = isLocked(d)
+                  const countdown = lockCountdowns[d.id]
+                  const wasLocked = d.lockedUntil && !locked && d.status === 'approved'
+                  return (
+                    <div key={i} className='dp-hist-row' style={{
+                      borderColor: locked ? 'rgba(155,90,58,.35)' : undefined,
+                      background: locked ? 'rgba(155,90,58,.03)' : undefined,
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
+                        <div style={{
+                          width: 34, height: 34,
+                          background: locked ? 'rgba(155,90,58,.12)' : 'rgba(184,147,90,0.1)',
+                          border: `1px solid ${locked ? 'rgba(155,90,58,.3)' : 'var(--border)'}`,
+                          borderRadius: 'var(--r)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
+                        }}>
+                          {locked ? (
+                            <svg width="14" height="14" fill="none" stroke="rgba(155,90,58,.9)" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                          ) : (
+                            <svg width='14' height='14' fill='none' stroke='var(--gold)' strokeWidth='1.8' viewBox='0 0 24 24'><line x1='12' y1='19' x2='12' y2='5' /><polyline points='5 12 12 5 19 12' /></svg>
+                          )}
                         </div>
-                        <div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 2 }}>{d.date} · {d.network}</div>
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontSize: '.82rem', fontWeight: 500, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                            {d.id.slice(0, 8).toUpperCase()}
+                            <span className={`dp-tag dp-tag-${d.status}`}>{d.status}</span>
+                            {locked && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', background: 'rgba(155,90,58,.1)', border: '1px solid rgba(155,90,58,.25)', borderRadius: 100, fontSize: '.58rem', letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(155,90,58,.9)' }}>
+                                <svg width="9" height="9" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                                Locked · {countdown}
+                              </span>
+                            )}
+                            {wasLocked && !locked && (
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', background: 'rgba(74,103,65,.1)', border: '1px solid rgba(74,103,65,.2)', borderRadius: 100, fontSize: '.58rem', letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--sage)' }}>
+                                <svg width="9" height="9" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" opacity=".4"/><path d="M8 11V8a4 4 0 018 0" opacity=".4"/></svg>
+                                Unlocked
+                              </span>
+                            )}
+                          </div>
+                          <div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 2 }}>{d.date} · {d.network}</div>
+                        </div>
+                      </div>
+                      <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.1rem', color: 'var(--ink)', fontWeight: 500 }}>+${d.amount.toLocaleString()}</div>
+                        <button onClick={() => { setModalEntry(d); setModalOpen(true) }}
+                          style={{ fontSize: '.68rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--gold)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 2 }}>
+                          View →
+                        </button>
                       </div>
                     </div>
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.1rem', color: 'var(--ink)', fontWeight: 500 }}>+${d.amount.toLocaleString()}</div>
-                      <button onClick={() => { setModalEntry(d); setModalOpen(true) }}
-                        style={{ fontSize: '.68rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--gold)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 2 }}>
-                        View →
-                      </button>
-                    </div>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -499,14 +659,28 @@ export default function DepositPage() {
                 <div className='dp-detail-row'><span className='dp-detail-key'>Status</span><span className='dp-detail-val'><span className={`dp-tag dp-tag-${modalEntry.status}`} style={{ fontSize: '.72rem' }}>{modalEntry.status}</span></span></div>
                 <div className='dp-detail-row'><span className='dp-detail-key'>Date</span><span className='dp-detail-val'>{modalEntry.date}</span></div>
                 <div className='dp-detail-row'><span className='dp-detail-key'>Amount Sent</span><span className='dp-detail-val'>{modalEntry.amount} USDT</span></div>
-                {/* ✅ No fee shown */}
                 <div className='dp-detail-row'><span className='dp-detail-key'>Transaction Fee</span><span className='dp-detail-val' style={{ color: 'var(--sage)' }}>Free</span></div>
                 <div className='dp-detail-row'><span className='dp-detail-key'>Amount Received</span><span className='dp-detail-val' style={{ color: 'var(--sage)' }}>{modalEntry.amount} USDT</span></div>
                 <div className='dp-detail-row'><span className='dp-detail-key'>Network</span><span className='dp-detail-val'>{modalEntry.network}</span></div>
-                <div className='dp-detail-row' style={{ borderBottom: 'none' }}>
-                  <span className='dp-detail-key'>TXN Hash</span>
-                  <span className='dp-detail-val' style={{ fontSize: '.72rem', wordBreak: 'break-all', maxWidth: 180, textAlign: 'right' }}>{modalEntry.txnId}</span>
-                </div>
+                {/* Lock status row */}
+                {modalEntry.lockedUntil && (
+                  <div className='dp-detail-row' style={{ borderBottom: 'none' }}>
+                    <span className='dp-detail-key'>Lock Status</span>
+                    <span className='dp-detail-val' style={{ color: isLocked(modalEntry) ? 'rgba(155,90,58,.9)' : 'var(--sage)', display: 'flex', alignItems: 'center', gap: 4, fontSize: '.76rem' }}>
+                      {isLocked(modalEntry) ? (
+                        <>
+                          <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                          Locked · {lockCountdowns[modalEntry.id] || '—'}
+                        </>
+                      ) : (
+                        <>
+                          <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" opacity=".4"/><path d="M8 11V8a4 4 0 018 0" opacity=".4"/></svg>
+                          Unlocked
+                        </>
+                      )}
+                    </span>
+                  </div>
+                )}
               </div>
               {modalEntry.status === 'rejected' && modalEntry.reason && (
                 <div style={{ padding: '14px 16px', background: 'rgba(180,50,50,0.05)', border: '1px solid rgba(180,50,50,0.2)', borderRadius: 'var(--r)' }}>

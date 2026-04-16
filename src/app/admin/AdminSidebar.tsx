@@ -113,7 +113,13 @@ export default function AdminSidebar({ open, onClose, onToast }: Props) {
 
   return (
     <>
-      {/* ==================== SIDEBAR ==================== */}
+      {/* OVERLAY - exactly like your working UserSidebar */}
+      <div 
+        className={`adm-sb-overlay${open ? ' show' : ''}`} 
+        onClick={onClose} 
+      />
+
+      {/* SIDEBAR */}
       <aside className={`adm-sidebar${open ? ' open' : ''}`}>
         <div className="adm-sb-top">
           <div className="adm-sb-logo-mark" />
@@ -156,14 +162,6 @@ export default function AdminSidebar({ open, onClose, onToast }: Props) {
           </div>
         </div>
       </aside>
-
-      {/* ==================== MOBILE OVERLAY (NO BLUR) ==================== */}
-      {open && (
-        <div 
-          className="adm-sb-overlay show" 
-          onClick={onClose}
-        />
-      )}
     </>
   );
 }

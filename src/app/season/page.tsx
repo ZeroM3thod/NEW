@@ -27,8 +27,7 @@ interface ActiveSeason {
   min: number
   max: number
   pool: number
-  poolFilled: number   // actual USDT amount (NOT percentage)
-  investors: number
+  poolFilled: number   // from seasons.current_pool
   joined: boolean
   myAmount: number
 }
@@ -47,9 +46,6 @@ interface HistorySeason {
 }
 
 function pad(n: number) { return String(n).padStart(2, '0') }
-function fmt(n: number) {
-  return '$' + (n >= 1e6 ? (n / 1e6).toFixed(1) + 'M' : n >= 1e3 ? (n / 1e3).toFixed(0) + 'K' : n.toString())
-}
 
 export default function SeasonPage() {
   const router = useRouter()
@@ -72,6 +68,9 @@ export default function SeasonPage() {
   const [countdownLabel, setCountdownLabel] = useState<Record<string, string>>({})
   const [poolWidths, setPoolWidths] = useState<Record<string, string>>({})
 
+  // ── Computed avg ROI from user's closed season investments ──
+  const [computedAvgRoi, setComputedAvgRoi] = useState(0)
+
   const bgRef = useRef<HTMLCanvasElement>(null)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const userId = useRef<string | null>(null)
@@ -91,27 +90,21 @@ export default function SeasonPage() {
     setUserProfile(profile)
 
     const { data: dbSeasons } = await supabase.from('seasons').select('*').order('created_at', { ascending: false })
-    const { data: myInvestments } = await supabase.from('investments').select('*, seasons(*)').eq('user_id', resolvedUid)
 
-    // Also fetch investor counts per season
-    const { data: allInvestments } = await supabase
+    // ── FIX: Only fetch the current user's investments (RLS allows this) ──
+    const { data: myInvestments } = await supabase
       .from('investments')
-      .select('season_id, amount')
-      .eq('status', 'active')
-
-    const investorCounts: Record<string, number> = {}
-    const poolActuals: Record<string, number> = {}
-    allInvestments?.forEach(inv => {
-      investorCounts[inv.season_id] = (investorCounts[inv.season_id] || 0) + 1
-      poolActuals[inv.season_id] = (poolActuals[inv.season_id] || 0) + Number(inv.amount)
-    })
+      .select('*, seasons(*)')
+      .eq('user_id', resolvedUid)
 
     if (dbSeasons) {
       const activeMapped: ActiveSeason[] = dbSeasons
         .filter(s => s.status === 'open' || s.status === 'running')
         .map(s => {
           const myInv = myInvestments?.find(inv => inv.season_id === s.id)
-          const actualPool = poolActuals[s.id] || Number(s.current_pool) || 0
+          // ── FIX: Use current_pool from seasons table directly ──
+          // (users can't see other users' investments due to RLS)
+          const currentPool = Number(s.current_pool) || 0
           return {
             id: s.id,
             name: s.name,
@@ -125,8 +118,7 @@ export default function SeasonPage() {
             min: Number(s.min_entry) || 100,
             max: Number(s.pool_cap) || 1000000,
             pool: Number(s.pool_cap) || 1000000,
-            poolFilled: actualPool,   // actual USDT amount
-            investors: investorCounts[s.id] || 0,
+            poolFilled: currentPool,
             joined: !!myInv,
             myAmount: myInv ? Number(myInv.amount) : 0
           }
@@ -164,6 +156,17 @@ export default function SeasonPage() {
         }
       })
       setHistory(historyMapped)
+
+      // ── FIX: Compute avg ROI from user's own closed season investments ──
+      const myClosedInvestments = historyMapped.filter(h =>
+        h.dbStatus === 'closed' && h.finalRoi !== null && h.mySeasonId !== null
+      )
+      if (myClosedInvestments.length > 0) {
+        const sum = myClosedInvestments.reduce((acc, h) => acc + (h.finalRoi || 0), 0)
+        setComputedAvgRoi(Math.round((sum / myClosedInvestments.length) * 100) / 100)
+      } else {
+        setComputedAvgRoi(0)
+      }
     }
     setLoading(false)
   }, [supabase])
@@ -178,7 +181,7 @@ export default function SeasonPage() {
     init()
   }, [fetchData, router, supabase])
 
-  /* ── Real-time updates for investments & seasons ── */
+  /* ── Real-time updates ── */
   useEffect(() => {
     const channel = supabase
       .channel('season-invest-changes')
@@ -212,7 +215,7 @@ export default function SeasonPage() {
     return()=>{ window.removeEventListener('resize',setup); cancelAnimationFrame(animId) }
   }, [])
 
-  /* ── Pool bars animate — use actual pool amount vs cap ── */
+  /* ── Pool bars animate ── */
   useEffect(() => {
     if (seasons.length > 0) {
       const widths: Record<string,string> = {}
@@ -298,19 +301,29 @@ export default function SeasonPage() {
     if (amt > userProfile.balance){ showToast('⚠ Insufficient balance.'); return }
 
     try {
+      // 1. Insert investment record
       const { error: invError } = await supabase.from('investments').insert({
         user_id: userProfile.id, season_id: investId, amount: amt, status: 'active'
       })
       if (invError) throw invError
 
-      // Update user profile balance
-      await supabase.from('profiles').update({
+      // 2. Deduct from user balance
+      const { error: profileError } = await supabase.from('profiles').update({
         balance:        userProfile.balance - amt,
         invested_total: (Number(userProfile.invested_total) || 0) + amt
       }).eq('id', userProfile.id)
+      if (profileError) throw profileError
 
-      // NOTE: seasons.current_pool is updated automatically by the database trigger
-      // (supabase-investment-pool-trigger.sql) — no manual update needed here
+      // ── FIX: Update seasons.current_pool via secure RPC ──
+      // (users can't directly update seasons table due to RLS)
+      const { error: poolError } = await supabase.rpc('increment_season_pool', {
+        p_season_id: investId,
+        p_amount: amt
+      })
+      if (poolError) {
+        // Non-critical: log but don't block the user
+        console.warn('Pool update via RPC failed:', poolError)
+      }
 
       setModalState('success')
       showToast('✓ Investment confirmed!', 'ok')
@@ -325,7 +338,6 @@ export default function SeasonPage() {
   /* ── Stats ── */
   const myTotalInvested = userProfile?.invested_total || 0
   const myProfits       = userProfile?.profits_total  || 0
-  const avgRoi          = userProfile?.avg_roi        || 0
 
   if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'var(--txt2)',background:'var(--cream)'}}>Loading Seasons...</div>
 
@@ -364,10 +376,13 @@ export default function SeasonPage() {
             {/* STATS STRIP */}
             <div className='sx-reveal' style={{transitionDelay:'.04s',display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:2,border:'1px solid var(--border)',borderRadius:10,overflow:'hidden',marginBottom:36}}>
               {[
-                {lbl:'Active Seasons',      val:<>{seasons.length}</>,                                          valStyle:{}},
-                {lbl:'My Total Invested',   val:<>${Number(myTotalInvested).toLocaleString()}</>,                valStyle:{color:'var(--gold)'}},
-                {lbl:'Avg. Season ROI',     val:<>{avgRoi >= 0 ? '+' : ''}{avgRoi}%</>,                         valStyle:{color: pnlColor(avgRoi)}},
-                {lbl:'Total Profit / Loss', val:<>{fmtPnL(Number(myProfits))}</>,                               valStyle:{color: pnlColor(Number(myProfits))}},
+                {lbl:'Active Seasons',      val:<>{seasons.length}</>,                                                                 valStyle:{}},
+                {lbl:'My Total Invested',   val:<>${Number(myTotalInvested).toLocaleString()}</>,                                       valStyle:{color:'var(--gold)'}},
+                // ── FIX: use computedAvgRoi instead of userProfile?.avg_roi ──
+                {lbl:'Avg. Season ROI',     val: history.filter(h=>h.dbStatus==='closed'&&h.mySeasonId).length === 0
+                  ? <>—</>
+                  : <>{computedAvgRoi >= 0 ? '+' : ''}{computedAvgRoi}%</>,                                                            valStyle:{color: pnlColor(computedAvgRoi)}},
+                {lbl:'Total Profit / Loss', val:<>{fmtPnL(Number(myProfits))}</>,                                                       valStyle:{color: pnlColor(Number(myProfits))}},
               ].map((s,i) => (
                 <div key={i} style={{background:'var(--surface)',padding:'16px 18px',borderRight:i%2===0?'1px solid var(--border)':'none'}}>
                   <div style={{fontSize:'.62rem',letterSpacing:'.12em',textTransform:'uppercase',color:'var(--text-sec)',marginBottom:4}}>{s.lbl}</div>
@@ -421,12 +436,20 @@ export default function SeasonPage() {
                           <div style={{fontSize:'.82rem',color:'var(--ink)',fontWeight:500}}>{s.period}</div>
                         </div>
                       </div>
+
+                      {/* ── FIX: Removed "Investors" count, only show Min Entry and Pool ── */}
                       <div className='sx-detail-grid'>
-                        <div className='sx-detail-item'><span>Min. Entry</span><strong>${s.min.toLocaleString()}</strong></div>
-                        <div className='sx-detail-item'><span>Investors</span><strong>{s.investors.toLocaleString()}</strong></div>
+                        <div className='sx-detail-item'>
+                          <span>Min. Entry</span>
+                          <strong>${s.min.toLocaleString()}</strong>
+                        </div>
+                        <div className='sx-detail-item'>
+                          <span>Max. Entry</span>
+                          <strong>${s.max.toLocaleString()}</strong>
+                        </div>
                         <div className='sx-detail-item' style={{gridColumn:'span 2'}}>
-                          <span>Total Pool · {pct}% filled</span>
-                          <strong>${s.poolFilled.toLocaleString()} / ${s.pool.toLocaleString()}</strong>
+                          <span>Pool Filled · {pct}%</span>
+                          <strong>${s.poolFilled.toLocaleString(undefined,{maximumFractionDigits:0})} / ${s.pool.toLocaleString()}</strong>
                           <div className='sx-pool-bar'><div className='sx-pool-fill' style={{width:poolWidths[s.id]||'0%'}}/></div>
                         </div>
                       </div>

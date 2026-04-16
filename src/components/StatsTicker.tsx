@@ -28,15 +28,11 @@ function TickerItems() {
 export default function StatsTicker() {
   return (
     <>
-      <div className="stats-bar">
-        <div className="stats-track">
-          <TickerItems />
-          {/* Duplicate for seamless loop */}
-          <TickerItems />
-        </div>
-      </div>
-
-      <style jsx>{`
+      <style>{`
+        @keyframes ticker-scroll {
+          0%   { transform: translateX(0); }
+          100% { transform: translateX(-50%); }
+        }
         .stats-bar {
           position: relative;
           z-index: 2;
@@ -47,12 +43,10 @@ export default function StatsTicker() {
         .stats-track {
           display: flex;
           gap: 60px;
-          animation: scroll 25s linear infinite;
+          animation: ticker-scroll 25s linear infinite;
           width: max-content;
         }
-        .stats-track:hover {
-          animation-play-state: paused;
-        }
+        .stats-track:hover { animation-play-state: paused; }
         .stat-item {
           display: flex;
           align-items: center;
@@ -63,9 +57,7 @@ export default function StatsTicker() {
           letter-spacing: 0.06em;
           text-transform: uppercase;
         }
-        .stat-item strong {
-          color: var(--gold-light);
-        }
+        .stat-item strong { color: var(--gold-light); }
         .stat-sep {
           width: 4px;
           height: 4px;
@@ -75,6 +67,12 @@ export default function StatsTicker() {
           flex-shrink: 0;
         }
       `}</style>
+      <div className="stats-bar">
+        <div className="stats-track">
+          <TickerItems />
+          <TickerItems />
+        </div>
+      </div>
     </>
   );
 }

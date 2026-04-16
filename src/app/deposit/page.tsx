@@ -139,23 +139,21 @@ export default function DepositPage() {
       .eq('user_id', authUser.id)
       .order('created_at', { ascending: false })
 
-    if (depHistory) {
-      const mapped: DepHistory[] = depHistory.map((d: any) => ({
-        id: d.id,
-        date: new Date(d.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        amount: d.amount,
-        fee: 0,
-        receive: d.amount,
-        network: d.network,
-        txnId: d.tx_hash,
-        status: d.status,
-        fee2: 0,
-        receive2: d.amount,
-        note: '',
-        reason: d.rejection_reason,
-        lockedUntil: d.locked_until || null,
-        unlockEmailSent: d.unlock_email_sent || false,
-      }))
+   if (depHistory) {
+  const mapped: DepHistory[] = depHistory.map((d: any) => ({
+    id: d.id,
+    date: new Date(d.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    amount: d.amount,
+    fee: 0,
+    receive: d.amount,
+    network: d.network || '—',
+    wallet: d.tx_hash || '—',   // ← was "txnId", now "wallet" to match DepHistory type
+    status: d.status,
+    note: '',
+    reason: d.rejection_reason,
+    lockedUntil: d.locked_until || null,
+    unlockEmailSent: d.unlock_email_sent || false,
+  }))
       setHistory(mapped)
       // Check unlock notifications after loading
       checkUnlockNotifications(mapped)

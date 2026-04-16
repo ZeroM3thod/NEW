@@ -104,9 +104,8 @@ export default function SeasonPage() {
           const myInv = myInvestments?.find(inv => inv.season_id === s.id)
           // ── FIX: Use current_pool from seasons table directly ──
           // (users can't see other users' investments due to RLS)
-          const poolCap     = Number(s.pool_cap) || 1000000
-          const currentPool = Number(s.current_pool) || 0
-          const actualFilled = Math.max(0, poolCap - currentPool)
+          const poolCap    = Number(s.pool_cap) || 1000000
+          const actualFilled = Number(s.current_pool) || 0
           return {
             id: s.id,
             name: s.name,

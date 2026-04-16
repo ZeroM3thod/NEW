@@ -1,0 +1,99 @@
+/* ═══════════════════════════════════════════════════════════════
+   VaultX Logo Override — Compact · Light
+   Import this ONCE in src/app/layout.tsx or globals.css
+
+   This file overrides ALL logo mark pseudo-elements across the
+   entire app to render the "VX" letterform instead of the
+   gold bar stack, matching the Compact · Light logo standard.
+═══════════════════════════════════════════════════════════════ */
+
+/* ── Shared helper: reset bar-stack and render VX ── */
+.logo-mark::after,
+.usr-logo-mark::after,
+.adm-sb-logo-mark::after,
+.logo-icon::after,
+.db-logo-mark::after,
+.dp-logo-mark::after,
+.wd-logo-mark::after,
+.pf-logo-mark::after,
+.rf-logo-mark::after,
+.sx-logo-mark::after,
+.sp-logo-mark::after {
+  /* Reset all bar-stack properties */
+  content: 'VX' !important;
+  width: auto !important;
+  height: auto !important;
+  background: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+
+  /* Position centred */
+  position: absolute !important;
+  top: 50% !important;
+  left: 50% !important;
+  bottom: auto !important;
+  transform: translate(-50%, -50%) !important;
+
+  /* Typography — Cormorant Garamond gold */
+  font-family: 'Cormorant Garamond', Georgia, 'Times New Roman', serif !important;
+  font-size: 12px !important;
+  font-weight: 600 !important;
+  color: #b8935a !important;
+  letter-spacing: 0.6px !important;
+  line-height: 1 !important;
+}
+
+/* ── Slightly smaller VX for 26-px topbar marks (mobile topbars) ── */
+.db-logo-mark[style*="26px"]::after,
+.dp-logo-mark[style*="26px"]::after,
+.wd-logo-mark[style*="26px"]::after,
+.pf-logo-mark[style*="26px"]::after,
+.rf-logo-mark[style*="26px"]::after,
+.sx-logo-mark[style*="26px"]::after,
+.sp-logo-mark[style*="26px"]::after,
+.usr-logo-mark[style*="26px"]::after {
+  font-size: 10px !important;
+  letter-spacing: 0.4px !important;
+}
+
+/* ── Admin badge mark ── */
+.adm-sb-logo-mark::after {
+  font-size: 11px !important;
+}
+
+/* ── Auth card logo-icon (larger 40px mark) ── */
+.logo-icon::after {
+  font-size: 13px !important;
+  letter-spacing: 0.7px !important;
+}
+
+/* ── Maintenance page (uses inline logo div) ── */
+/* .maint-logo-mark is defined below if you add the class */
+.maint-logo-mark::after {
+  content: 'VX' !important;
+  position: absolute !important;
+  top: 50% !important; left: 50% !important;
+  transform: translate(-50%, -50%) !important;
+  font-family: 'Cormorant Garamond', Georgia, serif !important;
+  font-size: 14px !important; font-weight: 600 !important;
+  color: #b8935a !important; letter-spacing: 0.7px !important;
+  line-height: 1 !important;
+  width: auto !important; height: auto !important;
+  background: none !important; box-shadow: none !important;
+}
+
+/* ── Ensure all marks have the correct base position ── */
+.logo-mark,
+.usr-logo-mark,
+.adm-sb-logo-mark,
+.logo-icon,
+.db-logo-mark,
+.dp-logo-mark,
+.wd-logo-mark,
+.pf-logo-mark,
+.rf-logo-mark,
+.sx-logo-mark,
+.sp-logo-mark {
+  position: relative !important;
+  overflow: visible !important;    /* allow text to breathe */
+}

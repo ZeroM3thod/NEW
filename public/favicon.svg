@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <rect width="32" height="32" rx="3" fill="#1c1c1c"/>
+  <rect x="2" y="2" width="28" height="28" rx="1.5" stroke="#b8935a" stroke-width="0.5" fill="none" opacity="0.55"/>
+  <text x="16" y="21" text-anchor="middle" font-family="Georgia, serif" font-size="13" font-weight="700" fill="#b8935a" letter-spacing="0.5">VX</text>
+  <rect x="8" y="26" width="16" height="1.2" rx="0.6" fill="#b8935a"/>
+</svg>

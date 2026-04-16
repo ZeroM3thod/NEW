@@ -104,7 +104,9 @@ export default function SeasonPage() {
           const myInv = myInvestments?.find(inv => inv.season_id === s.id)
           // ── FIX: Use current_pool from seasons table directly ──
           // (users can't see other users' investments due to RLS)
+          const poolCap     = Number(s.pool_cap) || 1000000
           const currentPool = Number(s.current_pool) || 0
+          const actualFilled = Math.max(0, poolCap - currentPool)
           return {
             id: s.id,
             name: s.name,
@@ -116,9 +118,9 @@ export default function SeasonPage() {
             endDate: new Date(s.end_date || Date.now() + 7 * 864e5),
             roi: s.roi_range || '',
             min: Number(s.min_entry) || 100,
-            max: Number(s.pool_cap) || 1000000,
-            pool: Number(s.pool_cap) || 1000000,
-            poolFilled: currentPool,
+            max: Number(s.max_entry) || 1000000,
+            pool: poolCap,
+            poolFilled: actualFilled,
             joined: !!myInv,
             myAmount: myInv ? Number(myInv.amount) : 0
           }

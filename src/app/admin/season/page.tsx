@@ -170,7 +170,7 @@ export default function AdminSeasonPage() {
             finalROI: Number(s.final_roi) || 0,
             pool: Number(s.pool_cap) || 0,
             min:  Number(s.min_entry) || 0,
-            max:  50000
+            max:  Number(s.max_entry) || 0,
           });
         } else {
           activeArr.push({
@@ -182,7 +182,7 @@ export default function AdminSeasonPage() {
             roi:      s.roi_range || '',
             pool: Number(s.pool_cap) || 0,
             min:  Number(s.min_entry) || 0,
-            max:  50000,
+            max:  Number(s.max_entry) || 0,
             status: s.status as any,
             poolFilled: actualPool,
             investors: investorCounts[s.id] || 0,

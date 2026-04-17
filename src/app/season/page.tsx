@@ -47,6 +47,20 @@ interface HistorySeason {
 
 function pad(n: number) { return String(n).padStart(2, '0') }
 
+function fmtShortDate(d: string) {
+  if (!d) return '—'
+  return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+
+function computePeriod(s: any): string {
+  if (s.period && s.period.trim()) return s.period.trim()
+  if (s.start_date && s.end_date) {
+    return `${fmtShortDate(s.start_date)} → ${fmtShortDate(s.end_date)}`
+  }
+  if (s.start_date) return `From ${fmtShortDate(s.start_date)}`
+  return '—'
+}
+
 export default function SeasonPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -107,7 +121,7 @@ export default function SeasonPage() {
             status: s.status,
             statusLabel: s.status === 'open' ? 'Now Open' : 'Running',
             statusClass: s.status === 'open' ? 'sx-tag-open' : 'sx-tag-ending',
-            period: s.period || '',
+            period: computePeriod(s),
             entryCloseDate: s.entry_close_date ? new Date(s.entry_close_date) : null,
             endDate: new Date(s.end_date || Date.now() + 7 * 864e5),
             roi: s.roi_range || '',
@@ -140,7 +154,7 @@ export default function SeasonPage() {
         return {
           id: s.id,
           name: s.name,
-          period: s.period || '',
+          period: computePeriod(s),          // ← FIXED: always compute from dates
           roi: roiStr,
           roiSign,
           finalRoi,
@@ -296,13 +310,11 @@ export default function SeasonPage() {
     if (amt > userProfile.balance){ showToast('⚠ Insufficient balance.'); return }
 
     try {
-      // 1. Insert investment record
       const { error: invError } = await supabase.from('investments').insert({
         user_id: userProfile.id, season_id: investId, amount: amt, status: 'active'
       })
       if (invError) throw invError
 
-      // 2. Deduct from user balance AND withdrawable_total (so withdraw page reflects correctly)
       const newBalance = userProfile.balance - amt
       const newWithdrawable = Math.max(0, (Number(userProfile.withdrawable_total) || 0) - amt)
       const { error: profileError } = await supabase.from('profiles').update({
@@ -312,21 +324,13 @@ export default function SeasonPage() {
       }).eq('id', userProfile.id)
       if (profileError) throw profileError
 
-      // 3. Update seasons.current_pool — try RPC first, then direct update as fallback
       const { error: poolError } = await supabase.rpc('increment_season_pool', {
         p_season_id: investId,
         p_amount: amt
       })
       if (poolError) {
-        // Fallback: direct update (works if Supabase RLS permits updates on seasons)
         const newPool = (s.poolFilled || 0) + amt
-        const { error: directErr } = await supabase
-          .from('seasons')
-          .update({ current_pool: newPool })
-          .eq('id', investId)
-        if (directErr) {
-          console.warn('Pool update failed (both RPC and direct):', directErr.message)
-        }
+        await supabase.from('seasons').update({ current_pool: newPool }).eq('id', investId)
       }
 
       setModalState('success')
@@ -343,7 +347,14 @@ export default function SeasonPage() {
   const myTotalInvested = userProfile?.invested_total || 0
   const myProfits       = userProfile?.profits_total  || 0
 
-  if (loading) return <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'var(--txt2)',background:'var(--cream)'}}>Loading Seasons...</div>
+  if (loading) return (
+    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'var(--txt2)',background:'var(--cream)'}}>
+      <div style={{textAlign:'center'}}>
+        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.4rem',color:'var(--gold)',marginBottom:8}}>Loading Seasons…</div>
+        <div style={{fontSize:'.75rem',color:'var(--txt3)',letterSpacing:'.08em'}}>Fetching your data</div>
+      </div>
+    </div>
+  )
 
   return (
     <>
@@ -367,7 +378,7 @@ export default function SeasonPage() {
           <div style={{maxWidth:1040,margin:'0 auto'}}>
 
             {/* PAGE HEADER */}
-            <div className='sx-reveal' style={{marginBottom:32,display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:14}}>
+            <div className='sx-reveal' style={{marginBottom:28,display:'flex',alignItems:'flex-start',justifyContent:'space-between',flexWrap:'wrap',gap:14}}>
               <div>
                 <span className='sx-sec-label'>Platform</span>
                 <h1 className='sx-sec-title'>Investment Seasons</h1>
@@ -378,7 +389,7 @@ export default function SeasonPage() {
             </div>
 
             {/* STATS STRIP */}
-            <div className='sx-reveal' style={{transitionDelay:'.04s',display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:2,border:'1px solid var(--border)',borderRadius:10,overflow:'hidden',marginBottom:36}}>
+            <div className='sx-reveal sx-stats-strip' style={{transitionDelay:'.04s',marginBottom:36}}>
               {[
                 {lbl:'Active Seasons',      val:<>{seasons.length}</>,                                                                 valStyle:{}},
                 {lbl:'My Total Invested',   val:<>${Number(myTotalInvested).toLocaleString()}</>,                                       valStyle:{color:'var(--gold)'}},
@@ -387,9 +398,9 @@ export default function SeasonPage() {
                   : <>{computedAvgRoi >= 0 ? '+' : ''}{computedAvgRoi}%</>,                                                            valStyle:{color: pnlColor(computedAvgRoi)}},
                 {lbl:'Total Profit / Loss', val:<>{fmtPnL(Number(myProfits))}</>,                                                       valStyle:{color: pnlColor(Number(myProfits))}},
               ].map((s,i) => (
-                <div key={i} style={{background:'var(--surface)',padding:'16px 18px',borderRight:i%2===0?'1px solid var(--border)':'none'}}>
-                  <div style={{fontSize:'.62rem',letterSpacing:'.12em',textTransform:'uppercase',color:'var(--text-sec)',marginBottom:4}}>{s.lbl}</div>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.6rem',fontWeight:400,lineHeight:1,...s.valStyle}}>{s.val}</div>
+                <div key={i} className='sx-stat-cell'>
+                  <div className='sx-stat-lbl'>{s.lbl}</div>
+                  <div className='sx-stat-val' style={s.valStyle}>{s.val}</div>
                 </div>
               ))}
             </div>
@@ -398,7 +409,7 @@ export default function SeasonPage() {
             <div className='sx-reveal' style={{transitionDelay:'.08s',marginBottom:14,display:'flex',alignItems:'center',justifyContent:'space-between',flexWrap:'wrap',gap:10}}>
               <div>
                 <span className='sx-sec-label'>Currently Running</span>
-                <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'clamp(1.2rem,3vw,1.7rem)',fontWeight:400,color:'var(--ink)'}}>Active Seasons</h2>
+                <h2 className='sx-hist-section-title'>Active Seasons</h2>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:6,fontSize:'.72rem',color:'var(--text-sec)'}}>
                 <span className='sx-live-dot'/>{seasons.length} season{seasons.length!==1?'s':''} live
@@ -436,7 +447,7 @@ export default function SeasonPage() {
                         </div>
                         <div style={{textAlign:'right'}}>
                           <div style={{fontSize:'.62rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-sec)',marginBottom:3}}>Period</div>
-                          <div style={{fontSize:'.82rem',color:'var(--ink)',fontWeight:500}}>{s.period}</div>
+                          <div style={{fontSize:'.78rem',color:'var(--ink)',fontWeight:500,maxWidth:160,textAlign:'right',lineHeight:1.4}}>{s.period}</div>
                         </div>
                       </div>
 
@@ -485,18 +496,18 @@ export default function SeasonPage() {
             {/* HISTORY HEADER */}
             <div className='sx-reveal' style={{transitionDelay:'.16s',marginBottom:20}}>
               <span className='sx-sec-label'>Record</span>
-              <h2 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'clamp(1.2rem,3vw,1.7rem)',fontWeight:400,color:'var(--ink)',marginBottom:18}}>
+              <h2 className='sx-hist-section-title' style={{marginBottom:18}}>
                 All Seasons &amp; History
               </h2>
               <div className='sx-tabs'>
-                {([['all','All Seasons'],['active','Active'],['completed','Completed'],['mine','My Investments']] as [string,string][]).map(([key,lbl]) => (
+                {([['all','All'],['active','Active'],['completed','Completed'],['mine','My Investments']] as [string,string][]).map(([key,lbl]) => (
                   <button key={key} className={`sx-tab${histTab===key?' active':''}`} onClick={() => setHistTab(key as typeof histTab)}>{lbl}</button>
                 ))}
               </div>
             </div>
 
-            {/* HISTORY TABLE */}
-            <div className='sx-hist-wrap sx-reveal' style={{transitionDelay:'.2s'}}>
+            {/* DESKTOP HISTORY TABLE */}
+            <div className='sx-hist-wrap sx-reveal sx-hist-desktop' style={{transitionDelay:'.2s'}}>
               <table className='sx-htbl'>
                 <thead>
                   <tr><th>Season</th><th>Period</th><th>ROI</th><th>My Investment</th><th>My Profit / Loss</th><th>Status</th><th>Action</th></tr>
@@ -507,7 +518,16 @@ export default function SeasonPage() {
                   ) : filteredHistory.map(r => (
                     <tr key={r.id}>
                       <td><div className='sx-td-sname'>{r.name}</div></td>
-                      <td><div className='sx-td-period'>{r.period}</div></td>
+                      <td>
+                        <div style={{fontSize:'.75rem',color:'var(--ink)',lineHeight:1.45}}>
+                          {r.period !== '—' ? r.period.split('→').map((part, i) => (
+                            <span key={i}>
+                              {i > 0 && <span style={{color:'var(--gold)',margin:'0 4px'}}>→</span>}
+                              {part.trim()}
+                            </span>
+                          )) : '—'}
+                        </div>
+                      </td>
                       <td>
                         <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'.95rem',fontWeight:500,color: r.roiSign==='+'?'var(--sage)':r.roiSign==='-'?'#b05252':'var(--text-sec)'}}>
                           {r.roi}
@@ -551,6 +571,71 @@ export default function SeasonPage() {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* MOBILE HISTORY CARDS */}
+            <div className='sx-hist-mobile sx-reveal' style={{transitionDelay:'.2s'}}>
+              {filteredHistory.length === 0 ? (
+                <div style={{textAlign:'center',padding:'32px 20px',color:'var(--text-sec)',fontSize:'.82rem',background:'var(--surface)',border:'1px solid var(--border)',borderRadius:10}}>
+                  No records found.
+                </div>
+              ) : filteredHistory.map(r => (
+                <div key={r.id} className='sx-hist-card'>
+                  {/* Card Header */}
+                  <div className='sx-hist-card-head'>
+                    <div style={{display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.05rem',fontWeight:500,color:'var(--ink)'}}>{r.name}</div>
+                      {r.mySeasonId && <span className='sx-my-tag'>mine</span>}
+                    </div>
+                    <div>
+                      {r.dbStatus === 'closed' ? (
+                        <span className='sx-tag sx-tag-done'>Closed</span>
+                      ) : r.dbStatus === 'running' ? (
+                        <span className='sx-tag sx-tag-ending'>Running</span>
+                      ) : (
+                        <span className='sx-tag sx-tag-open'>Open</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Period row */}
+                  <div className='sx-hist-card-period'>
+                    <svg width="11" height="11" fill="none" stroke="var(--gold)" strokeWidth="1.8" viewBox="0 0 24 24" style={{flexShrink:0,marginTop:1}}>
+                      <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                    <span>{r.period}</span>
+                  </div>
+
+                  {/* Stats grid */}
+                  <div className='sx-hist-card-grid'>
+                    <div className='sx-hist-card-cell'>
+                      <div className='sx-hist-card-label'>ROI</div>
+                      <div className='sx-hist-card-value' style={{color: r.roiSign==='+'?'var(--sage)':r.roiSign==='-'?'#b05252':'var(--text-sec)'}}>
+                        {r.roi}
+                      </div>
+                    </div>
+                    <div className='sx-hist-card-cell'>
+                      <div className='sx-hist-card-label'>My Investment</div>
+                      <div className='sx-hist-card-value' style={{color:'var(--ink)'}}>{r.myInv}</div>
+                    </div>
+                    <div className='sx-hist-card-cell' style={{gridColumn:'span 2'}}>
+                      <div className='sx-hist-card-label'>My Profit / Loss</div>
+                      <div className='sx-hist-card-value' style={{color: r.plSign==='+'?'var(--sage)':r.plSign==='-'?'#b05252':'var(--text-sec)'}}>
+                        {r.myPL}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Action */}
+                  {r.dbStatus === 'open' && !r.mySeasonId && (
+                    <div style={{paddingTop:12,borderTop:'1px solid var(--border)'}}>
+                      <button className='sx-btn-sage' style={{width:'100%',textAlign:'center',fontSize:'.72rem',padding:'10px'}} onClick={() => openInvest(r.id)}>
+                        Invest Now →
+                      </button>
+                    </div>
+                  )}
+                </div>
+              ))}
             </div>
 
           </div>

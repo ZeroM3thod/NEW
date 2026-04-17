@@ -1,265 +1,230 @@
-/* ═══════════════════════════════════════════════════════════════════
-   VAULTX LOADER — COMPLETE INTEGRATION GUIDE
-   ═══════════════════════════════════════════════════════════════════
+Looking at the two bugs:
 
-   STEP 1 ── Save the component
-   ────────────────────────────
-   Copy VaultXLoader.tsx  →  src/components/VaultXLoader.tsx
+**Bug 1:** User's `submitWithdrawal` deducts `balance` + `withdrawable_total`. Admin's `doApprove` then deducts `balance` a second time. `doReject` only restores `withdrawable_total` but never `balance`. Fix: submission deducts `withdrawable_total` only; admin approval deducts `balance`; rejection (already correct) restores `withdrawable_total`.
 
+**Bug 2:** `doConfirm` blindly sets `withdrawable_total = newBalance`, ignoring any active locks. Fix: query remaining locked amounts and subtract them.
 
-   STEP 2 ── Update each page as shown below
-   ══════════════════════════════════════════════════════════════════ */
+---
 
+### Fix 1 — `src/app/withdraw/page.tsx`
 
-/* ──────────────────────────────────────────────────────────────────
-   src/app/page.tsx  (Home page)
-   ────────────────────────────────────────────────────────────────── */
+Two targeted changes: the `effectiveWithdrawable` computation and the `submitWithdrawal` function.Here are the complete fixes as direct replacements:
 
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
+---
 
-// WRAP content — return becomes:
-export default function HomePage() {
-  return (
-    <>
-      <VaultXLoader pageName="Home" />   {/* ← ADD */}
-      <ScrollRevealInit />
-      <BgCanvas />
-      <Navbar />
-      <main>...</main>
-      <Footer />
-    </>
-  );
+### Fix 1 — `src/app/withdraw/page.tsx`
+
+**Change A** — `effectiveWithdrawable` (find and replace these two lines near the bottom of the component, just before `return`):
+
+```typescript
+// ── BEFORE ──
+const currentBalance        = Number(userProfile?.balance) || 0
+const effectiveWithdrawable = Math.max(0, currentBalance - lockedAmount)
+
+// ── AFTER ──
+const currentBalance        = Number(userProfile?.balance)           || 0
+const withdrawableTotal     = Number(userProfile?.withdrawable_total) || 0
+// Base withdrawable on withdrawable_total (which already excludes pending
+// withdrawal requests), then subtract any still-locked deposit amounts.
+const effectiveWithdrawable = Math.max(0, withdrawableTotal - lockedAmount)
+```
+
+**Change B** — `submitWithdrawal` function (replace the entire function):
+
+```typescript
+const submitWithdrawal = async () => {
+  if (!confirmDetails || !userProfile) return
+  try {
+    const { error } = await supabase.from('withdrawals').insert({
+      user_id: userProfile.id,
+      amount:  confirmDetails.amt,
+      address: confirmDetails.addr,
+      network: 'BEP-20',
+      status:  'pending'
+    })
+    if (error) throw error
+
+    // ── Only deduct withdrawable_total on submission ──────────────────────
+    // `balance` is NOT touched here. It will be deducted by the admin only
+    // when the withdrawal is approved, eliminating the double-deduction bug.
+    // If the admin rejects the request, withdrawable_total is restored by
+    // doReject() in the admin page (no balance change needed there either).
+    const newWithdrawable = Math.max(
+      0,
+      (Number(userProfile.withdrawable_total) || 0) - confirmDetails.amt
+    )
+    const { error: profError } = await supabase
+      .from('profiles')
+      .update({ withdrawable_total: newWithdrawable })
+      .eq('id', userProfile.id)
+
+    if (profError) throw profError
+
+    showToast('Withdrawal submitted · Pending admin approval')
+    fetchData()
+    setConfirmOpen(false)
+    setWdAmt(''); setWdAddr(''); setWdNote('')
+    setFsReq('—'); setFsRecv('—'); setSelectedChip(null)
+  } catch (err: any) {
+    showToast(`⚠ Error: ${err.message || 'Submission failed'}`)
+  }
 }
+```
 
+> **`src/app/admin/withdraw/page.tsx` needs no changes.** With the fix above, `doApprove` (which only deducts `balance`) is now the sole balance deduction point — correct. `doReject` (which only restores `withdrawable_total`) is also now correct — it undoes exactly what submission did.
 
-/* ──────────────────────────────────────────────────────────────────
-   src/app/dashboard/page.tsx
-   ────────────────────────────────────────────────────────────────── */
+---
 
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
+### Fix 2 — `src/app/admin/deposit/page.tsx`
 
-// FIND and DELETE this block entirely:
-//   if (loading) {
-//     return <div className='db-layout' style={{display:'flex',...}}>
-//              Loading Dashboard…
-//            </div>
-//   }
+Replace the `doConfirm` function and the per-deposit loop inside `confirmAllPending`:
 
-// In the return statement, add as FIRST child:
-return (
-  <>
-    {loading && <VaultXLoader pageName="Dashboard" />}   {/* ← ADD */}
-    <Script ... />
-    <canvas ref={bgCanvasRef} ... />
-    {/* ...rest unchanged... */}
-  </>
-);
+**`doConfirm` function (full replacement):**
 
+```typescript
+const doConfirm = async (id: string) => {
+  const d = deposits.find(x => x.id === id)
+  if (!d) return
 
-/* ──────────────────────────────────────────────────────────────────
-   src/app/deposit/page.tsx
-   ────────────────────────────────────────────────────────────────── */
+  // 1. Mark the deposit as approved
+  const { error: depError } = await supabase
+    .from('deposits')
+    .update({ status: 'approved' })
+    .eq('id', id)
+  if (depError) { showToast('✕ Error confirming deposit', 'err'); return }
 
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
+  // 2. Fetch the user's current balance
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('balance')
+    .eq('id', d.userId)
+    .single()
 
-// FIND and DELETE this block:
-//   if (loading) return (
-//     <div style={{display:'flex',alignItems:'center',...}}>
-//       Loading...
-//     </div>
-//   )
+  const newBalance = (Number(profile?.balance) || 0) + d.amt
 
-// In return statement, add as FIRST child:
-return (
-  <>
-    {loading && <VaultXLoader pageName="Deposit" />}   {/* ← ADD */}
-    <canvas ref={bgRef} ... />
-    {/* ...rest unchanged... */}
-  </>
-);
+  // 3. Determine how much of the NEW balance is still locked ─────────────
+  //    a) Check whether THIS deposit's own lock window is still active.
+  //       (The 5-min timer starts when the user submits, not when admin approves.)
+  const now = new Date().toISOString()
+  const { data: thisDeposit } = await supabase
+    .from('deposits')
+    .select('locked_until')
+    .eq('id', id)
+    .single()
 
+  const thisDepositStillLocked =
+    thisDeposit?.locked_until && thisDeposit.locked_until > now
+  const thisDepositLockedAmt = thisDepositStillLocked ? d.amt : 0
 
-/* ──────────────────────────────────────────────────────────────────
-   src/app/withdraw/page.tsx
-   ────────────────────────────────────────────────────────────────── */
+  //    b) Any OTHER approved deposits for this user that are still locked.
+  const { data: otherLocked } = await supabase
+    .from('deposits')
+    .select('amount')
+    .eq('user_id', d.userId)
+    .eq('status', 'approved')
+    .gt('locked_until', now)
+    .neq('id', id)
 
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
+  const otherLockedTotal = (otherLocked || []).reduce(
+    (sum, dep) => sum + Number(dep.amount),
+    0
+  )
 
-// FIND and DELETE:
-//   if (loading) return (
-//     <div style={{...}}>Loading...</div>
-//   )
+  // 4. withdrawable = newBalance minus everything that is still locked
+  const totalLocked    = thisDepositLockedAmt + otherLockedTotal
+  const newWithdrawable = Math.max(0, newBalance - totalLocked)
 
-// In return statement, add as FIRST child:
-return (
-  <>
-    {loading && <VaultXLoader pageName="Withdraw" />}   {/* ← ADD */}
-    <canvas ref={bgRef} ... />
-    {/* ...rest unchanged... */}
-  </>
-);
+  const { error: profError } = await supabase
+    .from('profiles')
+    .update({
+      balance:            newBalance,
+      withdrawable_total: newWithdrawable,
+    })
+    .eq('id', d.userId)
 
+  if (profError) {
+    showToast('✕ Error updating balance', 'err')
+  } else {
+    showToast(`✓ DEP ${id} confirmed — $${d.amt.toLocaleString()} USDT`, 'ok')
+    fetchData()
+  }
+  closeModal()
+}
+```
 
-/* ──────────────────────────────────────────────────────────────────
-   src/app/season/page.tsx
-   ────────────────────────────────────────────────────────────────── */
+**`confirmAllPending` function (full replacement):**
 
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
+```typescript
+const confirmAllPending = async () => {
+  const rows = getFiltered().filter(d => d.status === 'pending')
+  if (!rows.length) { showToast('No pending deposits in current view.'); return }
+  const total = rows.reduce((s, d) => s + d.amt, 0)
+  if (!confirm(`Confirm all ${rows.length} pending deposits? Total: $${total.toLocaleString()}`)) return
 
-// FIND and DELETE this block:
-//   if (loading) return (
-//     <div style={{...}}>
-//       <div style={{textAlign:'center'}}>
-//         <div style={{...}}>Loading Seasons…</div>
-//         <div style={{...}}>Fetching your data</div>
-//       </div>
-//     </div>
-//   )
+  const now = new Date().toISOString()
 
-// In return statement, add as FIRST child:
-return (
-  <>
-    {loading && <VaultXLoader pageName="Seasons" />}   {/* ← ADD */}
-    <canvas ref={bgRef} ... />
-    {/* ...rest unchanged... */}
-  </>
-);
+  for (const d of rows) {
+    // Approve the deposit row
+    await supabase.from('deposits').update({ status: 'approved' }).eq('id', d.id)
 
+    // Fetch current balance
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('balance')
+      .eq('id', d.userId)
+      .single()
 
-/* ──────────────────────────────────────────────────────────────────
-   src/app/profile/page.tsx
-   ────────────────────────────────────────────────────────────────── */
+    const newBalance = (Number(profile?.balance) || 0) + d.amt
 
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
+    // Check this deposit's own lock
+    const { data: thisDeposit } = await supabase
+      .from('deposits')
+      .select('locked_until')
+      .eq('id', d.id)
+      .single()
 
-// ADD loading state (after existing state declarations):
-const [loading, setLoading] = useState(true);
+    const thisDepositStillLocked =
+      thisDeposit?.locked_until && thisDeposit.locked_until > now
+    const thisDepositLockedAmt = thisDepositStillLocked ? d.amt : 0
 
-// In fetchData useEffect, set loading=false at the end:
-//   } finally {
-//     setLoading(false);    ← ADD
-//   }
+    // Check other still-locked approved deposits for the same user
+    const { data: otherLocked } = await supabase
+      .from('deposits')
+      .select('amount')
+      .eq('user_id', d.userId)
+      .eq('status', 'approved')
+      .gt('locked_until', now)
+      .neq('id', d.id)
 
-// In return statement, add as FIRST child:
-return (
-  <>
-    {loading && <VaultXLoader pageName="Profile" />}   {/* ← ADD */}
-    <canvas ref={bgRef} ... />
-    {/* ...rest unchanged... */}
-  </>
-);
+    const otherLockedTotal = (otherLocked || []).reduce(
+      (sum, dep) => sum + Number(dep.amount),
+      0
+    )
 
+    const totalLocked     = thisDepositLockedAmt + otherLockedTotal
+    const newWithdrawable = Math.max(0, newBalance - totalLocked)
 
-/* ──────────────────────────────────────────────────────────────────
-   src/app/referral/page.tsx
-   ────────────────────────────────────────────────────────────────── */
+    await supabase
+      .from('profiles')
+      .update({
+        balance:            newBalance,
+        withdrawable_total: newWithdrawable,
+      })
+      .eq('id', d.userId)
+  }
 
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
+  showToast(`✓ ${rows.length} deposits confirmed!`, 'ok')
+  fetchData()
+}
+```
 
-// FIND and DELETE:
-//   if (loading) return (
-//     <div style={{...}}>Loading...</div>
-//   )
+---
 
-// In return statement, add as FIRST child:
-return (
-  <>
-    {loading && <VaultXLoader pageName="Referral" />}   {/* ← ADD */}
-    <div className={`rf-toast...`}>{toastMsg}</div>
-    {/* ...rest unchanged... */}
-  </>
-);
+**Summary of what each fix does:**
 
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/support/page.tsx  (no existing loader)
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
-
-// ADD loading state after existing state declarations:
-const [pageLoading, setPageLoading] = useState(true);
-
-// In the existing fetchProfile useEffect, set it false after fetch:
-//   useEffect(() => {
-//     async function fetchProfile() {
-//       ...
-//       setProfile(data);
-//       setPageLoading(false);   ← ADD
-//     }
-//     fetchProfile();
-//   }, [supabase]);
-
-// In return statement, add as FIRST child:
-return (
-  <>
-    {pageLoading && <VaultXLoader pageName="Support" />}   {/* ← ADD */}
-    <div className={`sp-toast...`}>{toastMsg}</div>
-    {/* ...rest unchanged... */}
-  </>
-);
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/admin/dashboard/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
-
-// In return statement, add as FIRST child:
-return (
-  <>
-    <VaultXLoader pageName="Admin · Dashboard" />   {/* ← ADD (shows once on mount) */}
-    <canvas ref={bgCanvasRef} ... />
-    {/* ...rest unchanged... */}
-  </>
-);
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/admin/user/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import, then in return:
-//   {loading && <VaultXLoader pageName="Admin · Users" />}
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/admin/season/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import, then in return:
-//   {loading && <VaultXLoader pageName="Admin · Seasons" />}
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/admin/deposit/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import, then in return:
-//   {loading && <VaultXLoader pageName="Admin · Deposits" />}
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/admin/withdraw/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import, then in return:
-//   {loading && <VaultXLoader pageName="Admin · Withdrawals" />}
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/admin/transaction/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import, then in return:
-//   {loading && <VaultXLoader pageName="Admin · Transactions" />}
+| | Before | After |
+|---|---|---|
+| User submits withdrawal | Deducts `balance` + `withdrawable_total` | Deducts `withdrawable_total` only |
+| Admin approves withdrawal | Deducts `balance` again (double-spend) | Deducts `balance` (single, correct) |
+| Admin rejects withdrawal | Restores `withdrawable_total`, `balance` stays wrong | Restores `withdrawable_total` (correct, balance was never touched) |
+| Admin approves deposit | Sets `withdrawable_total = full newBalance` (ignores locks) | Sets `withdrawable_total = newBalance − still-locked amounts` |

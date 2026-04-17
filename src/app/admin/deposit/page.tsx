@@ -179,27 +179,73 @@ export default function AdminDepositPage() {
   const closeModal = () => { setModalOpen(false); setModalMode(null); };
 
   const doConfirm = async (id: string) => {
-    const d = deposits.find(x => x.id===id);
-    if (!d) return;
+    const d = deposits.find(x => x.id === id)
+    if (!d) return
 
-    const { error: depError } = await supabase.from('deposits').update({ status: 'approved' }).eq('id', id);
-    if (depError) { showToast('✕ Error confirming deposit', 'err'); return; }
+    // 1. Mark the deposit as approved
+    const { error: depError } = await supabase
+      .from('deposits')
+      .update({ status: 'approved' })
+      .eq('id', id)
+    if (depError) { showToast('✕ Error confirming deposit', 'err'); return }
 
-    const { data: profile } = await supabase.from('profiles').select('balance').eq('id', d.userId).single();
-    const newBalance = (Number(profile?.balance) || 0) + d.amt;
-    const { error: profError } = await supabase.from('profiles').update({ 
-      balance: newBalance,
-      withdrawable_total: newBalance  // no more locked deposits
-    }).eq('id', d.userId);
-    
+    // 2. Fetch the user's current balance
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('balance')
+      .eq('id', d.userId)
+      .single()
+
+    const newBalance = (Number(profile?.balance) || 0) + d.amt
+
+    // 3. Determine how much of the NEW balance is still locked ─────────────
+    //    a) Check whether THIS deposit's own lock window is still active.
+    //       (The 5-min timer starts when the user submits, not when admin approves.)
+    const now = new Date().toISOString()
+    const { data: thisDeposit } = await supabase
+      .from('deposits')
+      .select('locked_until')
+      .eq('id', id)
+      .single()
+
+    const thisDepositStillLocked =
+      thisDeposit?.locked_until && thisDeposit.locked_until > now
+    const thisDepositLockedAmt = thisDepositStillLocked ? d.amt : 0
+
+    //    b) Any OTHER approved deposits for this user that are still locked.
+    const { data: otherLocked } = await supabase
+      .from('deposits')
+      .select('amount')
+      .eq('user_id', d.userId)
+      .eq('status', 'approved')
+      .gt('locked_until', now)
+      .neq('id', id)
+
+    const otherLockedTotal = (otherLocked || []).reduce(
+      (sum, dep) => sum + Number(dep.amount),
+      0
+    )
+
+    // 4. withdrawable = newBalance minus everything that is still locked
+    const totalLocked    = thisDepositLockedAmt + otherLockedTotal
+    const newWithdrawable = Math.max(0, newBalance - totalLocked)
+
+    const { error: profError } = await supabase
+      .from('profiles')
+      .update({
+        balance:            newBalance,
+        withdrawable_total: newWithdrawable,
+      })
+      .eq('id', d.userId)
+
     if (profError) {
-      showToast('✕ Error updating balance', 'err');
+      showToast('✕ Error updating balance', 'err')
     } else {
-      showToast(`✓ DEP ${id} confirmed — $${d.amt.toLocaleString()} USDT`, 'ok');
-      fetchData();
+      showToast(`✓ DEP ${id} confirmed — $${d.amt.toLocaleString()} USDT`, 'ok')
+      fetchData()
     }
-    closeModal();
-  };
+    closeModal()
+  }
 
   const doReject = async (id: string) => {
     if (!rejReason.trim() || rejReason.trim().length < 5) {
@@ -217,24 +263,66 @@ export default function AdminDepositPage() {
   };
 
   const confirmAllPending = async () => {
-    const rows = getFiltered().filter(d => d.status === 'pending');
-    if (!rows.length) { showToast('No pending deposits in current view.'); return; }
-    const total = rows.reduce((s,d) => s+d.amt, 0);
-    if (!confirm(`Confirm all ${rows.length} pending deposits? Total: $${total.toLocaleString()}`)) return;
-    
+    const rows = getFiltered().filter(d => d.status === 'pending')
+    if (!rows.length) { showToast('No pending deposits in current view.'); return }
+    const total = rows.reduce((s, d) => s + d.amt, 0)
+    if (!confirm(`Confirm all ${rows.length} pending deposits? Total: $${total.toLocaleString()}`)) return
+
+    const now = new Date().toISOString()
+
     for (const d of rows) {
-      await supabase.from('deposits').update({ status: 'approved' }).eq('id', d.id);
-      const { data: profile } = await supabase.from('profiles').select('balance').eq('id', d.userId).single();
-      const newBalance = (Number(profile?.balance) || 0) + d.amt;
-      await supabase.from('profiles').update({ 
-        balance: newBalance,
-        withdrawable_total: newBalance  // no more locked deposits
-      }).eq('id', d.userId);
+      // Approve the deposit row
+      await supabase.from('deposits').update({ status: 'approved' }).eq('id', d.id)
+
+      // Fetch current balance
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('balance')
+        .eq('id', d.userId)
+        .single()
+
+      const newBalance = (Number(profile?.balance) || 0) + d.amt
+
+      // Check this deposit's own lock
+      const { data: thisDeposit } = await supabase
+        .from('deposits')
+        .select('locked_until')
+        .eq('id', d.id)
+        .single()
+
+      const thisDepositStillLocked =
+        thisDeposit?.locked_until && thisDeposit.locked_until > now
+      const thisDepositLockedAmt = thisDepositStillLocked ? d.amt : 0
+
+      // Check other still-locked approved deposits for the same user
+      const { data: otherLocked } = await supabase
+        .from('deposits')
+        .select('amount')
+        .eq('user_id', d.userId)
+        .eq('status', 'approved')
+        .gt('locked_until', now)
+        .neq('id', d.id)
+
+      const otherLockedTotal = (otherLocked || []).reduce(
+        (sum, dep) => sum + Number(dep.amount),
+        0
+      )
+
+      const totalLocked     = thisDepositLockedAmt + otherLockedTotal
+      const newWithdrawable = Math.max(0, newBalance - totalLocked)
+
+      await supabase
+        .from('profiles')
+        .update({
+          balance:            newBalance,
+          withdrawable_total: newWithdrawable,
+        })
+        .eq('id', d.userId)
     }
 
-    showToast(`✓ ${rows.length} deposits confirmed!`, 'ok');
-    fetchData();
-  };
+    showToast(`✓ ${rows.length} deposits confirmed!`, 'ok')
+    fetchData()
+  }
 
   const copyTxt = (t: string) => { navigator.clipboard?.writeText(t).catch(() => {}); showToast('📋 Copied to clipboard!'); };
 

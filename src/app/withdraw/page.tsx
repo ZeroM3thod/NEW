@@ -222,10 +222,11 @@ export default function WithdrawPage() {
     return () => document.removeEventListener('keydown', h)
   }, [])
 
-  // ── FIXED: Use `balance` (actual current balance after investing) not `withdrawable_total`
-  // balance is always reduced when investing, so it correctly reflects what's left
-  const currentBalance = Number(userProfile?.balance) || 0
-  const effectiveWithdrawable = Math.max(0, currentBalance - lockedAmount)
+  // ── FIXED: Use `withdrawable_total` (which already excludes pending
+  // withdrawal requests), then subtract any still-locked deposit amounts.
+  const currentBalance        = Number(userProfile?.balance)           || 0
+  const withdrawableTotal     = Number(userProfile?.withdrawable_total) || 0
+  const effectiveWithdrawable = Math.max(0, withdrawableTotal - lockedAmount)
 
   const onAmtChange = (v: string) => {
     setWdAmt(v)
@@ -265,22 +266,25 @@ export default function WithdrawPage() {
     try {
       const { error } = await supabase.from('withdrawals').insert({
         user_id: userProfile.id,
-        amount: confirmDetails.amt,
+        amount:  confirmDetails.amt,
         address: confirmDetails.addr,
         network: 'BEP-20',
-        status: 'pending'
+        status:  'pending'
       })
       if (error) throw error
 
-      // Deduct from both balance and withdrawable_total to keep them in sync
-      const newBalance = currentBalance - confirmDetails.amt
-      const newWithdrawable = Math.max(0, (Number(userProfile.withdrawable_total) || 0) - confirmDetails.amt)
+      // ── Only deduct withdrawable_total on submission ──────────────────────
+      // `balance` is NOT touched here. It will be deducted by the admin only
+      // when the withdrawal is approved, eliminating the double-deduction bug.
+      // If the admin rejects the request, withdrawable_total is restored by
+      // doReject() in the admin page (no balance change needed there either).
+      const newWithdrawable = Math.max(
+        0,
+        (Number(userProfile.withdrawable_total) || 0) - confirmDetails.amt
+      )
       const { error: profError } = await supabase
         .from('profiles')
-        .update({
-          balance: newBalance,
-          withdrawable_total: newWithdrawable,
-        })
+        .update({ withdrawable_total: newWithdrawable })
         .eq('id', userProfile.id)
 
       if (profError) throw profError
@@ -288,7 +292,8 @@ export default function WithdrawPage() {
       showToast('Withdrawal submitted · Pending admin approval')
       fetchData()
       setConfirmOpen(false)
-      setWdAmt(''); setWdAddr(''); setWdNote(''); setFsReq('—'); setFsRecv('—'); setSelectedChip(null)
+      setWdAmt(''); setWdAddr(''); setWdNote('')
+      setFsReq('—'); setFsRecv('—'); setSelectedChip(null)
     } catch (err: any) {
       showToast(`⚠ Error: ${err.message || 'Submission failed'}`)
     }

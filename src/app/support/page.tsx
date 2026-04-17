@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import UserSidebar from '@/components/UserSidebar';
 import { createClient } from '@/utils/supabase/client';
+import VaultXLoader from '@/components/VaultXLoader';
 
 interface Ticket { id:string;subject:string;category:string;priority:string;date:string;status:'open'|'pending'|'closed' }
 
@@ -44,6 +45,7 @@ export default function SupportPage() {
   const [faqSearch, setFaqSearch] = useState('');
   const [openFaq, setOpenFaq] = useState<number|null>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [pageLoading, setPageLoading] = useState(true);
   const [tickets, setTickets] = useState<Ticket[]>(INIT_TICKETS);
   
   const [fCategory, setFCategory] = useState('');
@@ -81,6 +83,7 @@ export default function SupportPage() {
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         setProfile(data);
       }
+      setPageLoading(false);
     }
     fetchProfile();
   }, [supabase]);
@@ -110,6 +113,7 @@ export default function SupportPage() {
 
   return (
     <>
+      {pageLoading && <VaultXLoader pageName="Support" />}
       <div className={`sp-toast${toastShow ? ' show' : ''}${toastCls ? ' ' + toastCls : ''}`}>
         {toastMsg}
       </div>

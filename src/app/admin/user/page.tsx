@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminSidebar from '../AdminSidebar';
 import { createClient } from '@/utils/supabase/client';
+import VaultXLoader from '@/components/VaultXLoader';
 
 /* ══════════════════════════════
    HELPERS
@@ -209,7 +210,6 @@ export default function AdminUserPage() {
       first_name: firstName,
       last_name: lastName,
       username: formState.username,
-      email: formState.email,
       phone_number: formState.phone,
       country: formState.country,
       balance: formState.balance,
@@ -322,6 +322,7 @@ export default function AdminUserPage() {
 
   return (
     <>
+      {loading && <VaultXLoader pageName="Admin · Users" />}
       <canvas ref={bgCanvasRef} style={{ position:'fixed', inset:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:0, opacity:.04 }} />
       <div className={`adm-toast${toastShow?' show':''}${toastType?' '+toastType:''}`}>{toastMsg}</div>
       <div className={`adm-sb-overlay${sidebarOpen?' show':''}`} onClick={() => setSidebarOpen(false)} />

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import Script from 'next/script'
 import UserSidebar from '@/components/UserSidebar'
 import { createClient } from '@/utils/supabase/client'
+import VaultXLoader from '@/components/VaultXLoader'
 
 declare global {
   interface Window { Chart: any }
@@ -301,10 +302,6 @@ export default function DashboardPage() {
     navigator.clipboard?.writeText(code).then(() => showToast('Referral code copied')).catch(() => showToast('Copy failed'))
   }
 
-  if (loading) {
-    return <div className='db-layout' style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'var(--txt2)',background:'var(--cream)'}}>Loading Dashboard…</div>
-  }
-
   const balance        = Number(profile?.balance)        || 0
   const investedTotal  = Number(profile?.invested_total) || 0
   const withdrawable   = balance
@@ -330,6 +327,7 @@ export default function DashboardPage() {
 
   return (
     <>
+      {loading && <VaultXLoader pageName="Dashboard" />}
       <Script src='https://cdn.jsdelivr.net/npm/chart.js' onReady={() => setChartReady(true)} />
       <canvas ref={bgCanvasRef} style={{position:'fixed',inset:0,zIndex:0,pointerEvents:'none',opacity:.055,width:'100%',height:'100%'}}/>
       <div className={`db-toast${toastShow?' show':''}`}>{toastMsg}</div>

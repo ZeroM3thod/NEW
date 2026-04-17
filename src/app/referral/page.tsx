@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
 import { createClient } from '@/utils/supabase/client'
+import VaultXLoader from '@/components/VaultXLoader'
 
 const PER_PAGE = 10
 
@@ -190,12 +191,6 @@ export default function ReferralPage() {
     <span className={`rf-badge rf-b-${status}`}>{status}</span>
   )
 
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--txt2)', background: 'var(--cream)' }}>
-      Loading...
-    </div>
-  )
-
   // ✅ Totals from actual profits
   const totalComm = referrals.reduce((sum, r) => sum + r.comm, 0)
   const totalProfit = referrals.reduce((sum, r) => sum + r.profit, 0)
@@ -207,6 +202,7 @@ export default function ReferralPage() {
 
   return (
     <>
+      {loading && <VaultXLoader pageName="Referral" />}
       <div className={`rf-toast${toastShow ? ' show' : ''}${toastCls ? ' ' + toastCls : ''}`}>{toastMsg}</div>
 
       <UserSidebar open={sidebarOpen} onClose={() => { setSidebarOpen(false); setHamOpen(false) }} />

@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useRef, useState, useCallback } from 'react';
 import AdminSidebar from '../AdminSidebar';
+import VaultXLoader from '@/components/VaultXLoader';
 import { createClient } from '@/utils/supabase/client';
 
 /* ══════════════════════════════
@@ -494,6 +495,7 @@ export default function AdminSeasonPage() {
 
   return (
     <>
+      {loading && <VaultXLoader pageName="Admin · Seasons" />}
       <canvas ref={bgRef} style={{ position:'fixed', inset:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:0, opacity:.04 }} />
 
       {/* Toast */}

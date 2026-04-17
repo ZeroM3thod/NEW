@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
+import VaultXLoader from '@/components/VaultXLoader'
 import { createClient } from '@/utils/supabase/client'
 
 const COUNTRY_CODES = [
@@ -302,6 +303,7 @@ export default function ProfilePage() {
 
   return (
     <>
+      {loading && <VaultXLoader pageName="Profile" />}
       <canvas ref={bgRef} style={{position:'fixed',inset:0,zIndex:0,pointerEvents:'none',opacity:.055,width:'100%',height:'100%'}}/>
       <div className={`pf-toast${toastShow?' show':''}${toastCls?' '+toastCls:''}`}>{toastMsg}</div>
       <UserSidebar open={sidebarOpen} onClose={()=>setSidebarOpen(false)}/>

@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import AdminSidebar from '../AdminSidebar';
+import VaultXLoader from '@/components/VaultXLoader';
 import { createClient } from '@/utils/supabase/client';
 
 /* ── Types ── */
@@ -398,6 +399,7 @@ export default function AdminDashboardPage() {
 
   return (
     <>
+      <VaultXLoader pageName="Admin · Dashboard" />
       {/* BG canvas */}
       <canvas ref={bgCanvasRef} id="bg-canvas" style={{ position:'fixed', inset:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:0, opacity:.04 }} />
 

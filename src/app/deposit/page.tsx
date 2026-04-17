@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
+import VaultXLoader from '@/components/VaultXLoader'
 import { createClient } from '@/utils/supabase/client'
 import React from 'react'
 
@@ -353,14 +354,9 @@ export default function DepositPage() {
     .filter(d => isLocked(d))
     .reduce((sum, d) => sum + d.amount, 0)
 
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--txt2)', background: 'var(--cream)' }}>
-      Loading...
-    </div>
-  )
-
   return (
     <>
+      {loading && <VaultXLoader pageName="Deposit" />}
       <canvas ref={bgRef} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', opacity: 0.055, width: '100%', height: '100%' }} />
       <div className={`dp-toast${toastShow ? ' show' : ''}`}>{toastMsg}</div>
       <UserSidebar open={sidebarOpen} onClose={() => { setSidebarOpen(false); setHamburgerOpen(false) }} />

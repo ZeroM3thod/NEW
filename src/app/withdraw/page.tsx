@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
+import VaultXLoader from '@/components/VaultXLoader'
 import { createClient } from '@/utils/supabase/client'
 
 interface WdHistory {
@@ -293,12 +294,6 @@ export default function WithdrawPage() {
     }
   }
 
-  if (loading) return (
-    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--txt2)', background: 'var(--cream)' }}>
-      Loading...
-    </div>
-  )
-
   // Earliest locking deposit countdown
   const soonestLock = lockedDeposits
     .filter(d => new Date(d.lockedUntil).getTime() > Date.now())
@@ -306,6 +301,7 @@ export default function WithdrawPage() {
 
   return (
     <>
+      {loading && <VaultXLoader pageName="Withdraw" />}
       <canvas ref={bgRef} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', opacity: 0.055, width: '100%', height: '100%' }} />
       <div className={`wd-toast${toastShow ? ' show' : ''}`}>{toastMsg}</div>
       <UserSidebar open={sidebarOpen} onClose={() => { setSidebarOpen(false); setHamburgerOpen(false) }} />

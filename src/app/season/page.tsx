@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
+import VaultXLoader from '@/components/VaultXLoader'
 import { createClient } from '@/utils/supabase/client'
 
 // ─── P&L helpers ────────────────────────────────────────────────────────────
@@ -347,17 +348,9 @@ export default function SeasonPage() {
   const myTotalInvested = userProfile?.invested_total || 0
   const myProfits       = userProfile?.profits_total  || 0
 
-  if (loading) return (
-    <div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',color:'var(--txt2)',background:'var(--cream)'}}>
-      <div style={{textAlign:'center'}}>
-        <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.4rem',color:'var(--gold)',marginBottom:8}}>Loading Seasons…</div>
-        <div style={{fontSize:'.75rem',color:'var(--txt3)',letterSpacing:'.08em'}}>Fetching your data</div>
-      </div>
-    </div>
-  )
-
   return (
     <>
+      {loading && <VaultXLoader pageName="Seasons" />}
       <canvas ref={bgRef} style={{position:'fixed',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:0,opacity:.055}}/>
       <div className={`sx-toast${toastShow?' show':''}${toastCls?' '+toastCls:''}`}>{toastMsg}</div>
       <UserSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />

@@ -1,4 +1,3 @@
-
 import BgCanvas from '@/components/BgCanvas';
 import Navbar from '@/components/Navbar';
 import Hero from '@/components/Hero';
@@ -12,10 +11,12 @@ import About from '@/components/About';
 import Contact from '@/components/Contact';
 import Footer from '@/components/Footer';
 import ScrollRevealInit from '@/components/ScrollRevealInit';
+import VaultXLoader from '@/components/VaultXLoader';
 
 export default function HomePage() {
   return (
     <>
+      <VaultXLoader pageName="Home" />
       <ScrollRevealInit />
       <BgCanvas />
       <Navbar />
@@ -34,4 +35,3 @@ export default function HomePage() {
     </>
   );
 }
-

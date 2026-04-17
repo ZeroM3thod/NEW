@@ -5,7 +5,6 @@ import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
 import VaultXLoader from '@/components/VaultXLoader'
 import { createClient } from '@/utils/supabase/client'
-import VaultXLoader from '@/components/VaultXLoader'
 
 // ─── P&L helpers ────────────────────────────────────────────────────────────
 const fmtPnL   = (n: number) => n >= 0

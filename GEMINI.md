@@ -1,265 +1,124 @@
-/* ═══════════════════════════════════════════════════════════════════
-   VAULTX LOADER — COMPLETE INTEGRATION GUIDE
-   ═══════════════════════════════════════════════════════════════════
+PS C:\Users\KHAN GADGET\Desktop\NEW> npm run build
 
-   STEP 1 ── Save the component
-   ────────────────────────────
-   Copy VaultXLoader.tsx  →  src/components/VaultXLoader.tsx
+> vaultx-nextjs@0.1.0 build
+> next build
 
+  ▲ Next.js 14.2.35
+  - Environments: .env.local
 
-   STEP 2 ── Update each page as shown below
-   ══════════════════════════════════════════════════════════════════ */
+   Creating an optimized production build ...
+Failed to compile.
 
+./src/app/admin/dashboard/page.tsx
+Error: 
+  x the name `VaultXLoader` is defined multiple times
+   ,-[C:\Users\KHAN GADGET\Desktop\NEW\src\app\admin\dashboard\page.tsx:2:1]
+ 2 | import { useEffect, useRef, useState, useCallback } from 'react';
+ 3 | import { useRouter } from 'next/navigation';
+ 4 | import AdminSidebar from '../AdminSidebar';
+ 5 | import VaultXLoader from '@/components/VaultXLoader';
+   :        ^^^^^^|^^^^^
+   :              `-- previous definition of `VaultXLoader` here
+ 6 | import { createClient } from '@/utils/supabase/client';
+ 7 | import VaultXLoader from '@/components/VaultXLoader';
+   :        ^^^^^^|^^^^^
+   :              `-- `VaultXLoader` redefined here
+ 8 |
+ 9 | /* ── Types ── */
+ 9 | interface WdEntry {
+   `----
 
-/* ──────────────────────────────────────────────────────────────────
-   src/app/page.tsx  (Home page)
-   ────────────────────────────────────────────────────────────────── */
+Import trace for requested module:
+./src/app/admin/dashboard/page.tsx
 
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
+./src/app/admin/deposit/page.tsx
+Error:
+  x the name `VaultXLoader` is defined multiple times
+   ,-[C:\Users\KHAN GADGET\Desktop\NEW\src\app\admin\deposit\page.tsx:1:1]
+ 1 | 'use client';
+ 2 | import { useEffect, useRef, useState, useCallback } from 'react';
+ 3 | import AdminSidebar from '../AdminSidebar';
+ 4 | import VaultXLoader from '@/components/VaultXLoader';
+   :        ^^^^^^|^^^^^
+   :              `-- previous definition of `VaultXLoader` here
+ 5 | import { createClient } from '@/utils/supabase/client';
+ 6 | import VaultXLoader from '@/components/VaultXLoader';
+   :        ^^^^^^|^^^^^
+   :              `-- `VaultXLoader` redefined here
+ 7 |
+ 8 | /* ══════════════════════════════
+ 8 |    TYPES
+   `----
 
-// WRAP content — return becomes:
-export default function HomePage() {
-  return (
-    <>
-      <VaultXLoader pageName="Home" />   {/* ← ADD */}
-      <ScrollRevealInit />
-      <BgCanvas />
-      <Navbar />
-      <main>...</main>
-      <Footer />
-    </>
-  );
-}
+Import trace for requested module:
+./src/app/admin/deposit/page.tsx
 
+./src/app/admin/season/page.tsx
+Error:
+  x the name `VaultXLoader` is defined multiple times
+   ,-[C:\Users\KHAN GADGET\Desktop\NEW\src\app\admin\season\page.tsx:1:1]
+ 1 | 'use client';
+ 2 | import { useEffect, useRef, useState, useCallback } from 'react';
+ 3 | import AdminSidebar from '../AdminSidebar';
+ 4 | import VaultXLoader from '@/components/VaultXLoader';
+   :        ^^^^^^|^^^^^
+   :              `-- previous definition of `VaultXLoader` here
+ 5 | import { createClient } from '@/utils/supabase/client';
+ 6 | import VaultXLoader from '@/components/VaultXLoader';
+   :        ^^^^^^|^^^^^
+   :              `-- `VaultXLoader` redefined here
+ 7 |
+ 8 | /* ══════════════════════════════
+ 8 |    TYPES
+   `----
 
-/* ──────────────────────────────────────────────────────────────────
-   src/app/dashboard/page.tsx
-   ────────────────────────────────────────────────────────────────── */
+Import trace for requested module:
+./src/app/admin/season/page.tsx
 
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
+./src/app/admin/transaction/page.tsx
+Error:
+  x the name `VaultXLoader` is defined multiple times
+   ,-[C:\Users\KHAN GADGET\Desktop\NEW\src\app\admin\transaction\page.tsx:1:1]
+ 1 | 'use client';
+ 2 | import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
+ 3 | import AdminSidebar from '../AdminSidebar';
+ 4 | import VaultXLoader from '@/components/VaultXLoader';
+   :        ^^^^^^|^^^^^
+   :              `-- previous definition of `VaultXLoader` here
+ 5 | import { createClient } from '@/utils/supabase/client';
+ 6 | import VaultXLoader from '@/components/VaultXLoader';
+   :        ^^^^^^|^^^^^
+   :              `-- `VaultXLoader` redefined here
+ 7 |
+ 8 | /* ══ TYPES ══ */
+ 8 | type TxStatus = 'Pending' | 'Approved' | 'Completed' | 'Rejected';
+   `----
 
-// FIND and DELETE this block entirely:
-//   if (loading) {
-//     return <div className='db-layout' style={{display:'flex',...}}>
-//              Loading Dashboard…
-//            </div>
-//   }
+Import trace for requested module:
+./src/app/admin/transaction/page.tsx
 
-// In the return statement, add as FIRST child:
-return (
-  <>
-    {loading && <VaultXLoader pageName="Dashboard" />}   {/* ← ADD */}
-    <Script ... />
-    <canvas ref={bgCanvasRef} ... />
-    {/* ...rest unchanged... */}
-  </>
-);
+./src/app/admin/user/page.tsx
+Error:
+  x the name `VaultXLoader` is defined multiple times
+   ,-[C:\Users\KHAN GADGET\Desktop\NEW\src\app\admin\user\page.tsx:2:1]
+ 2 | import { useEffect, useRef, useState, useCallback } from 'react';
+ 3 | import { useRouter } from 'next/navigation';
+ 4 | import AdminSidebar from '../AdminSidebar';
+ 5 | import VaultXLoader from '@/components/VaultXLoader';
+   :        ^^^^^^|^^^^^
+   :              `-- previous definition of `VaultXLoader` here
+ 6 | import { createClient } from '@/utils/supabase/client';
+ 7 | import VaultXLoader from '@/components/VaultXLoader';
+   :        ^^^^^^|^^^^^
+   :              `-- `VaultXLoader` redefined here
+ 8 |
+ 9 | /* ══════════════════════════════
+ 9 |    HELPERS
+   `----
 
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/deposit/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
-
-// FIND and DELETE this block:
-//   if (loading) return (
-//     <div style={{display:'flex',alignItems:'center',...}}>
-//       Loading...
-//     </div>
-//   )
-
-// In return statement, add as FIRST child:
-return (
-  <>
-    {loading && <VaultXLoader pageName="Deposit" />}   {/* ← ADD */}
-    <canvas ref={bgRef} ... />
-    {/* ...rest unchanged... */}
-  </>
-);
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/withdraw/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
-
-// FIND and DELETE:
-//   if (loading) return (
-//     <div style={{...}}>Loading...</div>
-//   )
-
-// In return statement, add as FIRST child:
-return (
-  <>
-    {loading && <VaultXLoader pageName="Withdraw" />}   {/* ← ADD */}
-    <canvas ref={bgRef} ... />
-    {/* ...rest unchanged... */}
-  </>
-);
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/season/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
-
-// FIND and DELETE this block:
-//   if (loading) return (
-//     <div style={{...}}>
-//       <div style={{textAlign:'center'}}>
-//         <div style={{...}}>Loading Seasons…</div>
-//         <div style={{...}}>Fetching your data</div>
-//       </div>
-//     </div>
-//   )
-
-// In return statement, add as FIRST child:
-return (
-  <>
-    {loading && <VaultXLoader pageName="Seasons" />}   {/* ← ADD */}
-    <canvas ref={bgRef} ... />
-    {/* ...rest unchanged... */}
-  </>
-);
+Import trace for requested module:
+./src/app/admin/user/page.tsx
 
 
-/* ──────────────────────────────────────────────────────────────────
-   src/app/profile/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
-
-// ADD loading state (after existing state declarations):
-const [loading, setLoading] = useState(true);
-
-// In fetchData useEffect, set loading=false at the end:
-//   } finally {
-//     setLoading(false);    ← ADD
-//   }
-
-// In return statement, add as FIRST child:
-return (
-  <>
-    {loading && <VaultXLoader pageName="Profile" />}   {/* ← ADD */}
-    <canvas ref={bgRef} ... />
-    {/* ...rest unchanged... */}
-  </>
-);
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/referral/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
-
-// FIND and DELETE:
-//   if (loading) return (
-//     <div style={{...}}>Loading...</div>
-//   )
-
-// In return statement, add as FIRST child:
-return (
-  <>
-    {loading && <VaultXLoader pageName="Referral" />}   {/* ← ADD */}
-    <div className={`rf-toast...`}>{toastMsg}</div>
-    {/* ...rest unchanged... */}
-  </>
-);
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/support/page.tsx  (no existing loader)
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
-
-// ADD loading state after existing state declarations:
-const [pageLoading, setPageLoading] = useState(true);
-
-// In the existing fetchProfile useEffect, set it false after fetch:
-//   useEffect(() => {
-//     async function fetchProfile() {
-//       ...
-//       setProfile(data);
-//       setPageLoading(false);   ← ADD
-//     }
-//     fetchProfile();
-//   }, [supabase]);
-
-// In return statement, add as FIRST child:
-return (
-  <>
-    {pageLoading && <VaultXLoader pageName="Support" />}   {/* ← ADD */}
-    <div className={`sp-toast...`}>{toastMsg}</div>
-    {/* ...rest unchanged... */}
-  </>
-);
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/admin/dashboard/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import at top:
-import VaultXLoader from '@/components/VaultXLoader';
-
-// In return statement, add as FIRST child:
-return (
-  <>
-    <VaultXLoader pageName="Admin · Dashboard" />   {/* ← ADD (shows once on mount) */}
-    <canvas ref={bgCanvasRef} ... />
-    {/* ...rest unchanged... */}
-  </>
-);
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/admin/user/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import, then in return:
-//   {loading && <VaultXLoader pageName="Admin · Users" />}
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/admin/season/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import, then in return:
-//   {loading && <VaultXLoader pageName="Admin · Seasons" />}
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/admin/deposit/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import, then in return:
-//   {loading && <VaultXLoader pageName="Admin · Deposits" />}
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/admin/withdraw/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import, then in return:
-//   {loading && <VaultXLoader pageName="Admin · Withdrawals" />}
-
-
-/* ──────────────────────────────────────────────────────────────────
-   src/app/admin/transaction/page.tsx
-   ────────────────────────────────────────────────────────────────── */
-
-// ADD import, then in return:
-//   {loading && <VaultXLoader pageName="Admin · Transactions" />}
+> Build failed because of webpack errors
+PS C:\Users\KHAN GADGET\Desktop\NEW> 

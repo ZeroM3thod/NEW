@@ -30,9 +30,12 @@ function pad2(n: number) { return String(n).padStart(2, '0') }
 function getLockCountdown(lockedUntil: string): string {
   const ms = new Date(lockedUntil).getTime() - Date.now()
   if (ms <= 0) return 'Unlocked'
-  const m = Math.floor(ms / 60000)
-  const s = Math.floor((ms % 60000) / 1000)
-  return `${m}:${pad2(s)}`
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+  const mins = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))
+  if (days > 0) return `${days}d ${hours}h`
+  if (hours > 0) return `${hours}h ${mins}m`
+  return `${mins}m`
 }
 
 export default function WithdrawPage() {
@@ -352,7 +355,7 @@ export default function WithdrawPage() {
                       <div style={{ fontSize: '.82rem', color: 'rgba(246,241,233,0.7)', letterSpacing: '.04em' }}>${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                       <div style={{ fontSize: '.7rem', color: 'rgba(155,90,58,.7)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
                         <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                        ${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} locked
+                        ${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} locked · available in {lockCountdowns[soonestLock?.id || ''] || '—'}
                       </div>
                     </div>
                   ) : (
@@ -382,7 +385,7 @@ export default function WithdrawPage() {
                     </div>
                   </div>
                   <div style={{ fontSize: '.72rem', color: 'var(--txt2)', lineHeight: 1.7 }}>
-                    Your recently deposited funds are locked for 5 minutes from deposit time. You can <strong>invest these funds in seasons</strong> and earn profits. Withdrawal of locked funds will be available once the timer expires.
+                    Your recently deposited funds are locked for 60 days from approval time. You can <strong>invest these funds in seasons</strong> and earn profits. Withdrawal of locked funds will be available after the 60-day period.
                   </div>
                   {lockedDeposits.filter(d => new Date(d.lockedUntil).getTime() > Date.now()).length > 0 && (
                     <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -485,7 +488,7 @@ export default function WithdrawPage() {
                     <span className='wd-detail-key'>Locked (unavailable)</span>
                     <span className='wd-detail-val' style={{ color: 'rgba(155,90,58,.8)', display: 'flex', alignItems: 'center', gap: 4, fontSize: '.76rem' }}>
                       <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                      ${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} · unlocks {lockCountdowns[soonestLock?.id || ''] || '—'}
+                      ${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} · available {lockCountdowns[soonestLock?.id || ''] || '—'}
                     </span>
                   </div>
                 )}
@@ -506,7 +509,7 @@ export default function WithdrawPage() {
 
               {effectiveWithdrawable < 10 && lockedAmount > 0 && (
                 <div style={{ textAlign: 'center', marginTop: 10, fontSize: '.72rem', color: 'rgba(155,90,58,.8)' }}>
-                  Funds are locked · Unlocks in {lockCountdowns[soonestLock?.id || ''] || '—'}
+                  Funds locked for 60 days · Available in {lockCountdowns[soonestLock?.id || ''] || '—'}
                 </div>
               )}
             </div>

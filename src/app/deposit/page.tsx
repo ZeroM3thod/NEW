@@ -57,10 +57,12 @@ function pad2(n: number) { return String(n).padStart(2, '0') }
 function getCountdown(lockedUntil: string): string {
   const ms = new Date(lockedUntil).getTime() - Date.now()
   if (ms <= 0) return 'Unlocked'
-  const totalSec = Math.ceil(ms / 1000)
-  const m = Math.floor(totalSec / 60)
-  const s = totalSec % 60
-  return `${m}:${pad2(s)}`
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+  const mins = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))
+  if (days > 0) return `${days}d ${hours}h`
+  if (hours > 0) return `${hours}h ${mins}m`
+  return `${mins}m`
 }
 
 export default function DepositPage() {
@@ -288,7 +290,7 @@ export default function DepositPage() {
     if (txnId.trim().length < 10) { showToast('Transaction ID seems too short'); return }
 
     try {
-      const lockedUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString()
+      const lockedUntil = new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString()
       const { error } = await supabase.from('deposits').insert({
         user_id: user.id,
         amount: depState.amount,
@@ -300,7 +302,7 @@ export default function DepositPage() {
       })
       if (error) throw error
 
-      showToast('Deposit submitted · Pending review · 5-min lock starts now')
+      showToast('Deposit submitted · Pending review · 60-day lock starts on approval')
       fetchData()
 
       setDepState({ amount: 0, network: '', address: '', fee: 0, receive: 0 })
@@ -347,7 +349,7 @@ export default function DepositPage() {
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
           </svg>
-          <span><strong>${lockedAmount.toLocaleString()} USDT</strong> is currently locked — available for withdrawal after the 5-minute security hold.</span>
+          <span><strong>${lockedAmount.toLocaleString()} USDT</strong> is currently locked — available for withdrawal after the 60-day security hold.</span>
         </div>
       )}
 
@@ -379,7 +381,7 @@ export default function DepositPage() {
                 <svg width="14" height="14" fill="none" stroke="var(--gold)" strokeWidth="1.8" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: 1 }}>
                   <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
                 </svg>
-                <span><strong style={{ color: 'var(--ink)' }}>5-minute security lock:</strong> Deposited funds are locked for 5 minutes after submission. During this time you can invest in seasons. Profits &amp; referral earnings are withdrawable at any time.</span>
+                <span><strong style={{ color: 'var(--ink)' }}>60-day security lock:</strong> Deposited funds are locked for 60 days after admin approval. During this time you can invest in seasons and earn profits. Profits &amp; referral earnings are withdrawable at any time.</span>
               </div>
             </div>
 
@@ -569,7 +571,7 @@ export default function DepositPage() {
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: 1 }}>
                   <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
                 </svg>
-                <span>Once approved by admin, your deposit will be <strong>locked for 5 minutes</strong> before withdrawal is available. You can invest it in seasons immediately.</span>
+                <span>Once approved by admin, your deposit will be <strong>locked for 60 days</strong> before withdrawal is available. You can still invest it in seasons immediately.</span>
               </div>
 
               <button className='dp-btn dp-btn-dark' style={{ width: '100%' }} onClick={goToStep4}><span>I've Sent the Payment →</span></button>
@@ -599,7 +601,7 @@ export default function DepositPage() {
                   ['Amount', `${depState.amount} USDT`, 'var(--ink)'],
                   ['Network', depState.network, 'var(--ink)'],
                   ['To Receive', `${depState.amount} USDT`, 'var(--sage)'],
-                  ['Security Lock', '5 min after approval', 'rgba(155,90,58,.9)'],
+                  ['Security Lock', '60 days from approval', 'rgba(155,90,58,.9)'],
                 ].map(([k, v, c]) => (
                   <div key={k} className='dp-detail-row'>
                     <span className='dp-detail-key'>{k}</span>

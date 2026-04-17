@@ -93,18 +93,21 @@
 /* ── MAIN ── */
 .db-main { flex: 1; margin-left: 220px; padding: 32px 28px 100px; max-width: 100%; }
 
-/* ── TOPBAR (mobile) ── */
+/* ── TOPBAR (mobile) — FIXED to match deposit/withdraw/season topbars ── */
 .db-topbar {
   display: none;
   align-items: center; justify-content: space-between;
-  padding: 14px 18px;
-  background: rgba(246,241,233,0.92);
-  backdrop-filter: blur(16px);
+  padding: 0 18px;
+  height: 56px;
+  background: #f6f1e9;
   border-bottom: 1px solid var(--border);
-  position: sticky; top: 0; z-index: 100;
+  position: sticky; top: 0; z-index: 600;
 }
 .db-hamburger { display: flex; flex-direction: column; gap: 4.5px; cursor: pointer; padding: 4px; background: none; border: none; }
-.db-hamburger span { display: block; width: 20px; height: 1.5px; background: var(--ink); transition: all .3s; }
+.db-hamburger span {
+  display: block; width: 20px; height: 1.5px;
+  background: var(--ink); transition: all .3s; border-radius: 2px;
+}
 
 /* ── CARDS ── */
 .db-card {
@@ -170,10 +173,9 @@
 
 /* ── STAT ── */
 .db-stat-num  { font-family: 'Cormorant Garamond', serif; font-size: 1.9rem; font-weight: 400; color: var(--ink); line-height: 1; }
-/* ↓ colour helpers — used dynamically via className */
 .db-stat-up   { color: var(--sage); }
 .db-stat-gold { color: var(--gold); }
-.db-stat-dn   { color: #b05252; }   /* ← RED for losses / negative P&L */
+.db-stat-dn   { color: #b05252; }
 
 /* ── TAGS ── */
 .db-tag { display: inline-block; padding: 2px 9px; border-radius: 100px; font-size: .65rem; letter-spacing: .06em; }

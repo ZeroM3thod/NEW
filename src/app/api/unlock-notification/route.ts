@@ -55,7 +55,7 @@ export async function POST(req: NextRequest) {
       from: `"VaultX" <${process.env.GMAIL_USER}>`,
       to: userEmail,
       replyTo: process.env.GMAIL_USER,
-      subject: `✅ Your $${amount} USDT Deposit Has Been Unlocked — VaultX`,
+      subject: `✅ Your $${amount} USDT Deposit Lock Has Expired — VaultX`,
       html: `
 <!DOCTYPE html>
 <html>
@@ -106,7 +106,7 @@ export async function POST(req: NextRequest) {
     <div class="body">
       <p class="greeting">Hi <strong>${userName}</strong>,</p>
       <p class="body-text">
-        Great news — your deposit has completed its 5-minute security verification period and the funds are now <strong style="color:#4a6741">fully available</strong> for withdrawal or further investment.
+        Great news — your deposit has completed its 60-day security lock period and the funds are now <strong style="color:#4a6741">fully available</strong> for withdrawal or further investment.
       </p>
 
       <div class="amount-card">
@@ -136,7 +136,7 @@ export async function POST(req: NextRequest) {
 
       <div class="info-box">
         <p class="info-text">
-          &#128274; <strong>What was the lock?</strong> All deposits are held for 5 minutes as a security measure. During this period you could invest and earn profits, but direct withdrawal of the deposited amount was paused. The lock has now lifted.
+          &#128274; <strong>What was the lock?</strong> All deposits are held for 60 days as a security measure. During this period you could invest and earn profits, but direct withdrawal of the deposited amount was paused. The lock has now lifted.
         </p>
       </div>
 

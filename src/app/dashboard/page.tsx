@@ -26,9 +26,12 @@ function pad2(n: number) { return String(n).padStart(2, '0') }
 function getLockCountdown(lockedUntil: string): string {
   const ms = new Date(lockedUntil).getTime() - Date.now()
   if (ms <= 0) return ''
-  const m = Math.floor(ms / 60000)
-  const s = Math.floor((ms % 60000) / 1000)
-  return `${m}:${pad2(s)}`
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24))
+  const hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60))
+  const mins = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60))
+  if (days > 0) return `${days}d ${hours}h`
+  if (hours > 0) return `${hours}h ${mins}m`
+  return `${mins}m`
 }
 
 function getGreeting(): { text: string; emoji: string; sub: string } {
@@ -529,7 +532,7 @@ export default function DashboardPage() {
                         ${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT is security-locked
                       </div>
                       <div style={{ fontSize: '.68rem', color: 'var(--txt2)' }}>
-                        You can invest these funds now · Withdrawal unlocks in {lockCountdown || '—'}
+                        You can invest these funds now · Withdrawal available in {lockCountdown || '—'}
                       </div>
                     </div>
                   </div>
@@ -619,7 +622,7 @@ export default function DashboardPage() {
                     : <><rect x="3" y="11" width="18" height="11" rx="2" opacity=".4"/><path d="M8 11V8a4 4 0 018 0" opacity=".4"/></>,
                   lbl: 'Locked Amount',
                   val: lockedAmount > 0 ? `$${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '$0.00',
-                  sub: lockedAmount > 0 ? `Unlocks in ${lockCountdown || '—'}` : 'No funds locked',
+                  sub: lockedAmount > 0 ? `Available in ${lockCountdown || '—'}` : 'No funds locked',
                   cls: '',
                   chColor: lockedAmount > 0 ? 'rgba(155,90,58,.9)' : 'var(--sage)',
                 },

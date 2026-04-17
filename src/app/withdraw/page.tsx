@@ -221,9 +221,10 @@ export default function WithdrawPage() {
     return () => document.removeEventListener('keydown', h)
   }, [])
 
-  // Effective withdrawable = balance - locked deposits
-  const withdrawableTotal = Number(userProfile?.withdrawable_total) || 0
-  const effectiveWithdrawable = Math.max(0, withdrawableTotal - lockedAmount)
+  // ── FIXED: Use `balance` (actual current balance after investing) not `withdrawable_total`
+  // balance is always reduced when investing, so it correctly reflects what's left
+  const currentBalance = Number(userProfile?.balance) || 0
+  const effectiveWithdrawable = Math.max(0, currentBalance - lockedAmount)
 
   const onAmtChange = (v: string) => {
     setWdAmt(v)
@@ -243,7 +244,7 @@ export default function WithdrawPage() {
     const note = wdNote.trim()
     if (!amt || amt < 10) { showToast('Please enter a valid amount (min $10)'); return }
     if (amt > effectiveWithdrawable) {
-      if (lockedAmount > 0 && amt <= withdrawableTotal) {
+      if (lockedAmount > 0 && amt <= currentBalance) {
         showToast(`⚠ $${lockedAmount.toLocaleString()} is locked. Effective withdrawable: $${effectiveWithdrawable.toLocaleString()}`)
       } else {
         showToast(`Amount exceeds available balance ($${effectiveWithdrawable.toLocaleString()})`)
@@ -270,9 +271,15 @@ export default function WithdrawPage() {
       })
       if (error) throw error
 
+      // Deduct from both balance and withdrawable_total to keep them in sync
+      const newBalance = currentBalance - confirmDetails.amt
+      const newWithdrawable = Math.max(0, (Number(userProfile.withdrawable_total) || 0) - confirmDetails.amt)
       const { error: profError } = await supabase
         .from('profiles')
-        .update({ withdrawable_total: withdrawableTotal - confirmDetails.amt })
+        .update({
+          balance: newBalance,
+          withdrawable_total: newWithdrawable,
+        })
         .eq('id', userProfile.id)
 
       if (profError) throw profError
@@ -327,7 +334,7 @@ export default function WithdrawPage() {
               </h1>
             </div>
 
-            {/* BALANCE BADGE — now shows effective withdrawable */}
+            {/* BALANCE BADGE */}
             <div className='wd-bal-badge wd-reveal' style={{ marginBottom: lockedAmount > 0 ? 12 : 20, transitionDelay: '.04s' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, position: 'relative', zIndex: 1 }}>
                 <div>
@@ -341,7 +348,7 @@ export default function WithdrawPage() {
                   {lockedAmount > 0 ? (
                     <div>
                       <div style={{ fontSize: '.68rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(246,241,233,0.3)', marginBottom: 4 }}>Total Balance</div>
-                      <div style={{ fontSize: '.82rem', color: 'rgba(246,241,233,0.7)', letterSpacing: '.04em' }}>${withdrawableTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
+                      <div style={{ fontSize: '.82rem', color: 'rgba(246,241,233,0.7)', letterSpacing: '.04em' }}>${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                       <div style={{ fontSize: '.7rem', color: 'rgba(155,90,58,.7)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
                         <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
                         ${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} locked
@@ -376,7 +383,6 @@ export default function WithdrawPage() {
                   <div style={{ fontSize: '.72rem', color: 'var(--txt2)', lineHeight: 1.7 }}>
                     Your recently deposited funds are locked for 5 minutes from deposit time. You can <strong>invest these funds in seasons</strong> and earn profits. Withdrawal of locked funds will be available once the timer expires.
                   </div>
-                  {/* Per-deposit lock breakdown */}
                   {lockedDeposits.filter(d => new Date(d.lockedUntil).getTime() > Date.now()).length > 0 && (
                     <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {lockedDeposits

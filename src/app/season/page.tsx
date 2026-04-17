@@ -27,7 +27,7 @@ interface ActiveSeason {
   min: number
   max: number
   pool: number
-  poolFilled: number   // from seasons.current_pool
+  poolFilled: number
   joined: boolean
   myAmount: number
 }
@@ -67,8 +67,6 @@ export default function SeasonPage() {
   const [countdowns, setCountdowns] = useState<Record<string, string>>({})
   const [countdownLabel, setCountdownLabel] = useState<Record<string, string>>({})
   const [poolWidths, setPoolWidths] = useState<Record<string, string>>({})
-
-  // ── Computed avg ROI from user's closed season investments ──
   const [computedAvgRoi, setComputedAvgRoi] = useState(0)
 
   const bgRef = useRef<HTMLCanvasElement>(null)
@@ -91,7 +89,6 @@ export default function SeasonPage() {
 
     const { data: dbSeasons } = await supabase.from('seasons').select('*').order('created_at', { ascending: false })
 
-    // ── FIX: Only fetch the current user's investments (RLS allows this) ──
     const { data: myInvestments } = await supabase
       .from('investments')
       .select('*, seasons(*)')
@@ -102,8 +99,6 @@ export default function SeasonPage() {
         .filter(s => s.status === 'open' || s.status === 'running')
         .map(s => {
           const myInv = myInvestments?.find(inv => inv.season_id === s.id)
-          // ── FIX: Use current_pool from seasons table directly ──
-          // (users can't see other users' investments due to RLS)
           const poolCap    = Number(s.pool_cap) || 1000000
           const actualFilled = Number(s.current_pool) || 0
           return {
@@ -158,7 +153,6 @@ export default function SeasonPage() {
       })
       setHistory(historyMapped)
 
-      // ── FIX: Compute avg ROI from user's own closed season investments ──
       const myClosedInvestments = historyMapped.filter(h =>
         h.dbStatus === 'closed' && h.finalRoi !== null && h.mySeasonId !== null
       )
@@ -308,22 +302,31 @@ export default function SeasonPage() {
       })
       if (invError) throw invError
 
-      // 2. Deduct from user balance
+      // 2. Deduct from user balance AND withdrawable_total (so withdraw page reflects correctly)
+      const newBalance = userProfile.balance - amt
+      const newWithdrawable = Math.max(0, (Number(userProfile.withdrawable_total) || 0) - amt)
       const { error: profileError } = await supabase.from('profiles').update({
-        balance:        userProfile.balance - amt,
-        invested_total: (Number(userProfile.invested_total) || 0) + amt
+        balance:            newBalance,
+        withdrawable_total: newWithdrawable,
+        invested_total:     (Number(userProfile.invested_total) || 0) + amt,
       }).eq('id', userProfile.id)
       if (profileError) throw profileError
 
-      // ── FIX: Update seasons.current_pool via secure RPC ──
-      // (users can't directly update seasons table due to RLS)
+      // 3. Update seasons.current_pool — try RPC first, then direct update as fallback
       const { error: poolError } = await supabase.rpc('increment_season_pool', {
         p_season_id: investId,
         p_amount: amt
       })
       if (poolError) {
-        // Non-critical: log but don't block the user
-        console.warn('Pool update via RPC failed:', poolError)
+        // Fallback: direct update (works if Supabase RLS permits updates on seasons)
+        const newPool = (s.poolFilled || 0) + amt
+        const { error: directErr } = await supabase
+          .from('seasons')
+          .update({ current_pool: newPool })
+          .eq('id', investId)
+        if (directErr) {
+          console.warn('Pool update failed (both RPC and direct):', directErr.message)
+        }
       }
 
       setModalState('success')
@@ -379,7 +382,6 @@ export default function SeasonPage() {
               {[
                 {lbl:'Active Seasons',      val:<>{seasons.length}</>,                                                                 valStyle:{}},
                 {lbl:'My Total Invested',   val:<>${Number(myTotalInvested).toLocaleString()}</>,                                       valStyle:{color:'var(--gold)'}},
-                // ── FIX: use computedAvgRoi instead of userProfile?.avg_roi ──
                 {lbl:'Avg. Season ROI',     val: history.filter(h=>h.dbStatus==='closed'&&h.mySeasonId).length === 0
                   ? <>—</>
                   : <>{computedAvgRoi >= 0 ? '+' : ''}{computedAvgRoi}%</>,                                                            valStyle:{color: pnlColor(computedAvgRoi)}},
@@ -438,7 +440,6 @@ export default function SeasonPage() {
                         </div>
                       </div>
 
-                      {/* ── FIX: Removed "Investors" count, only show Min Entry and Pool ── */}
                       <div className='sx-detail-grid'>
                         <div className='sx-detail-item'>
                           <span>Min. Entry</span>

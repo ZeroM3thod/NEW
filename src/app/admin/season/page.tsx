@@ -18,6 +18,10 @@ interface PrevSeason {
   id: string; name: string; entryDate: string; finishDate: string;
   roi: string; finalROI: number; pool: number; min: number; max: number;
 }
+interface PoolInvestor {
+  id: string; userId: string; amount: number; status: string; joinedAt: string;
+  name: string; username: string; email: string; init: string;
+}
 
 /* ══════════════════════════════
    HELPERS
@@ -30,26 +34,16 @@ function fmtUSDT(n: number) {
 }
 function fmtDate(d: string) {
   if (!d) return '—';
-  try {
-    return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
-  } catch (e) {
-    return d;
-  }
+  try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
+  catch { return d; }
 }
 function calcRunningDays(start: string, end: string) {
   if (!start || !end) return 0;
-  const s = new Date(start), e = new Date(end);
-  return Math.max(0, Math.round((e.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
+  return Math.max(0, Math.round((new Date(end).getTime() - new Date(start).getTime()) / (1000 * 60 * 60 * 24)));
 }
 function calcDaysCurrent(dayStart: string) {
   if (!dayStart) return 0;
-  const s = new Date(dayStart), now = new Date();
-  return Math.max(0, Math.round((now.getTime() - s.getTime()) / (1000 * 60 * 60 * 24)));
-}
-function getRunStart(entryDate: string) {
-  const d = new Date(entryDate);
-  d.setDate(d.getDate() + 1);
-  return d.toISOString().split('T')[0];
+  return Math.max(0, Math.round((Date.now() - new Date(dayStart).getTime()) / (1000 * 60 * 60 * 24)));
 }
 function calcPeriodStr(entryDate: string, finishDate: string) {
   if (!entryDate || !finishDate) return '— Select dates above —';
@@ -66,8 +60,7 @@ function countdownText(finishDate: string) {
   if (msLeft <= 0) return 'Closing now…';
   const dLeft = Math.floor(msLeft / (1000 * 60 * 60 * 24));
   const hLeft = Math.floor((msLeft % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
-  return dLeft > 0
-    ? `Closes in ${dLeft}d ${hLeft}h on ${fmtDate(finishDate)} at 23:59:59`
+  return dLeft > 0 ? `Closes in ${dLeft}d ${hLeft}h on ${fmtDate(finishDate)} at 23:59:59`
     : `Closes in ${hLeft}h on ${fmtDate(finishDate)} at 23:59:59`;
 }
 
@@ -77,57 +70,78 @@ function countdownText(finishDate: string) {
 export default function AdminSeasonPage() {
   const supabase = createClient();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [toast, setToast]             = useState({ msg: '', cls: '', show: false });
-  const [active, setActive]           = useState<ActiveSeason[]>([]);
-  const [prev,   setPrev]             = useState<PrevSeason[]>([]);
-  const autoCloseTimers               = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
-  const bgRef                         = useRef<HTMLCanvasElement>(null);
-  const toastTimer                    = useRef<ReturnType<typeof setTimeout>>();
+  const [toast, setToast] = useState({ msg: '', cls: '', show: false });
+  const [active, setActive] = useState<ActiveSeason[]>([]);
+  const [prev, setPrev] = useState<PrevSeason[]>([]);
+  const autoCloseTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const bgRef = useRef<HTMLCanvasElement>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>();
 
-  // Season Modal state
-  const [smOpen, setSmOpen]     = useState(false);
+  // Season Modal
+  const [smOpen, setSmOpen] = useState(false);
   const [smEditId, setSmEditId] = useState('');
-  const [smTitle, setSmTitle]   = useState('Create New Season');
-  const [smSub, setSmSub]       = useState('Fill in the details to launch a new season');
+  const [smTitle, setSmTitle] = useState('Create New Season');
+  const [smSub, setSmSub] = useState('Fill in the details to launch a new season');
   const [smBtnTxt, setSmBtnTxt] = useState('Start Season');
-  const [fName, setFName]       = useState('');
-  const [fEntry, setFEntry]     = useState('');
-  const [fFinish, setFFinish]   = useState('');
-  const [fRoi, setFRoi]         = useState('');
-  const [fPool, setFPool]       = useState('');
-  const [fMin, setFMin]         = useState('');
-  const [fMax, setFMax]         = useState('');
+  const [fName, setFName] = useState('');
+  const [fEntry, setFEntry] = useState('');
+  const [fFinish, setFFinish] = useState('');
+  const [fRoi, setFRoi] = useState('');
+  const [fPool, setFPool] = useState('');
+  const [fMin, setFMin] = useState('');
+  const [fMax, setFMax] = useState('');
 
-  // Close Modal state
-  const [cmOpen, setCmOpen]       = useState(false);
-  const [cmId, setCmId]           = useState('');
-  const [cmName, setCmName]       = useState('');
-  const [cmDates, setCmDates]     = useState('');
-  const [cmRoi, setCmRoi]         = useState('');
-  const [cmAuto, setCmAuto]       = useState(false);
+  // Close Modal
+  const [cmOpen, setCmOpen] = useState(false);
+  const [cmId, setCmId] = useState('');
+  const [cmName, setCmName] = useState('');
+  const [cmDates, setCmDates] = useState('');
+  const [cmRoi, setCmRoi] = useState('');
+  const [cmAuto, setCmAuto] = useState(false);
   const [cmActiveRoi, setCmActiveRoi] = useState<number | null>(null);
 
-  // Date Modal state
-  const [dmOpen, setDmOpen]       = useState(false);
-  const [dmId, setDmId]           = useState('');
-  const [dmSub, setDmSub]         = useState('');
-  const [dmDate, setDmDate]       = useState('');
+  // Date Modal
+  const [dmOpen, setDmOpen] = useState(false);
+  const [dmId, setDmId] = useState('');
+  const [dmSub, setDmSub] = useState('');
+  const [dmDate, setDmDate] = useState('');
+
+  // Pool Investors Modal ← NEW
+  const [poolModalOpen, setPoolModalOpen] = useState(false);
+  const [poolSeason, setPoolSeason] = useState<ActiveSeason | PrevSeason | null>(null);
+  const [poolInvestors, setPoolInvestors] = useState<PoolInvestor[]>([]);
+  const [poolLoading, setPoolLoading] = useState(false);
+  const [poolSearch, setPoolSearch] = useState('');
 
   const [loading, setLoading] = useState(true);
+  const [aggStats, setAggStats] = useState({ avgROI: '+0%', totalPool: '$0' });
 
-  const [aggStats, setAggStats] = useState({
-    avgROI: '+0%',
-    totalPool: '$0'
-  });
+  /* ── Toast ── */
+  const showToast = useCallback((msg: string, cls = '') => {
+    setToast({ msg, cls, show: true });
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 3200);
+  }, []);
 
   /* ── Fetch Data ── */
   const fetchData = useCallback(async () => {
     setLoading(true);
     const { data: seasons, error } = await supabase.from('seasons').select('*').order('created_at', { ascending: false });
-    
+
     if (error) {
       showToast('✕ Error fetching seasons', 'err');
     } else if (seasons) {
+      // Fetch investor counts per season in one query
+      const { data: investCounts } = await supabase
+        .from('investments')
+        .select('season_id, id')
+        .in('status', ['active', 'completed']);
+
+      const countMap: Record<string, number> = {};
+      (investCounts || []).forEach((inv: any) => {
+        countMap[inv.season_id] = (countMap[inv.season_id] || 0) + 1;
+      });
+
       const activeArr: ActiveSeason[] = [];
       const prevArr: PrevSeason[] = [];
       let totalPoolAll = 0;
@@ -140,31 +154,26 @@ export default function AdminSeasonPage() {
           closedCount++;
           totalROI += Number(s.final_roi || 0);
           prevArr.push({
-            id: s.id,
-            name: s.name,
-            entryDate: s.start_date || '',
-            finishDate: s.end_date || '',
-            roi: s.roi_range || '',
-            finalROI: Number(s.final_roi) || 0,
+            id: s.id, name: s.name,
+            entryDate: s.start_date || '', finishDate: s.end_date || '',
+            roi: s.roi_range || '', finalROI: Number(s.final_roi) || 0,
             pool: Number(s.pool_cap) || 0,
             min: Number(s.min_entry) || 0,
-            max: 50000 
+            max: Number(s.max_entry) || 50000,   // ← FIX: read from DB
           });
         } else {
           activeArr.push({
-            id: s.id,
-            name: s.name,
-            entryDate: s.start_date || '',
-            finishDate: s.end_date || '',
+            id: s.id, name: s.name,
+            entryDate: s.start_date || '', finishDate: s.end_date || '',
             roi: s.roi_range || '',
             pool: Number(s.pool_cap) || 0,
             min: Number(s.min_entry) || 0,
-            max: 50000,
+            max: Number(s.max_entry) || 50000,   // ← FIX: read from DB
             status: s.status as any,
-            poolFilled: (Number(s.current_pool) / Number(s.pool_cap)) * 100 || 0,
-            investors: 0,
+            poolFilled: Number(s.current_pool) || 0,
+            investors: countMap[s.id] || 0,       // ← FIX: real count
             dayStart: s.start_date || '',
-            autoClose: null
+            autoClose: null,
           });
         }
       });
@@ -173,22 +182,41 @@ export default function AdminSeasonPage() {
       setPrev(prevArr);
       setAggStats({
         avgROI: `${(closedCount > 0 ? (totalROI / closedCount) : 0).toFixed(1)}%`,
-        totalPool: fmtUSDT(totalPoolAll)
+        totalPool: fmtUSDT(totalPoolAll),
       });
     }
     setLoading(false);
+  }, [supabase, showToast]);
+
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  /* ── Pool Modal Fetch ── */
+  const openPoolModal = useCallback(async (season: ActiveSeason | PrevSeason) => {
+    setPoolSeason(season);
+    setPoolModalOpen(true);
+    setPoolLoading(true);
+    setPoolSearch('');
+    const { data } = await supabase
+      .from('investments')
+      .select('id, amount, status, created_at, user_id, profiles(first_name, last_name, username, email)')
+      .eq('season_id', season.id)
+      .order('created_at', { ascending: false });
+
+    setPoolInvestors(
+      (data || []).map((inv: any) => ({
+        id: inv.id,
+        userId: inv.user_id,
+        amount: Number(inv.amount),
+        status: inv.status,
+        joinedAt: inv.created_at,
+        name: `${inv.profiles?.first_name || ''} ${inv.profiles?.last_name || ''}`.trim(),
+        username: inv.profiles?.username || '—',
+        email: inv.profiles?.email || '—',
+        init: (inv.profiles?.first_name?.[0] || '') + (inv.profiles?.last_name?.[0] || ''),
+      }))
+    );
+    setPoolLoading(false);
   }, [supabase]);
-
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
-
-  /* ── Toast ── */
-  const showToast = useCallback((msg: string, cls = '') => {
-    setToast({ msg, cls, show: true });
-    clearTimeout(toastTimer.current);
-    toastTimer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 3200);
-  }, []);
 
   /* ── Scroll reveal ── */
   useEffect(() => {
@@ -220,23 +248,23 @@ export default function AdminSeasonPage() {
       W = cv.width = window.innerWidth; H = cv.height = window.innerHeight;
       const cols = Math.floor(W / 28); candles = [];
       for (let i = 0; i < cols; i++) {
-        candles.push({ x: i*28+14, open: H*.35+(Math.random()-.5)*H*.28, close: H*.35+(Math.random()-.5)*H*.28, high:0, low:0, speed:.003+Math.random()*.004, phase:Math.random()*Math.PI*2 });
+        candles.push({ x: i * 28 + 14, open: H * .35 + (Math.random() - .5) * H * .28, close: H * .35 + (Math.random() - .5) * H * .28, high: 0, low: 0, speed: .003 + Math.random() * .004, phase: Math.random() * Math.PI * 2 });
       }
-      candles.forEach(c => { c.high = Math.min(c.open,c.close)-Math.random()*H*.04; c.low = Math.max(c.open,c.close)+Math.random()*H*.04; });
-      waves = Array.from({length:3},(_,i) => ({ amplitude:40+i*20, freq:.005+i*.002, speed:.0008+i*.0004, phase:i*Math.PI/1.5, yBase:H*(.3+i*.2) }));
+      candles.forEach(c => { c.high = Math.min(c.open, c.close) - Math.random() * H * .04; c.low = Math.max(c.open, c.close) + Math.random() * H * .04; });
+      waves = Array.from({ length: 3 }, (_, i) => ({ amplitude: 40 + i * 20, freq: .005 + i * .002, speed: .0008 + i * .0004, phase: i * Math.PI / 1.5, yBase: H * (.3 + i * .2) }));
     };
     const draw = () => {
-      ctx.clearRect(0,0,W,H); t += .012;
+      ctx.clearRect(0, 0, W, H); t += .012;
       candles.forEach((c: any) => {
-        const dy=Math.sin(t*c.speed*100+c.phase)*H*.015, o=c.open+dy, cl=c.close-dy;
-        const bull=cl<o, col=bull?'rgba(74,103,65,1)':'rgba(155,58,58,1)', bH=Math.abs(o-cl)||2, bY=Math.min(o,cl);
-        ctx.strokeStyle=col; ctx.lineWidth=1;
-        ctx.beginPath(); ctx.moveTo(c.x,c.high+dy); ctx.lineTo(c.x,bY); ctx.moveTo(c.x,bY+bH); ctx.lineTo(c.x,c.low+dy); ctx.stroke();
-        ctx.fillStyle=col; ctx.fillRect(c.x-5,bY,10,bH||2);
+        const dy = Math.sin(t * c.speed * 100 + c.phase) * H * .015, o = c.open + dy, cl = c.close - dy;
+        const bull = cl < o, col = bull ? 'rgba(74,103,65,1)' : 'rgba(155,58,58,1)', bH = Math.abs(o - cl) || 2, bY = Math.min(o, cl);
+        ctx.strokeStyle = col; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(c.x, c.high + dy); ctx.lineTo(c.x, bY); ctx.moveTo(c.x, bY + bH); ctx.lineTo(c.x, c.low + dy); ctx.stroke();
+        ctx.fillStyle = col; ctx.fillRect(c.x - 5, bY, 10, bH || 2);
       });
       waves.forEach((w: any, wi: number) => {
-        ctx.beginPath(); ctx.strokeStyle=`rgba(184,147,90,${.4-wi*.08})`; ctx.lineWidth=1.2-wi*.2;
-        for (let x=0; x<=W; x+=4) { const y=w.yBase+Math.sin(x*w.freq+t*w.speed*100+w.phase)*w.amplitude; x===0?ctx.moveTo(x,y):ctx.lineTo(x,y); }
+        ctx.beginPath(); ctx.strokeStyle = `rgba(184,147,90,${.4 - wi * .08})`; ctx.lineWidth = 1.2 - wi * .2;
+        for (let x = 0; x <= W; x += 4) { const y = w.yBase + Math.sin(x * w.freq + t * w.speed * 100 + w.phase) * w.amplitude; x === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y); }
         ctx.stroke();
       });
       rafId = requestAnimationFrame(draw);
@@ -247,11 +275,11 @@ export default function AdminSeasonPage() {
 
   /* ── Body lock ── */
   useEffect(() => {
-    document.body.style.overflow = (sidebarOpen || smOpen || cmOpen || dmOpen) ? 'hidden' : '';
+    document.body.style.overflow = (sidebarOpen || smOpen || cmOpen || dmOpen || poolModalOpen) ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
-  }, [sidebarOpen, smOpen, cmOpen, dmOpen]);
+  }, [sidebarOpen, smOpen, cmOpen, dmOpen, poolModalOpen]);
 
-  /* ── Auto-close scheduling ── */
+  /* ── Auto-close ── */
   const cancelAutoClose = useCallback((id: string) => {
     if (autoCloseTimers.current[id]) { clearTimeout(autoCloseTimers.current[id]); delete autoCloseTimers.current[id]; }
   }, []);
@@ -260,25 +288,21 @@ export default function AdminSeasonPage() {
     const s = active.find(x => x.id === id);
     if (!s || !s.autoClose) return;
     const roi = s.autoClose.finalROI;
-    
     const { error } = await supabase.from('seasons').update({ status: 'closed', final_roi: roi }).eq('id', id);
     if (error) { showToast('✕ Auto-close failed', 'err'); return; }
-
     showToast(`⏰ ${s.name} auto-closed with +${roi}% ROI`, 'ok');
-    fetchData();
-    cancelAutoClose(id);
+    fetchData(); cancelAutoClose(id);
   }, [active, cancelAutoClose, fetchData, showToast, supabase]);
 
   const scheduleAutoClose = useCallback((s: ActiveSeason) => {
     cancelAutoClose(s.id);
-    const target = new Date(s.finishDate);
-    target.setHours(23, 59, 59, 999);
+    const target = new Date(s.finishDate); target.setHours(23, 59, 59, 999);
     const msUntil = target.getTime() - Date.now();
     if (msUntil <= 0) { executeAutoClose(s.id); return; }
     autoCloseTimers.current[s.id] = setTimeout(() => executeAutoClose(s.id), msUntil);
   }, [cancelAutoClose, executeAutoClose]);
 
-  /* ── Season modal open ── */
+  /* ── Season modal ── */
   const openSeasonModal = (editId?: string) => {
     setFName(''); setFEntry(''); setFFinish(''); setFRoi(''); setFPool(''); setFMin(''); setFMax('');
     setSmEditId(editId || '');
@@ -287,7 +311,7 @@ export default function AdminSeasonPage() {
       if (!s) return;
       setSmTitle(`Edit ${s.name}`); setSmSub('Update season details'); setSmBtnTxt('Save Changes');
       setFName(s.name); setFEntry(s.entryDate.split('T')[0]); setFFinish(s.finishDate.split('T')[0]); setFRoi(s.roi);
-      setFPool(String(s.pool)); setFMin(String(s.min)); setFMax(String(s.max || 50000));
+      setFPool(String(s.pool)); setFMin(String(s.min)); setFMax(String(s.max));
     } else {
       setSmTitle('Create New Season'); setSmSub('Fill in the details to launch a new season'); setSmBtnTxt('Start Season');
     }
@@ -304,38 +328,35 @@ export default function AdminSeasonPage() {
     if (isNaN(mn) || mn <= 0 || isNaN(mx) || mx <= 0) { showToast('⚠ Please set min / max entry amounts', 'err'); return; }
     if (mn >= mx) { showToast('⚠ Minimum entry must be less than maximum', 'err'); return; }
 
-    const seasonData = {
+    const seasonData: any = {
       name: fName,
       start_date: fEntry,
       end_date: fFinish,
       roi_range: fRoi,
       pool_cap: pool,
       min_entry: mn,
-      status: smEditId ? undefined : 'open'
+      max_entry: mx,   // ← FIX: always save max_entry
     };
+    if (!smEditId) seasonData.status = 'open';
 
     if (smEditId) {
       const { error } = await supabase.from('seasons').update(seasonData).eq('id', smEditId);
       if (error) { showToast('✕ Error updating season', 'err'); return; }
-      showToast(`✓ Season updated`, 'ok');
+      showToast('✓ Season updated', 'ok');
     } else {
       const { error } = await supabase.from('seasons').insert([seasonData]);
       if (error) { showToast('✕ Error launching season', 'err'); return; }
-      showToast(`✓ Season launched`, 'ok');
+      showToast('✓ Season launched', 'ok');
     }
-    
-    setSmOpen(false);
-    fetchData();
+    setSmOpen(false); fetchData();
   };
 
-  /* ── Pause / resume ── */
+  /* ── Pause / Resume ── */
   const togglePause = async (id: string) => {
     const s = active.find(x => x.id === id); if (!s) return;
     const newStatus = s.status === 'running' ? 'paused' : 'running';
-    
     const { error } = await supabase.from('seasons').update({ status: newStatus }).eq('id', id);
     if (error) { showToast('✕ Error updating status', 'err'); return; }
-
     showToast(newStatus === 'running' ? `▶ ${s.name} resumed` : `⏸ ${s.name} paused`, 'ok');
     fetchData();
   };
@@ -349,13 +370,9 @@ export default function AdminSeasonPage() {
     const s = active.find(x => x.id === dmId);
     if (!s || !dmDate) { showToast('⚠ Please select a date', 'err'); return; }
     if (new Date(dmDate) <= new Date(s.entryDate)) { showToast('⚠ Date must be after entry date', 'err'); return; }
-    
     const { error } = await supabase.from('seasons').update({ end_date: dmDate }).eq('id', dmId);
     if (error) { showToast('✕ Error updating date', 'err'); return; }
-
-    setDmOpen(false);
-    showToast(`✓ ${s.name} finish date updated to ${fmtDate(dmDate)}`, 'ok');
-    fetchData();
+    setDmOpen(false); showToast(`✓ ${s.name} finish date updated to ${fmtDate(dmDate)}`, 'ok'); fetchData();
   };
 
   /* ── Close modal ── */
@@ -367,11 +384,12 @@ export default function AdminSeasonPage() {
     setCmAuto(!!s.autoClose); setCmActiveRoi(s.autoClose?.finalROI ?? null);
     setCmOpen(true);
   };
+
   const confirmCloseSeason = async () => {
     const roi = parseFloat(cmRoi);
     if (isNaN(roi)) { showToast('⚠ Please enter a Final ROI', 'err'); return; }
     const s = active.find(x => x.id === cmId); if (!s) return;
-    
+
     if (cmAuto) {
       const updated = { ...s, autoClose: { finalROI: roi } };
       setActive(a => a.map(x => x.id === cmId ? updated : x));
@@ -380,62 +398,31 @@ export default function AdminSeasonPage() {
       showToast(`⏰ Auto-Close set for ${s.name} — closes on ${fmtDate(s.finishDate)} with +${roi}% ROI`, 'ok');
     } else {
       setLoading(true);
+      const { data: investments } = await supabase
+        .from('investments').select('*').eq('season_id', cmId).eq('status', 'active');
 
-      // 1. Fetch all active investments for this season
-      const { data: investments, error: invErr } = await supabase
-        .from('investments')
-        .select('*')
-        .eq('season_id', cmId)
-        .eq('status', 'active');
-      
-      if (invErr) { showToast('✕ Error fetching investments', 'err'); setLoading(false); return; }
-
-      // 2. Process payouts: return principal + profit to each investor
       if (investments && investments.length > 0) {
         for (const inv of investments) {
           const principal = Number(inv.amount);
           const profit = principal * (roi / 100);
           const totalReturn = principal + profit;
-
-          // Fetch investor profile (need referred_by for commission)
           const { data: profile } = await supabase
-            .from('profiles')
-            .select('balance, profits_total, invested_total, referred_by')
-            .eq('id', inv.user_id)
-            .single();
-          
+            .from('profiles').select('balance, profits_total, invested_total, referred_by').eq('id', inv.user_id).single();
           if (profile) {
             const newBalance = Number(profile.balance) + totalReturn;
-            const newProfitsTotal = Number(profile.profits_total) + profit;
-            const newInvestedTotal = Math.max(0, Number(profile.invested_total) - principal);
-
-            // Update investor balance — withdrawable_total = balance (no lock)
             await supabase.from('profiles').update({
-              balance: newBalance,
-              withdrawable_total: newBalance,
-              profits_total: newProfitsTotal,
-              invested_total: newInvestedTotal,
+              balance: newBalance, withdrawable_total: newBalance,
+              profits_total: Number(profile.profits_total) + profit,
+              invested_total: Math.max(0, Number(profile.invested_total) - principal),
             }).eq('id', inv.user_id);
-
-            // Mark investment as completed
             await supabase.from('investments').update({ status: 'completed' }).eq('id', inv.id);
-
-            // 3. Referral commission: 7% of PROFIT to referrer (not 7% of investment amount)
             if (profile.referred_by && profit > 0) {
-              const REFERRAL_RATE = 0.07;
-              const commission = profit * REFERRAL_RATE;
-
-              const { data: referrer } = await supabase
-                .from('profiles')
-                .select('balance, referral_earned')
-                .eq('id', profile.referred_by)
-                .single();
-
+              const commission = profit * 0.07;
+              const { data: referrer } = await supabase.from('profiles').select('balance, referral_earned').eq('id', profile.referred_by).single();
               if (referrer) {
                 const newRefBalance = Number(referrer.balance) + commission;
                 await supabase.from('profiles').update({
-                  balance: newRefBalance,
-                  withdrawable_total: newRefBalance,  // withdrawable = full balance
+                  balance: newRefBalance, withdrawable_total: newRefBalance,
                   referral_earned: (Number(referrer.referral_earned) || 0) + commission,
                 }).eq('id', profile.referred_by);
               }
@@ -444,53 +431,58 @@ export default function AdminSeasonPage() {
         }
       }
 
-      // 4. Close the season and set final ROI
-      const { error } = await supabase
-        .from('seasons')
-        .update({ status: 'closed', final_roi: roi })
-        .eq('id', cmId);
-
+      const { error } = await supabase.from('seasons').update({ status: 'closed', final_roi: roi }).eq('id', cmId);
       if (error) { showToast('✕ Error closing season', 'err'); setLoading(false); return; }
-      
       setCmOpen(false);
       const count = investments?.length || 0;
       showToast(`✓ ${s.name} closed. Payouts processed for ${count} investor${count !== 1 ? 's' : ''}.`, 'ok');
       fetchData();
     }
   };
+
   const cancelAutoCloseUI = (id: string) => {
     cancelAutoClose(id);
     setActive(a => a.map(x => x.id === id ? { ...x, autoClose: null } : x));
     showToast(`✕ Auto-Close cancelled for ${active.find(x => x.id === id)?.name}`);
   };
 
+  /* ── Pool modal filtered investors ── */
+  const filteredPoolInvestors = poolSearch.trim()
+    ? poolInvestors.filter(i =>
+        i.name.toLowerCase().includes(poolSearch.toLowerCase()) ||
+        i.username.toLowerCase().includes(poolSearch.toLowerCase()) ||
+        i.email.toLowerCase().includes(poolSearch.toLowerCase())
+      )
+    : poolInvestors;
+
+  const poolTotalInvested = poolInvestors.reduce((sum, i) => sum + i.amount, 0);
+  const poolCap = (poolSeason as ActiveSeason)?.pool || (poolSeason as PrevSeason)?.pool || 0;
+  const poolPct = poolCap > 0 ? Math.min(100, (poolTotalInvested / poolCap) * 100) : 0;
+
   const periodDisplay = calcPeriodStr(fEntry, fFinish);
 
   return (
     <>
       {loading && <VaultXLoader pageName="Admin · Seasons" />}
-      <canvas ref={bgRef} style={{ position:'fixed', inset:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:0, opacity:.04 }} />
+      <canvas ref={bgRef} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: .04 }} />
 
-      {/* Toast */}
-      <div className={`sm-toast${toast.show?' show':''}${toast.cls?' '+toast.cls:''}`}>{toast.msg}</div>
+      <div className={`sm-toast${toast.show ? ' show' : ''}${toast.cls ? ' ' + toast.cls : ''}`}>{toast.msg}</div>
+      <div className={`adm-sb-overlay${sidebarOpen ? ' show' : ''}`} onClick={() => setSidebarOpen(false)} />
 
-      {/* Overlay */}
-      <div className={`adm-sb-overlay${sidebarOpen?' show':''}`} onClick={() => setSidebarOpen(false)} />
-
-      {/* ── CREATE/EDIT SEASON MODAL ── */}
-      <div className={`sm-modal-overlay${smOpen?' open':''}`} onClick={e => { if (e.target === e.currentTarget) setSmOpen(false); }}>
+      {/* ══ CREATE/EDIT SEASON MODAL ══ */}
+      <div className={`sm-modal-overlay${smOpen ? ' open' : ''}`} onClick={e => { if (e.target === e.currentTarget) setSmOpen(false); }}>
         <div className="sm-modal-box">
           <div className="sm-modal-header">
             <div>
               <div className="sm-modal-title">{smTitle}</div>
-              <div style={{ fontSize:'.67rem', color:'var(--text-sec)', marginTop:2 }}>{smSub}</div>
+              <div style={{ fontSize: '.67rem', color: 'var(--text-sec)', marginTop: 2 }}>{smSub}</div>
             </div>
             <button className="sm-modal-close" onClick={() => setSmOpen(false)}>
-              <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
           </div>
           <div className="sm-modal-body">
-            <div style={{ display:'grid', gap:14 }}>
+            <div style={{ display: 'grid', gap: 14 }}>
               <div className="sm-form-group">
                 <label className="sm-form-label">Season Name</label>
                 <input className="sm-form-input" type="text" placeholder="e.g. Season 8" value={fName} onChange={e => setFName(e.target.value)} />
@@ -506,7 +498,7 @@ export default function AdminSeasonPage() {
                 </div>
               </div>
               <div className="sm-form-group">
-                <label className="sm-form-label">Running Period <span style={{ color:'var(--gold)', marginLeft:4 }}>Auto-calculated</span></label>
+                <label className="sm-form-label">Running Period <span style={{ color: 'var(--gold)', marginLeft: 4 }}>Auto-calculated</span></label>
                 <div className="sm-period-display">{periodDisplay}</div>
               </div>
               <div className="sm-form-grid-2col">
@@ -529,7 +521,17 @@ export default function AdminSeasonPage() {
                   <input className="sm-form-input" type="number" placeholder="e.g. 50000" value={fMax} onChange={e => setFMax(e.target.value)} />
                 </div>
               </div>
-              <div style={{ display:'flex', gap:10, justifyContent:'flex-end', marginTop:6, flexWrap:'wrap' }}>
+              {/* Entry amount preview */}
+              {fMin && fMax && parseFloat(fMin) > 0 && parseFloat(fMax) > 0 && (
+                <div style={{ padding: '10px 13px', background: 'rgba(184,147,90,.05)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: '.74rem', color: 'var(--text-sec)' }}>
+                  💰 Each investor can contribute between&nbsp;
+                  <strong style={{ color: 'var(--gold)' }}>{fmtUSDT(parseFloat(fMin))}</strong>
+                  &nbsp;and&nbsp;
+                  <strong style={{ color: 'var(--gold)' }}>{fmtUSDT(parseFloat(fMax))}</strong>
+                  &nbsp;USDT per season entry.
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', marginTop: 6, flexWrap: 'wrap' }}>
                 <button className="sm-btn-ghost" onClick={() => setSmOpen(false)}>Cancel</button>
                 <button className="sm-btn-primary" onClick={submitSeasonModal}>{smBtnTxt}</button>
               </div>
@@ -538,75 +540,58 @@ export default function AdminSeasonPage() {
         </div>
       </div>
 
-      {/* ── CLOSE SEASON MODAL ── */}
-      <div className={`sm-modal-overlay${cmOpen?' open':''}`} onClick={e => { if (e.target === e.currentTarget) setCmOpen(false); }}>
-        <div className="sm-modal-box" style={{ maxWidth:480 }}>
+      {/* ══ CLOSE SEASON MODAL ══ */}
+      <div className={`sm-modal-overlay${cmOpen ? ' open' : ''}`} onClick={e => { if (e.target === e.currentTarget) setCmOpen(false); }}>
+        <div className="sm-modal-box" style={{ maxWidth: 480 }}>
           <div className="sm-modal-header">
             <div>
               <div className="sm-modal-title">Close Season</div>
-              <div style={{ fontSize:'.67rem', color:'var(--text-sec)', marginTop:2 }}>Set Final ROI and choose close method</div>
+              <div style={{ fontSize: '.67rem', color: 'var(--text-sec)', marginTop: 2 }}>Set Final ROI and choose close method</div>
             </div>
             <button className="sm-modal-close" onClick={() => setCmOpen(false)}>
-              <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
           </div>
           <div className="sm-modal-body">
-            <div style={{ display:'grid', gap:16 }}>
-              <div style={{ padding:'12px 14px', background:'rgba(184,147,90,.05)', border:'1px solid var(--border)', borderRadius:'var(--radius)' }}>
-                <div style={{ fontSize:'.67rem', color:'var(--text-sec)', letterSpacing:'.1em', textTransform:'uppercase', marginBottom:3 }}>Closing Season</div>
-                <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1.1rem', color:'var(--ink)' }}>{cmName}</div>
-                <div style={{ fontSize:'.67rem', color:'var(--text-sec)', marginTop:3 }}>{cmDates}</div>
+            <div style={{ display: 'grid', gap: 16 }}>
+              <div style={{ padding: '12px 14px', background: 'rgba(184,147,90,.05)', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                <div style={{ fontSize: '.67rem', color: 'var(--text-sec)', letterSpacing: '.1em', textTransform: 'uppercase', marginBottom: 3 }}>Closing Season</div>
+                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.1rem', color: 'var(--ink)' }}>{cmName}</div>
+                <div style={{ fontSize: '.67rem', color: 'var(--text-sec)', marginTop: 3 }}>{cmDates}</div>
               </div>
               <div className="sm-form-group">
                 <label className="sm-form-label">Final ROI (%)</label>
                 <input className="sm-form-input" type="number" placeholder="e.g. 24.5" step="0.1" value={cmRoi} onChange={e => { setCmRoi(e.target.value); setCmActiveRoi(null); }} />
               </div>
               <div>
-                <div style={{ fontSize:'.65rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--text-sec)', marginBottom:8 }}>Quick Set ROI</div>
-                <div style={{ display:'flex', gap:6, flexWrap:'wrap' }}>
+                <div style={{ fontSize: '.65rem', letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--text-sec)', marginBottom: 8 }}>Quick Set ROI</div>
+                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                   {[10, 5, 0, -5, -10].map(v => (
-                    <button key={v} className={`sm-roi-quick-btn${cmActiveRoi===v?' active-roi':''}`}
+                    <button key={v} className={`sm-roi-quick-btn${cmActiveRoi === v ? ' active-roi' : ''}`}
                       onClick={() => { setCmRoi(String(v)); setCmActiveRoi(v); }}>
                       {v >= 0 ? '+' : ''}{v}%
                     </button>
                   ))}
                 </div>
               </div>
-              <div style={{ height:1, background:'var(--border)' }} />
+              <div style={{ height: 1, background: 'var(--border)' }} />
               <div>
                 <div className="sm-check-wrap" onClick={() => setCmAuto(a => !a)}>
-                  <div className={`sm-check-box${cmAuto?' checked':''}`}>
-                    {cmAuto && <svg viewBox="0 0 10 8" style={{ width:9, height:7 }}><polyline points="1,4 3.5,6.5 9,1" style={{ fill:'none', stroke:'var(--cream)', strokeWidth:1.6, strokeLinecap:'round', strokeLinejoin:'round' }}/></svg>}
+                  <div className={`sm-check-box${cmAuto ? ' checked' : ''}`}>
+                    {cmAuto && <svg viewBox="0 0 10 8" style={{ width: 9, height: 7 }}><polyline points="1,4 3.5,6.5 9,1" style={{ fill: 'none', stroke: 'var(--cream)', strokeWidth: 1.6, strokeLinecap: 'round', strokeLinejoin: 'round' }} /></svg>}
                   </div>
                   <div>
                     <div className="sm-check-label">Enable Auto-Close on Finish Date</div>
-                    <div style={{ fontSize:'.66rem', color:'var(--text-sec)', marginTop:1 }}>Season will automatically close at 23:59:59 on the Finish Date with the Final ROI set above</div>
+                    <div style={{ fontSize: '.66rem', color: 'var(--text-sec)', marginTop: 1 }}>Season will automatically close at 23:59:59 on the Finish Date with the Final ROI set above</div>
                   </div>
                 </div>
-                {cmAuto && (
-                  <div className="sm-autoclose-info">
-                    <svg style={{ display:'inline', width:11, height:11, stroke:'var(--sage)', fill:'none', strokeWidth:2, verticalAlign:'middle', marginRight:4 }} viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="8"/><line x1="12" y1="12" x2="12" y2="16"/></svg>
-                    The season will <strong>not</strong> close immediately. It will remain active and automatically close at <strong>23:59:59 on the Finish Date</strong>.
-                  </div>
-                )}
-                {!cmAuto && (
-                  <div className="sm-autoclose-info warn">
-                    <svg style={{ display:'inline', width:11, height:11, stroke:'var(--error)', fill:'none', strokeWidth:2, verticalAlign:'middle', marginRight:4 }} viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                    This will <strong>immediately close</strong> the season right now. This action cannot be undone.
-                  </div>
-                )}
+                {cmAuto && <div className="sm-autoclose-info">Season will close automatically at <strong>23:59:59 on the Finish Date</strong>.</div>}
+                {!cmAuto && <div className="sm-autoclose-info warn">⚠ This will <strong>immediately close</strong> the season right now. This action cannot be undone.</div>}
               </div>
-              <div style={{ display:'flex', gap:10, justifyContent:'flex-end', flexWrap:'wrap', marginTop:4 }}>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 4 }}>
                 <button className="sm-btn-ghost" onClick={() => setCmOpen(false)}>Cancel</button>
-                <button
-                  onClick={confirmCloseSeason}
-                  style={{
-                    padding:'9px 22px', fontSize:'.75rem', letterSpacing:'.1em',
-                    fontFamily:"'DM Sans',sans-serif", textTransform:'uppercase', cursor:'pointer', borderRadius:'var(--radius)', transition:'all .2s', border:'1px solid',
-                    ...(cmAuto
-                      ? { background:'rgba(74,103,65,.08)', borderColor:'rgba(74,103,65,.25)', color:'var(--sage)' }
-                      : { background:'rgba(155,58,58,.07)', borderColor:'rgba(155,58,58,.18)', color:'var(--error)' })
-                  }}>
+                <button onClick={confirmCloseSeason}
+                  style={{ padding: '9px 22px', fontSize: '.75rem', letterSpacing: '.1em', fontFamily: "'DM Sans',sans-serif", textTransform: 'uppercase', cursor: 'pointer', borderRadius: 'var(--radius)', transition: 'all .2s', border: '1px solid', ...(cmAuto ? { background: 'rgba(74,103,65,.08)', borderColor: 'rgba(74,103,65,.25)', color: 'var(--sage)' } : { background: 'rgba(155,58,58,.07)', borderColor: 'rgba(155,58,58,.18)', color: 'var(--error)' }) }}>
                   {cmAuto ? 'Enable Auto-Close' : 'Close Season Now'}
                 </button>
               </div>
@@ -615,25 +600,25 @@ export default function AdminSeasonPage() {
         </div>
       </div>
 
-      {/* ── CHANGE DATE MODAL ── */}
-      <div className={`sm-modal-overlay${dmOpen?' open':''}`} onClick={e => { if (e.target === e.currentTarget) setDmOpen(false); }}>
-        <div className="sm-modal-box" style={{ maxWidth:400 }}>
+      {/* ══ CHANGE DATE MODAL ══ */}
+      <div className={`sm-modal-overlay${dmOpen ? ' open' : ''}`} onClick={e => { if (e.target === e.currentTarget) setDmOpen(false); }}>
+        <div className="sm-modal-box" style={{ maxWidth: 400 }}>
           <div className="sm-modal-header">
             <div>
               <div className="sm-modal-title">Change Finish Date</div>
-              <div style={{ fontSize:'.67rem', color:'var(--text-sec)', marginTop:2 }}>{dmSub}</div>
+              <div style={{ fontSize: '.67rem', color: 'var(--text-sec)', marginTop: 2 }}>{dmSub}</div>
             </div>
             <button className="sm-modal-close" onClick={() => setDmOpen(false)}>
-              <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
           </div>
           <div className="sm-modal-body">
-            <div style={{ display:'grid', gap:14 }}>
+            <div style={{ display: 'grid', gap: 14 }}>
               <div className="sm-form-group">
                 <label className="sm-form-label">New Finish Date</label>
                 <input className="sm-form-input" type="date" value={dmDate} onChange={e => setDmDate(e.target.value)} />
               </div>
-              <div style={{ display:'flex', gap:10, justifyContent:'flex-end', flexWrap:'wrap' }}>
+              <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                 <button className="sm-btn-ghost" onClick={() => setDmOpen(false)}>Cancel</button>
                 <button className="sm-btn-primary" onClick={confirmDateChange}>Update Date</button>
               </div>
@@ -642,23 +627,166 @@ export default function AdminSeasonPage() {
         </div>
       </div>
 
-      {/* ── LAYOUT ── */}
+      {/* ══ POOL INVESTORS MODAL ── NEW ══ */}
+      <div
+        className={`sm-modal-overlay${poolModalOpen ? ' open' : ''}`}
+        onClick={e => { if (e.target === e.currentTarget) setPoolModalOpen(false); }}
+        style={{ alignItems: 'stretch', justifyContent: 'flex-end' }}
+      >
+        <div style={{
+          background: 'var(--surface)', borderLeft: '1px solid var(--border)',
+          width: '100%', maxWidth: 700, height: '100vh',
+          display: 'flex', flexDirection: 'column',
+          transform: poolModalOpen ? 'translateX(0)' : 'translateX(40px)',
+          transition: 'transform .35s cubic-bezier(.16,1,.3,1)', overflow: 'hidden',
+        }}>
+          {/* Header */}
+          <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: 'var(--surface)' }}>
+            <div>
+              <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.15rem', fontWeight: 400, color: 'var(--ink)' }}>
+                Pool Investors — {poolSeason?.name}
+              </div>
+              <div style={{ fontSize: '.67rem', color: 'var(--text-sec)', marginTop: 2 }}>
+                All investments in this season
+              </div>
+            </div>
+            <button
+              onClick={() => setPoolModalOpen(false)}
+              style={{ width: 30, height: 30, borderRadius: '50%', background: 'transparent', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .2s', flexShrink: 0 }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--charcoal)" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
+            </button>
+          </div>
+
+          {/* Pool Summary Cards */}
+          <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--border)', background: 'var(--parchment)', flexShrink: 0 }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
+              {[
+                { lbl: 'Total Invested', val: fmtUSDT(poolTotalInvested), color: 'var(--gold)' },
+                { lbl: 'Pool Cap', val: fmtUSDT(poolCap), color: 'var(--ink)' },
+                { lbl: 'Investors', val: String(poolInvestors.length), color: 'var(--charcoal)' },
+              ].map(({ lbl, val, color }) => (
+                <div key={lbl} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '12px 14px' }}>
+                  <div style={{ fontSize: '.6rem', letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--text-sec)', marginBottom: 4 }}>{lbl}</div>
+                  <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.35rem', fontWeight: 400, color }}>{val}</div>
+                </div>
+              ))}
+            </div>
+            {/* Pool Progress Bar */}
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
+                <span style={{ fontSize: '.6rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text-sec)' }}>Pool Filled</span>
+                <span style={{ fontSize: '.7rem', color: 'var(--gold)', fontWeight: 500 }}>{poolPct.toFixed(1)}%</span>
+              </div>
+              <div style={{ height: 6, background: 'rgba(184,147,90,.12)', borderRadius: 100, overflow: 'hidden' }}>
+                <div style={{ height: '100%', width: `${poolPct}%`, background: 'linear-gradient(90deg, var(--gold-d), var(--gold-l))', borderRadius: 100, transition: 'width 1.2s ease' }} />
+              </div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: 4, fontSize: '.68rem', color: 'var(--text-sec)' }}>
+                <span>{fmtUSDT(poolTotalInvested)} invested</span>
+                <span>{fmtUSDT(Math.max(0, poolCap - poolTotalInvested))} remaining</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Search */}
+          <div style={{ padding: '12px 22px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            <div style={{ position: 'relative' }}>
+              <svg style={{ position: 'absolute', left: 11, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none' }} width="14" height="14" fill="none" stroke="var(--text-sec)" strokeWidth="1.8" viewBox="0 0 24 24">
+                <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+              </svg>
+              <input
+                style={{ width: '100%', padding: '8px 12px 8px 33px', background: 'var(--cream)', border: '1px solid var(--border)', borderRadius: 100, fontFamily: "'DM Sans',sans-serif", fontSize: '.8rem', color: 'var(--ink)', outline: 'none', transition: 'border-color .2s' }}
+                placeholder="Search by name, username or email…"
+                value={poolSearch}
+                onChange={e => setPoolSearch(e.target.value)}
+              />
+            </div>
+            <div style={{ fontSize: '.68rem', color: 'var(--text-sec)', marginTop: 6 }}>
+              Showing {filteredPoolInvestors.length} of {poolInvestors.length} investors
+            </div>
+          </div>
+
+          {/* Investors List */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '0 22px' }}>
+            {poolLoading ? (
+              <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-sec)', fontSize: '.82rem' }}>Loading investors…</div>
+            ) : filteredPoolInvestors.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '48px 0', color: 'var(--text-sec)', fontSize: '.82rem' }}>
+                {poolSearch ? 'No investors match your search.' : 'No investments in this season yet.'}
+              </div>
+            ) : (
+              <div>
+                {/* Table header */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px 90px 80px', gap: 8, padding: '10px 0', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--surface)' }}>
+                  {['Investor', 'Email', 'Amount', 'Date', 'Status'].map(h => (
+                    <div key={h} style={{ fontSize: '.6rem', letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--text-sec)' }}>{h}</div>
+                  ))}
+                </div>
+                {filteredPoolInvestors.map((inv, i) => (
+                  <div key={inv.id} style={{
+                    display: 'grid', gridTemplateColumns: '1fr 1fr 120px 90px 80px', gap: 8,
+                    padding: '12px 0', borderBottom: '1px solid rgba(184,147,90,.07)', alignItems: 'center',
+                    transition: 'background .15s',
+                  }}
+                    onMouseEnter={e => (e.currentTarget.style.background = 'rgba(184,147,90,.025)')}
+                    onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                  >
+                    {/* Name + Username */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                      <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--parchment)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Cormorant Garamond',serif", fontSize: '.68rem', fontWeight: 600, color: 'var(--gold)', flexShrink: 0 }}>
+                        {inv.init || '??'}
+                      </div>
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ fontSize: '.78rem', fontWeight: 500, color: 'var(--ink)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.name || '—'}</div>
+                        <div style={{ fontSize: '.65rem', color: 'var(--text-sec)' }}>@{inv.username}</div>
+                      </div>
+                    </div>
+                    {/* Email */}
+                    <div style={{ fontSize: '.72rem', color: 'var(--text-sec)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.email}</div>
+                    {/* Amount */}
+                    <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '.96rem', fontWeight: 500, color: 'var(--gold)' }}>
+                      ${inv.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </div>
+                    {/* Date */}
+                    <div style={{ fontSize: '.68rem', color: 'var(--text-sec)' }}>
+                      {new Date(inv.joinedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
+                    </div>
+                    {/* Status */}
+                    <div>
+                      <span className={`adm-badge ${inv.status === 'completed' ? 'adm-b-completed' : inv.status === 'active' ? 'adm-b-active' : 'adm-b-pending'}`} style={{ fontSize: '.57rem' }}>
+                        {inv.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Footer */}
+          <div style={{ padding: '12px 22px', borderTop: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ fontSize: '.72rem', color: 'var(--text-sec)' }}>
+              Total invested: <strong style={{ color: 'var(--gold)' }}>{fmtUSDT(poolTotalInvested)}</strong>
+            </div>
+            <button className="sm-btn-ghost" style={{ fontSize: '.68rem', padding: '6px 14px' }} onClick={() => setPoolModalOpen(false)}>Close</button>
+          </div>
+        </div>
+      </div>
+
+      {/* ══ LAYOUT ══ */}
       <div className="adm-layout">
         <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onToast={showToast} />
 
         <div className="adm-main-area">
           {/* Header */}
           <header className="adm-top-header">
-            <button className="adm-ham-btn" onClick={() => setSidebarOpen(o => !o)}>
-              <span/><span/><span/>
-            </button>
+            <button className="adm-ham-btn" onClick={() => setSidebarOpen(o => !o)}><span /><span /><span /></button>
             <a className="adm-back-pill" href="/admin/dashboard">
-              <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
-              Dashboard
+              <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6" /></svg>Dashboard
             </a>
             <div className="adm-header-right">
               <div className="adm-notif-btn" onClick={() => showToast('3 new notifications')}>
-                <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 01-3.46 0"/></svg>
+                <svg viewBox="0 0 24 24"><path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 01-3.46 0" /></svg>
                 <div className="adm-notif-dot" />
               </div>
               <div className="adm-header-avatar">AD</div>
@@ -673,82 +801,80 @@ export default function AdminSeasonPage() {
           <div className="sm-page-wrapper">
 
             {/* Page title */}
-            <div className="sm-reveal" style={{ marginBottom:28, display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:14 }}>
+            <div className="sm-reveal" style={{ marginBottom: 28, display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>
               <div>
                 <span className="sm-sec-label">Admin · SeasonRise Platform</span>
                 <h1 className="sm-sec-title">Season Management</h1>
-                <p className="sm-sec-sub"><span className="sm-live-dot"/>{active.length} seasons active · Last updated just now</p>
+                <p className="sm-sec-sub"><span className="sm-live-dot" />{active.length} seasons active · Last updated just now</p>
               </div>
-              <div style={{ alignSelf:'flex-end' }}>
+              <div style={{ alignSelf: 'flex-end' }}>
                 <button className="sm-btn-primary" onClick={() => openSeasonModal()}>+ Create New Season</button>
               </div>
             </div>
 
             {/* Stat strip */}
-            <div className="sm-reveal" style={{ display:'grid', gap:10, gridTemplateColumns:'repeat(2,1fr)', marginBottom:24 }}>
+            <div className="sm-reveal" style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(2,1fr)', marginBottom: 24 }}>
               <style>{`@media(min-width:640px){.sm-stats-strip{grid-template-columns:repeat(4,1fr)!important}}`}</style>
               {[
                 ['Active Seasons', String(active.length), 'var(--ink)'],
                 ['Total Seasons Run', String(active.length + prev.length), 'var(--ink)'],
                 ['Avg Final ROI', aggStats.avgROI, 'var(--gold)'],
-                ['Total Pool (All Seasons)', aggStats.totalPool, 'var(--ink)'],
+                ['Total Pool (All)', aggStats.totalPool, 'var(--ink)'],
               ].map(([lbl, val, col]) => (
-                <div key={lbl} className="sm-card" style={{ padding:'16px 18px' }}>
-                  <div style={{ fontSize:'.58rem', letterSpacing:'.12em', textTransform:'uppercase', color:'var(--text-sec)', marginBottom:4 }}>{lbl}</div>
-                  <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1.6rem', color:col }}>{val}</div>
+                <div key={lbl} className="sm-card" style={{ padding: '16px 18px' }}>
+                  <div style={{ fontSize: '.58rem', letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--text-sec)', marginBottom: 4 }}>{lbl}</div>
+                  <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.6rem', color: col }}>{val}</div>
                 </div>
               ))}
             </div>
 
             {/* Active seasons */}
-            <div className="sm-divider" style={{ marginTop:0 }} />
+            <div className="sm-divider" style={{ marginTop: 0 }} />
             <div className="sm-reveal">
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexWrap:'wrap', gap:10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
                 <div>
                   <span className="sm-sec-label">Live</span>
-                  <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1.3rem', fontWeight:400, color:'var(--ink)' }}>Active Seasons</h2>
+                  <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.3rem', fontWeight: 400, color: 'var(--ink)' }}>Active Seasons</h2>
                 </div>
-                <span style={{ fontSize:'.7rem', color:'var(--text-sec)' }}>{active.length} season{active.length!==1?'s':''} running</span>
+                <span style={{ fontSize: '.7rem', color: 'var(--text-sec)' }}>{active.length} season{active.length !== 1 ? 's' : ''} running</span>
               </div>
 
               {loading ? (
-                <div style={{ padding:40, textAlign:'center' }}>Loading seasons...</div>
+                <div style={{ padding: 40, textAlign: 'center' }}>Loading seasons...</div>
               ) : active.length === 0 ? (
                 <div className="sm-empty-state">
                   <span className="sm-empty-icon">📈</span>
                   <div>No active seasons at the moment.</div>
-                  <div style={{ marginTop:8 }}>
-                    <button className="sm-btn-ghost sm-btn-sm" onClick={() => openSeasonModal()}>Create First Season</button>
-                  </div>
+                  <div style={{ marginTop: 8 }}><button className="sm-btn-ghost sm-btn-sm" onClick={() => openSeasonModal()}>Create First Season</button></div>
                 </div>
               ) : (
-                <div style={{ display:'grid', gap:14 }}>
+                <div style={{ display: 'grid', gap: 14 }}>
                   {active.map(s => {
-                    const runStart  = s.entryDate;
-                    const totalDays = calcRunningDays(runStart, s.finishDate);
-                    const curDay    = Math.min(calcDaysCurrent(s.dayStart), totalDays);
-                    const dayPct    = totalDays > 0 ? Math.round(curDay / totalDays * 100) : 0;
+                    const totalDays = calcRunningDays(s.entryDate, s.finishDate);
+                    const curDay = Math.min(calcDaysCurrent(s.dayStart), totalDays);
+                    const dayPct = totalDays > 0 ? Math.round(curDay / totalDays * 100) : 0;
+                    const poolPct = s.pool > 0 ? Math.min(100, Math.round((s.poolFilled / s.pool) * 100)) : 0;
                     const isRunning = s.status === 'running';
-                    const hasAuto   = !!s.autoClose;
+                    const hasAuto = !!s.autoClose;
 
                     return (
-                      <div key={s.id} className={`sm-season-card${s.status==='paused'?' paused':''}`}>
+                      <div key={s.id} className={`sm-season-card${s.status === 'paused' ? ' paused' : ''}`}>
                         {/* Header row */}
-                        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:10 }}>
-                          <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-                            <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1.18rem', fontWeight:500, color:'var(--ink)' }}>{s.name}</div>
-                            <span className={`sm-badge ${isRunning?'sm-b-running':s.status==='open'?'sm-b-pending':'sm-b-paused'}`}>{s.status.toUpperCase()}</span>
+                        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
+                            <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.18rem', fontWeight: 500, color: 'var(--ink)' }}>{s.name}</div>
+                            <span className={`sm-badge ${isRunning ? 'sm-b-running' : s.status === 'open' ? 'sm-b-pending' : 'sm-b-paused'}`}>{s.status.toUpperCase()}</span>
                             {hasAuto && <span className="sm-badge sm-b-autoclose">⏰ Auto-Close Set</span>}
                           </div>
-                          <div style={{ fontSize:'.68rem', color:'var(--text-sec)' }}>{fmtDate(s.entryDate)} → {fmtDate(s.finishDate)}</div>
+                          <div style={{ fontSize: '.68rem', color: 'var(--text-sec)' }}>{fmtDate(s.entryDate)} → {fmtDate(s.finishDate)}</div>
                         </div>
 
                         {/* Auto-close banner */}
                         {hasAuto && (
                           <div className="sm-autoclose-banner">
-                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+                            <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" /></svg>
                             <span><strong>Final ROI: +{s.autoClose!.finalROI}%</strong> &nbsp;·&nbsp; {countdownText(s.finishDate)}</span>
-                            <button className="sm-btn-ghost sm-btn-sm" style={{ marginLeft:'auto', fontSize:'.6rem', padding:'3px 9px', color:'var(--error)', borderColor:'rgba(155,58,58,.25)' }}
+                            <button className="sm-btn-ghost sm-btn-sm" style={{ marginLeft: 'auto', fontSize: '.6rem', padding: '3px 9px', color: 'var(--error)', borderColor: 'rgba(155,58,58,.25)' }}
                               onClick={() => cancelAutoCloseUI(s.id)}>Cancel Auto-Close</button>
                           </div>
                         )}
@@ -760,31 +886,46 @@ export default function AdminSeasonPage() {
                             ['Finish Date', fmtDate(s.finishDate), ''],
                             ['Running Period', `${totalDays} days`, ''],
                             ['Expected ROI', s.roi, 'gold'],
-                            ['Pool Size', fmtUSDT(s.pool), ''],
-                            ['Min / Max Entry', `${fmtUSDT(s.min)} / ${fmtUSDT(s.max)}`, ''],
+                            ['Min Entry', fmtUSDT(s.min), ''],
+                            ['Max Entry', fmtUSDT(s.max), ''],   // ← FIX: now shows real value
                           ].map(([lbl, val, cls]) => (
                             <div key={lbl}>
                               <div className="sm-meta-lbl">{lbl}</div>
-                              <div className={`sm-meta-val${cls?' '+cls:''}`}>{val}</div>
+                              <div className={`sm-meta-val${cls ? ' ' + cls : ''}`}>{val}</div>
                             </div>
                           ))}
                         </div>
 
                         {/* Progress bars */}
-                        <div style={{ display:'grid', gap:10, gridTemplateColumns:'1fr 1fr', marginBottom:14 }}>
+                        <div style={{ display: 'grid', gap: 10, gridTemplateColumns: '1fr 1fr', marginBottom: 14 }}>
                           <div>
-                            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-                              <span style={{ fontSize:'.6rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--text-sec)' }}>Day Progress</span>
-                              <span style={{ fontSize:'.6rem', color:'var(--text-sec)' }}>Day {curDay} / {totalDays}</span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <span style={{ fontSize: '.6rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text-sec)' }}>Day Progress</span>
+                              <span style={{ fontSize: '.6rem', color: 'var(--text-sec)' }}>Day {curDay} / {totalDays}</span>
                             </div>
-                            <div className="sm-pool-bar"><div className="sm-pool-fill" style={{ width:`${dayPct}%` }}/></div>
+                            <div className="sm-pool-bar"><div className="sm-pool-fill" style={{ width: `${dayPct}%` }} /></div>
                           </div>
                           <div>
-                            <div style={{ display:'flex', justifyContent:'space-between', marginBottom:4 }}>
-                              <span style={{ fontSize:'.6rem', letterSpacing:'.1em', textTransform:'uppercase', color:'var(--text-sec)' }}>Pool Filled</span>
-                              <span style={{ fontSize:'.6rem', color:'var(--text-sec)' }}>{s.poolFilled.toFixed(1)}% · {fmt(s.investors)} investors</span>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                              <span style={{ fontSize: '.6rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text-sec)' }}>Pool Filled</span>
+                              <span style={{ fontSize: '.6rem', color: 'var(--text-sec)' }}>
+                                {poolPct}% · {fmtUSDT(s.poolFilled)} / {fmtUSDT(s.pool)}
+                              </span>
                             </div>
-                            <div className="sm-pool-bar"><div className="sm-pool-fill" style={{ width:`${s.poolFilled}%`, background:'linear-gradient(90deg,var(--sage),var(--sage-l))' }}/></div>
+                            <div className="sm-pool-bar">
+                              <div className="sm-pool-fill" style={{ width: `${poolPct}%`, background: 'linear-gradient(90deg,var(--sage),var(--sage-l))' }} />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Investor count badge */}
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 12px', background: 'rgba(184,147,90,.08)', border: '1px solid var(--border)', borderRadius: 100 }}>
+                            <svg width="12" height="12" fill="none" stroke="var(--gold)" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
+                            <span style={{ fontSize: '.68rem', color: 'var(--gold)', fontWeight: 500 }}>{s.investors.toLocaleString()} investors</span>
+                          </div>
+                          <div style={{ fontSize: '.68rem', color: 'var(--text-sec)' }}>
+                            {fmtUSDT(s.poolFilled)} of {fmtUSDT(s.pool)} pool filled
                           </div>
                         </div>
 
@@ -795,6 +936,14 @@ export default function AdminSeasonPage() {
                           </button>
                           <button className="sm-btn-ghost sm-btn-sm" onClick={() => openDateModal(s.id)}>📅 Change Finish Date</button>
                           <button className="sm-btn-ghost sm-btn-sm" onClick={() => openSeasonModal(s.id)}>✏ Edit</button>
+                          {/* ← NEW: Pool button */}
+                          <button
+                            className="sm-btn-ghost sm-btn-sm"
+                            style={{ borderColor: 'rgba(74,103,65,.3)', color: 'var(--sage)' }}
+                            onClick={() => openPoolModal(s)}
+                          >
+                            💰 Pool ({s.investors})
+                          </button>
                           <button className="sm-btn-danger sm-btn-sm" onClick={() => openCloseModal(s.id)}>
                             ✕ {hasAuto ? 'Update Close Settings' : 'Close Season'}
                           </button>
@@ -809,51 +958,58 @@ export default function AdminSeasonPage() {
             {/* Previous seasons */}
             <div className="sm-divider" />
             <div className="sm-reveal">
-              <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16, flexWrap:'wrap', gap:10 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
                 <div>
                   <span className="sm-sec-label">History</span>
-                  <h2 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1.3rem', fontWeight:400, color:'var(--ink)' }}>Previous Seasons</h2>
+                  <h2 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.3rem', fontWeight: 400, color: 'var(--ink)' }}>Previous Seasons</h2>
                 </div>
-                <span style={{ fontSize:'.7rem', color:'var(--text-sec)' }}>{prev.length} completed season{prev.length!==1?'s':''}</span>
+                <span style={{ fontSize: '.7rem', color: 'var(--text-sec)' }}>{prev.length} completed season{prev.length !== 1 ? 's' : ''}</span>
               </div>
               <div className="sm-card">
                 {prev.length === 0 ? (
-                  <div className="sm-empty-state">
-                    <span className="sm-empty-icon">📋</span>
-                    No previous seasons yet.
-                  </div>
+                  <div className="sm-empty-state"><span className="sm-empty-icon">📋</span>No previous seasons yet.</div>
                 ) : (
                   <div className="sm-tbl-wrap">
-                    <table className="sm-dtbl" style={{ minWidth:640 }}>
+                    <table className="sm-dtbl" style={{ minWidth: 700 }}>
                       <thead>
                         <tr>
-                          <th>Season</th><th>Period</th><th>Running Days</th>
-                          <th>Final ROI</th><th>Pool Size</th><th>Min / Max Entry</th>
+                          <th>Season</th><th>Period</th><th>Final ROI</th>
+                          <th>Pool Size</th><th>Min Entry</th><th>Max Entry</th>
                           <th>Status</th><th>Action</th>
                         </tr>
                       </thead>
                       <tbody>
                         {prev.map(s => {
-                          const rs   = s.entryDate;
-                          const days = calcRunningDays(rs, s.finishDate);
                           const roiColor = s.finalROI >= 20 ? 'var(--sage)' : s.finalROI >= 10 ? 'var(--gold)' : 'var(--error)';
                           return (
                             <tr key={s.id}>
                               <td>
-                                <div style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1rem', fontWeight:500, color:'var(--ink)' }}>{s.name}</div>
+                                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1rem', fontWeight: 500, color: 'var(--ink)' }}>{s.name}</div>
                               </td>
                               <td>
-                                <div style={{ fontSize:'.75rem', color:'var(--ink)' }}>{fmtDate(s.entryDate)}</div>
-                                <div style={{ fontSize:'.65rem', color:'var(--text-sec)' }}>→ {fmtDate(s.finishDate)}</div>
+                                <div style={{ fontSize: '.75rem', color: 'var(--ink)' }}>{fmtDate(s.entryDate)}</div>
+                                <div style={{ fontSize: '.65rem', color: 'var(--text-sec)' }}>→ {fmtDate(s.finishDate)}</div>
                               </td>
-                              <td style={{ fontSize:'.78rem', color:'var(--text-sec)' }}>{days} days</td>
                               <td>
-                                <span style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'1.05rem', color:roiColor, fontWeight:500 }}>+{s.finalROI}%</span>
+                                <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.05rem', color: roiColor, fontWeight: 500 }}>+{s.finalROI}%</span>
                               </td>
-                              <td style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'.95rem', color:'var(--ink)' }}>{fmtUSDT(s.pool)}</td>
-                              <td style={{ fontSize:'.72rem', color:'var(--text-sec)' }}>{fmtUSDT(s.min)} / {fmtUSDT(s.max)}</td>
+                              <td style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '.95rem', color: 'var(--ink)' }}>{fmtUSDT(s.pool)}</td>
+                              <td style={{ fontSize: '.78rem', color: 'var(--text-sec)' }}>{fmtUSDT(s.min)}</td>
+                              <td style={{ fontSize: '.78rem', color: 'var(--text-sec)' }}>{fmtUSDT(s.max)}</td>  {/* ← FIX */}
                               <td><span className="sm-badge sm-b-closed">Closed</span></td>
-                              <td><button className="sm-btn-ghost sm-btn-sm" onClick={() => openSeasonModal(s.id)}>Edit</button></td>
+                              <td>
+                                <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                                  <button className="sm-btn-ghost sm-btn-sm" onClick={() => openSeasonModal(s.id)}>Edit</button>
+                                  {/* Pool button for history seasons too */}
+                                  <button
+                                    className="sm-btn-ghost sm-btn-sm"
+                                    style={{ borderColor: 'rgba(74,103,65,.25)', color: 'var(--sage)' }}
+                                    onClick={() => openPoolModal(s)}
+                                  >
+                                    💰 Pool
+                                  </button>
+                                </div>
+                              </td>
                             </tr>
                           );
                         })}
@@ -864,8 +1020,8 @@ export default function AdminSeasonPage() {
               </div>
             </div>
 
-          </div>{/* /page-wrapper */}
-        </div>{/* /main-area */}
+          </div>
+        </div>
       </div>
     </>
   );

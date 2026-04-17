@@ -31,6 +31,14 @@ function getLockCountdown(lockedUntil: string): string {
   return `${m}:${pad2(s)}`
 }
 
+function getGreeting(): { text: string; emoji: string; sub: string } {
+  const h = new Date().getHours()
+  if (h >= 5 && h < 12)  return { text: 'Good morning',   emoji: '☀️', sub: 'Rise & grow your wealth' }
+  if (h >= 12 && h < 17) return { text: 'Good afternoon', emoji: '🌤️', sub: 'Your portfolio awaits' }
+  if (h >= 17 && h < 21) return { text: 'Good evening',   emoji: '🌇', sub: 'Let\'s review your gains' }
+  return                         { text: 'Good night',     emoji: '🌙', sub: 'Rest well — money works for you' }
+}
+
 export default function DashboardPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -42,6 +50,7 @@ export default function DashboardPage() {
   const [progWidth, setProgWidth] = useState('0%')
   const [chartMode, setChartMode] = useState<'roi' | 'usdt'>('roi')
   const [chartReady, setChartReady] = useState(false)
+  const [greeting] = useState(getGreeting)
 
   const [profile, setProfile] = useState<any>(null)
   const [activeInvestment, setActiveInvestment] = useState<any>(null)
@@ -78,7 +87,7 @@ export default function DashboardPage() {
           setDisplayBalance('$' + bal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }))
         }
 
-        // Fetch locked deposits (approved, locked_until > NOW())
+        // Fetch locked deposits
         const { data: locked } = await supabase
           .from('deposits')
           .select('id, amount, locked_until')
@@ -169,7 +178,6 @@ export default function DashboardPage() {
       setLockCountdown('')
       return
     }
-    // Find the soonest unlocking deposit
     const tick = () => {
       const stillLocked = lockedDeposits.filter(d => new Date(d.lockedUntil).getTime() > Date.now())
       if (stillLocked.length === 0) {
@@ -178,12 +186,10 @@ export default function DashboardPage() {
         if (lockTimerRef.current) clearInterval(lockTimerRef.current)
         return
       }
-      // Sort by earliest unlock
       stillLocked.sort((a, b) => new Date(a.lockedUntil).getTime() - new Date(b.lockedUntil).getTime())
       const earliest = stillLocked[0]
       const cd = getLockCountdown(earliest.lockedUntil)
       setLockCountdown(cd)
-      // Recalculate locked total
       const total = stillLocked.reduce((sum, d) => sum + d.amount, 0)
       setLockedAmount(total)
     }
@@ -322,7 +328,6 @@ export default function DashboardPage() {
     ? Math.max(...historyInvestments.map(i => Number(i.seasons?.final_roi) || 0))
     : null
 
-  // Effective withdrawable = balance - locked deposits
   const effectiveWithdrawable = Math.max(0, withdrawable - lockedAmount)
 
   return (
@@ -332,6 +337,138 @@ export default function DashboardPage() {
       <canvas ref={bgCanvasRef} style={{position:'fixed',inset:0,zIndex:0,pointerEvents:'none',opacity:.055,width:'100%',height:'100%'}}/>
       <div className={`db-toast${toastShow?' show':''}`}>{toastMsg}</div>
       <UserSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      {/* Inline styles for greeting animation and mobile improvements */}
+      <style>{`
+        @keyframes greet-slide {
+          from { opacity:0; transform:translateY(18px) scale(0.97); }
+          to   { opacity:1; transform:translateY(0) scale(1); }
+        }
+        @keyframes emoji-bounce {
+          0%,100% { transform: translateY(0) rotate(0deg); }
+          30%     { transform: translateY(-6px) rotate(-8deg); }
+          60%     { transform: translateY(-3px) rotate(5deg); }
+        }
+        @keyframes sub-fade {
+          from { opacity:0; transform:translateX(-10px); }
+          to   { opacity:1; transform:translateX(0); }
+        }
+        .db-greeting-wrap {
+          animation: greet-slide 0.7s cubic-bezier(.16,1,.3,1) both;
+        }
+        .db-greeting-emoji {
+          display: inline-block;
+          font-size: 1.6rem;
+          animation: emoji-bounce 1.2s 0.5s ease both;
+          margin-right: 8px;
+          vertical-align: middle;
+        }
+        .db-greeting-text {
+          font-family: 'Cormorant Garamond', serif;
+          font-size: clamp(1.6rem,5vw,2.4rem);
+          font-weight: 400;
+          color: var(--ink);
+          line-height: 1.15;
+        }
+        .db-greeting-name {
+          font-style: italic;
+          color: var(--gold);
+          position: relative;
+        }
+        .db-greeting-name::after {
+          content: '';
+          position: absolute;
+          bottom: 1px;
+          left: 0;
+          width: 100%;
+          height: 1px;
+          background: linear-gradient(90deg, var(--gold), transparent);
+          opacity: 0.5;
+        }
+        .db-greeting-sub {
+          font-size: .72rem;
+          letter-spacing: .12em;
+          text-transform: uppercase;
+          color: var(--text-sec, #6b6459);
+          margin-top: 6px;
+          display: flex;
+          align-items: center;
+          gap: 7px;
+          animation: sub-fade 0.6s 0.4s ease both;
+          opacity: 0;
+          animation-fill-mode: forwards;
+        }
+        .db-greeting-dot {
+          width: 5px;
+          height: 5px;
+          border-radius: 50%;
+          background: var(--gold);
+          opacity: 0.6;
+          flex-shrink: 0;
+        }
+
+        /* ── Mobile improvements ── */
+        @media (max-width: 900px) {
+          /* Stat cards — more compact, better spacing */
+          .db-grid-4 > div {
+            padding: 14px 12px !important;
+          }
+          .db-stat-num {
+            font-size: 1.5rem !important;
+          }
+          /* Balance hero better mobile layout */
+          .db-balance-num {
+            font-size: 2.4rem !important;
+          }
+          /* Action buttons stacked look better with slight gap */
+          .db-grid-2 {
+            gap: 8px !important;
+          }
+          /* Mobile topbar improved */
+          .db-topbar {
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            background: rgba(246,241,233,0.95) !important;
+            border-bottom: 1px solid rgba(184,147,90,0.2);
+            padding: 0 16px;
+          }
+          /* Season rows look better on mobile */
+          .db-season-row {
+            padding: 12px 14px;
+          }
+          /* Referral section mobile */
+          .db-ref-code-row {
+            flex-direction: column;
+          }
+          .db-ref-code { width: 100%; }
+          /* Charts slightly shorter on mobile */
+          .db-chart-wrap { height: 150px !important; }
+          /* Donut wrap on mobile */
+          .db-donut-wrap { height: 120px !important; }
+          /* Notice strip full width */
+          .db-notice-strip {
+            border-radius: 10px !important;
+          }
+        }
+        @media (max-width: 500px) {
+          .db-grid-4 {
+            grid-template-columns: 1fr 1fr !important;
+            gap: 8px !important;
+          }
+          .db-balance-num {
+            font-size: 2rem !important;
+          }
+          .db-mid-grid {
+            grid-template-columns: 1fr !important;
+          }
+        }
+        /* Referral card mobile stat grid */
+        @media (max-width: 400px) {
+          .db-ref-stat-grid {
+            grid-template-columns: 1fr 1fr !important;
+          }
+        }
+      `}</style>
 
       <div className='db-layout'>
         {/* MOBILE TOPBAR */}
@@ -349,13 +486,20 @@ export default function DashboardPage() {
         <main className='db-main'>
           <div style={{maxWidth:900,margin:'0 auto'}}>
 
-            {/* HEADER */}
-            <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:16,marginBottom:28}} className='db-reveal'>
+            {/* HEADER — Time-based greeting */}
+            <div style={{display:'flex',alignItems:'flex-end',justifyContent:'space-between',gap:16,marginBottom:28}} className='db-reveal db-greeting-wrap'>
               <div>
-                <span className='db-label'>Overview</span>
-                <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'clamp(1.6rem,4vw,2.2rem)',fontWeight:400,color:'var(--ink)',lineHeight:1.15}}>
-                  Good morning,<br/><em style={{fontStyle:'italic',color:'var(--gold)'}}>{firstName}</em>
-                </h1>
+                <div style={{marginBottom:4}}>
+                  <span className='db-greeting-emoji'>{greeting.emoji}</span>
+                  <span className='db-greeting-text'>
+                    {greeting.text},<br/>
+                    <span className='db-greeting-name'>{firstName}</span>
+                  </span>
+                </div>
+                <div className='db-greeting-sub'>
+                  <span className='db-greeting-dot'/>
+                  {greeting.sub}
+                </div>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:8,flexShrink:0}}>
                 <div className='db-live-pill'>
@@ -365,7 +509,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* LOCKED AMOUNT ALERT — shown when deposits are locked */}
+            {/* LOCKED AMOUNT ALERT */}
             {lockedAmount > 0 && (
               <div className='db-reveal' style={{ marginBottom: 16, transitionDelay: '.02s' }}>
                 <div style={{
@@ -412,7 +556,6 @@ export default function DashboardPage() {
                       {avgRoi >= 0 ? '+' : ''}{avgRoi}% avg ROI
                     </span>
                   </div>
-                  {/* Show effective withdrawable separately if locked */}
                   {lockedAmount > 0 && (
                     <div style={{ marginTop: 8, fontSize: '.72rem', color: 'rgba(246,241,233,0.5)', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <svg width="11" height="11" fill="none" stroke="rgba(246,241,233,0.5)" strokeWidth="2" viewBox="0 0 24 24">
@@ -447,7 +590,7 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* STAT CARDS — 4th card is now "Locked Amount" instead of "Avg ROI" */}
+            {/* STAT CARDS */}
             <div className='db-grid-4 db-reveal' style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:10,marginBottom:20,transitionDelay:'.1s'}}>
               {([
                 {
@@ -468,7 +611,6 @@ export default function DashboardPage() {
                   icon:<><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></>,
                   lbl:'Total Profits', val: fmtPnL(profitsTotal), sub:'all time', cls: pnlCls(profitsTotal),
                 },
-                // 4th card: Locked Amount (replaces Avg ROI)
                 {
                   bg: lockedAmount > 0 ? 'rgba(155,90,58,.1)' : 'rgba(74,103,65,.08)',
                   svgColor: lockedAmount > 0 ? 'rgba(155,90,58,.9)' : 'var(--sage)',
@@ -606,11 +748,11 @@ export default function DashboardPage() {
                   </svg>
                 </div>
               </div>
-              <div style={{display:'flex',gap:8,marginBottom:18}}>
+              <div style={{display:'flex',gap:8,marginBottom:18}} className='db-ref-copy-row'>
                 <div className='db-ref-code'>{refCode}</div>
                 <button className='db-copy-btn' onClick={copyRef}>Copy</button>
               </div>
-              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:2}}>
+              <div style={{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:2}} className='db-ref-stat-grid'>
                 {[
                   {l:'Referrals',          v:referralStats.count.toString(), c:'var(--ink)'},
                   {l:'Commission Earned',  v:`$${referralStats.earned.toLocaleString()}`, c:'var(--sage)'},
@@ -626,7 +768,7 @@ export default function DashboardPage() {
 
             {/* NOTICE STRIP */}
             {activeSeason && (
-              <div className='db-reveal' style={{background:'var(--ink)',borderRadius:'var(--r-lg)',padding:'18px 22px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap',transitionDelay:'.22s'}}>
+              <div className='db-reveal db-notice-strip' style={{background:'var(--ink)',borderRadius:'var(--r-lg)',padding:'18px 22px',display:'flex',alignItems:'center',justifyContent:'space-between',gap:16,flexWrap:'wrap',transitionDelay:'.22s'}}>
                 <div>
                   <div style={{fontSize:'.68rem',letterSpacing:'.16em',textTransform:'uppercase',color:'rgba(246,241,233,.35)',marginBottom:5}}>
                     {activeSeason.name} · {activeSeason.status === 'open' ? 'Entry Open' : 'Live'}

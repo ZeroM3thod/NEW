@@ -11,10 +11,23 @@ const ADDRESSES: Record<string, string> = {
   'ERC-20': '0x4aF3bC2e8f1D9Aa72cE63b5B87dF4e1C9Ab3D5E',
   'BEP-20': '0x7bC9dE3F4a2B1c8Ef5A6D7e923cFb47D1aE8c9B',
 }
+
+const QR_IMAGES: Record<string, string> = {
+  'TRC-20': '/qr/trc20.jpg',
+  'ERC-20': '/qr/erc20.jpg',
+  'BEP-20': '/qr/bep20.jpg',
+}
+
 const NET_FEES: Record<string, { fee: number; time: string; feeLabel: string }> = {
   'TRC-20': { fee: 0, time: '1–3 minutes', feeLabel: 'Free' },
   'ERC-20': { fee: 0, time: '2–5 minutes', feeLabel: 'Free' },
   'BEP-20': { fee: 0, time: '1–2 minutes', feeLabel: 'Free' },
+}
+
+const NET_INFO: Record<string, { chain: string; color: string; desc: string }> = {
+  'TRC-20': { chain: 'TRON Network', color: '#e8423d', desc: 'Fastest & cheapest — recommended' },
+  'ERC-20': { chain: 'Ethereum Network', color: '#627EEA', desc: 'Most widely supported' },
+  'BEP-20': { chain: 'BNB Smart Chain', color: '#F0B90B', desc: 'Low fees, fast confirmation' },
 }
 
 interface DepHistory {
@@ -74,17 +87,12 @@ export default function DepositPage() {
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
   const [userProfile, setUserProfile] = useState<any>(null)
-  const [wallets, setWallets] = useState<Record<string, string>>({
-    'USDT (BEP-20)': '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
-    'USDT (TRC-20)': 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
-  })
+  const [addrCopied, setAddrCopied] = useState(false)
 
-  // Lock countdown states
   const [lockCountdowns, setLockCountdowns] = useState<Record<string, string>>({})
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bgRef = useRef<HTMLCanvasElement>(null)
-  const qrRef = useRef<HTMLCanvasElement>(null)
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const emailCheckRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
@@ -95,7 +103,6 @@ export default function DepositPage() {
     toastTimer.current = setTimeout(() => setToastShow(false), 3200)
   }, [])
 
-  // Check for deposits that just unlocked and send email notification
   const checkUnlockNotifications = useCallback(async (deposits: DepHistory[]) => {
     const nowLocked = deposits.filter(
       d => d.status === 'approved' && d.lockedUntil && !d.unlockEmailSent &&
@@ -108,7 +115,6 @@ export default function DepositPage() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ depositId: dep.id }),
         })
-        // Optimistically update local state
         setHistory(prev => prev.map(d =>
           d.id === dep.id ? { ...d, unlockEmailSent: true } : d
         ))
@@ -126,13 +132,12 @@ export default function DepositPage() {
     const { data: profile } = await supabase.from('profiles').select('*').eq('id', authUser.id).single()
     setUserProfile(profile)
 
-    const { data: settings } = await supabase.from('settings').select('usdt_bep20_address, usdt_trc20_address').eq('id', 1).maybeSingle()
-    if (settings) {
-      setWallets({
-        'USDT (BEP-20)': settings.usdt_bep20_address || '0x71C7656EC7ab88b098defB751B7401B5f6d8976F',
-        'USDT (TRC-20)': settings.usdt_trc20_address || 'TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t',
-      })
-    }
+    const { data: locked } = await supabase
+      .from('deposits')
+      .select('id, amount, locked_until')
+      .eq('user_id', authUser.id)
+      .eq('status', 'approved')
+      .gt('locked_until', new Date().toISOString())
 
     const { data: depHistory } = await supabase
       .from('deposits')
@@ -140,23 +145,22 @@ export default function DepositPage() {
       .eq('user_id', authUser.id)
       .order('created_at', { ascending: false })
 
-   if (depHistory) {
-  const mapped: DepHistory[] = depHistory.map((d: any) => ({
-    id: d.id,
-    date: new Date(d.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-    amount: d.amount,
-    fee: 0,
-    receive: d.amount,
-    network: d.network || '—',
-    wallet: d.tx_hash || '—',   // ← was "txnId", now "wallet" to match DepHistory type
-    status: d.status,
-    note: '',
-    reason: d.rejection_reason,
-    lockedUntil: d.locked_until || null,
-    unlockEmailSent: d.unlock_email_sent || false,
-  }))
+    if (depHistory) {
+      const mapped: DepHistory[] = depHistory.map((d: any) => ({
+        id: d.id,
+        date: new Date(d.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        amount: d.amount,
+        fee: 0,
+        receive: d.amount,
+        network: d.network || '—',
+        wallet: d.tx_hash || '—',
+        status: d.status,
+        note: '',
+        reason: d.rejection_reason,
+        lockedUntil: d.locked_until || null,
+        unlockEmailSent: d.unlock_email_sent || false,
+      }))
       setHistory(mapped)
-      // Check unlock notifications after loading
       checkUnlockNotifications(mapped)
     }
     setLoading(false)
@@ -164,7 +168,6 @@ export default function DepositPage() {
 
   useEffect(() => { fetchData() }, [fetchData])
 
-  // Countdown timer: update every second
   useEffect(() => {
     const tick = () => {
       const newCountdowns: Record<string, string> = {}
@@ -187,7 +190,6 @@ export default function DepositPage() {
     return () => { if (countdownRef.current) clearInterval(countdownRef.current) }
   }, [history])
 
-  // Periodic check for unlock notifications (every 30 seconds)
   useEffect(() => {
     emailCheckRef.current = setInterval(() => {
       checkUnlockNotifications(history)
@@ -260,28 +262,6 @@ export default function DepositPage() {
     return () => document.removeEventListener('keydown', h)
   }, [])
 
-  const drawQR = useCallback((addr: string) => {
-    const canvas = qrRef.current; if (!canvas) return
-    const ctx = canvas.getContext('2d'); if (!ctx) return
-    const size = 100
-    canvas.width = size; canvas.height = size
-    ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, size, size)
-    const cell = size / 10
-    for (let r = 0; r < 10; r++)
-      for (let c = 0; c < 10; c++) {
-        const ch = addr.charCodeAt((r * 10 + c) % addr.length)
-        if (ch % 2 === 0 || (r < 3 && c < 3) || (r < 3 && c > 6) || (r > 6 && c < 3)) {
-          ctx.fillStyle = '#1c1c1c'; ctx.fillRect(c * cell + 1, r * cell + 1, cell - 1, cell - 1)
-        }
-      }
-    ;[[0, 0], [0, 7], [7, 0]].forEach(([r, c]) => {
-      ctx.strokeStyle = '#1c1c1c'; ctx.lineWidth = 1.5
-      ctx.strokeRect(c * cell + 0.5, r * cell + 0.5, cell * 3 - 0.5, cell * 3 - 0.5)
-      ctx.fillStyle = '#fff'; ctx.fillRect(c * cell + 1.5, r * cell + 1.5, cell * 3 - 3, cell * 3 - 3)
-      ctx.fillStyle = '#1c1c1c'; ctx.fillRect(c * cell + 2.5, r * cell + 2.5, cell * 3 - 6, cell * 3 - 6)
-    })
-  }, [])
-
   const setStep = (n: number) => {
     setStepState(n)
     setTimeout(() => window.scrollTo({ top: 0, behavior: 'smooth' }), 50)
@@ -297,7 +277,7 @@ export default function DepositPage() {
     if (!selectedNet) { showToast('Please select a network'); return }
     const addr = ADDRESSES[selectedNet]
     setDepState(s => ({ ...s, network: selectedNet, address: addr, fee: 0, receive: s.amount }))
-    setTimeout(() => drawQR(addr), 100)
+    setAddrCopied(false)
     setStep(3)
   }
 
@@ -308,9 +288,7 @@ export default function DepositPage() {
     if (txnId.trim().length < 10) { showToast('Transaction ID seems too short'); return }
 
     try {
-      // Set locked_until to 5 minutes from NOW (deposit submission time)
       const lockedUntil = new Date(Date.now() + 5 * 60 * 1000).toISOString()
-
       const { error } = await supabase.from('deposits').insert({
         user_id: user.id,
         amount: depState.amount,
@@ -337,22 +315,19 @@ export default function DepositPage() {
   const copyAddress = () => {
     const addr = depState.address || ADDRESSES['TRC-20']
     if (navigator.clipboard?.writeText)
-      navigator.clipboard.writeText(addr).then(() => showToast('Address copied')).catch(() => showToast('Copied'))
+      navigator.clipboard.writeText(addr).then(() => { setAddrCopied(true); showToast('Address copied'); setTimeout(() => setAddrCopied(false), 2500) }).catch(() => showToast('Copied'))
     else showToast('Address copied')
   }
 
   const stepLabels = ['Amount', 'Network', 'Payment', 'Confirm']
   const info = selectedNet ? NET_FEES[selectedNet] : null
 
-  // Check if a deposit is currently locked
   const isLocked = (d: DepHistory): boolean => {
     return !!(d.lockedUntil && new Date(d.lockedUntil).getTime() > Date.now() && d.status === 'approved')
   }
 
-  // Get total locked amount (only approved deposits)
-  const lockedAmount = history
-    .filter(d => isLocked(d))
-    .reduce((sum, d) => sum + d.amount, 0)
+  const lockedAmount = history.filter(d => isLocked(d)).reduce((sum, d) => sum + d.amount, 0)
+  const netMeta = depState.network ? NET_INFO[depState.network] : null
 
   return (
     <>
@@ -372,9 +347,7 @@ export default function DepositPage() {
           <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
             <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
           </svg>
-          <span>
-            <strong>${lockedAmount.toLocaleString()} USDT</strong> is currently locked — funds will be available for withdrawal after the 5-minute security hold.
-          </span>
+          <span><strong>${lockedAmount.toLocaleString()} USDT</strong> is currently locked — available for withdrawal after the 5-minute security hold.</span>
         </div>
       )}
 
@@ -402,14 +375,11 @@ export default function DepositPage() {
               <h1 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 'clamp(1.6rem,4vw,2.2rem)', fontWeight: 400, color: 'var(--ink)', lineHeight: 1.15 }}>
                 Make a <em style={{ fontStyle: 'italic', color: 'var(--gold)' }}>Deposit</em>
               </h1>
-              {/* Lock info notice */}
               <div style={{ marginTop: 10, padding: '10px 14px', background: 'rgba(184,147,90,.06)', border: '1px solid var(--border)', borderRadius: 'var(--r)', display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: '.72rem', color: 'var(--txt2)' }}>
                 <svg width="14" height="14" fill="none" stroke="var(--gold)" strokeWidth="1.8" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: 1 }}>
                   <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
                 </svg>
-                <span>
-                  <strong style={{ color: 'var(--ink)' }}>5-minute security lock:</strong> Deposited funds are locked for 5 minutes after submission. During this time you can invest in seasons and earn profits, but cannot withdraw the deposited amount. Profits &amp; referral earnings remain withdrawable at any time.
-                </span>
+                <span><strong style={{ color: 'var(--ink)' }}>5-minute security lock:</strong> Deposited funds are locked for 5 minutes after submission. During this time you can invest in seasons. Profits &amp; referral earnings are withdrawable at any time.</span>
               </div>
             </div>
 
@@ -429,20 +399,26 @@ export default function DepositPage() {
               })}
             </div>
 
-            {/* STEP 1 — AMOUNT */}
-            <div className={`dp-card dp-section dp-reveal${step === 1 ? ' visible' : ''}`} style={{ padding: '28px 24px', marginBottom: 20, transitionDelay: '.08s' }}>
+            {/* ── STEP 1: AMOUNT ── */}
+            <div className={`dp-card dp-section dp-reveal${step === 1 ? ' visible' : ''}`} style={{ padding: '24px', marginBottom: 20, transitionDelay: '.08s' }}>
               <span className='dp-label'>Step 1 of 4</span>
-              <div className='dp-section-title' style={{ fontSize: '1.15rem', marginBottom: 20 }}>Select Deposit Amount</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, marginBottom: 18 }}>
-                {[100, 250, 500, 1000, 2000, 5000].map(v => (
-                  <button key={v} className={`dp-amt-chip${selectedChip === v ? ' selected' : ''}`}
-                    onClick={() => { setSelectedChip(v); setCustomAmt(String(v)); setDepState(s => ({ ...s, amount: v })); setAmtDisplay('$' + v.toLocaleString()) }}>
-                    ${v.toLocaleString()}
-                  </button>
-                ))}
+              <div className='dp-section-title' style={{ fontSize: '1.15rem', marginBottom: 18 }}>Select Deposit Amount</div>
+              
+              <div style={{ marginBottom: 16 }}>
+                <label className='dp-form-label' style={{ marginBottom: 10 }}>Quick Select</label>
+                <div className='dp-chips-grid'>
+                  {[100, 250, 500, 1000, 2000, 5000].map(v => (
+                    <button key={v} className={`dp-amt-chip${selectedChip === v ? ' selected' : ''}`}
+                      onClick={() => { setSelectedChip(v); setCustomAmt(String(v)); setDepState(s => ({ ...s, amount: v })); setAmtDisplay('$' + v.toLocaleString()) }}>
+                      <span className='dp-chip-val'>${v >= 1000 ? (v/1000)+'K' : v}</span>
+                      <span className='dp-chip-usdt'>USDT</span>
+                    </button>
+                  ))}
+                </div>
               </div>
-              <div style={{ marginBottom: 6 }}>
-                <label className='dp-form-label'>Or enter custom amount (USDT)</label>
+
+              <div style={{ marginBottom: 8 }}>
+                <label className='dp-form-label'>Custom Amount (USDT)</label>
                 <input className='dp-form-input' type='number' placeholder='Enter amount e.g. 750' min='10' value={customAmt}
                   onChange={e => {
                     setCustomAmt(e.target.value)
@@ -451,122 +427,191 @@ export default function DepositPage() {
                     setAmtDisplay(v > 0 ? '$' + v.toLocaleString() : '—')
                     setSelectedChip(null)
                   }} />
+                <div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 5 }}>Minimum deposit: $10 USDT</div>
               </div>
-              <div style={{ fontSize: '.72rem', color: 'var(--txt3)', marginBottom: 20 }}>Minimum deposit: $10 USDT</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '12px 16px', background: 'var(--parchment)', border: '1px solid var(--border-s)', borderRadius: 'var(--r)', marginBottom: 20 }}>
-                <div style={{ width: 32, height: 32, background: 'rgba(38,162,107,0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.7rem', fontWeight: 600, color: '#26a26b', flexShrink: 0 }}>₮</div>
-                <div>
-                  <div style={{ fontSize: '.82rem', fontWeight: 500, color: 'var(--ink)' }}>Tether USD — USDT</div>
-                  <div style={{ fontSize: '.7rem', color: 'var(--txt3)' }}>Stablecoin · 1 USDT ≈ $1.00</div>
+
+              {/* Amount summary pill */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px', background: 'var(--parchment)', border: '1px solid var(--border-s)', borderRadius: 'var(--r)', marginBottom: 20, marginTop: 16 }}>
+                <div style={{ width: 36, height: 36, background: 'rgba(38,162,107,0.15)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '.75rem', fontWeight: 700, color: '#26a26b', flexShrink: 0 }}>₮</div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: '.75rem', fontWeight: 500, color: 'var(--ink)' }}>Tether USD — USDT</div>
+                  <div style={{ fontSize: '.67rem', color: 'var(--txt3)' }}>Stablecoin · 1 USDT ≈ $1.00</div>
                 </div>
-                <div style={{ marginLeft: 'auto', fontFamily: "'Cormorant Garamond',serif", fontSize: '1.2rem', color: 'var(--gold)' }}>{amtDisplay}</div>
+                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.4rem', color: 'var(--gold)', fontWeight: 400 }}>{amtDisplay}</div>
               </div>
-              <button className='dp-btn dp-btn-dark' style={{ width: '100%' }} onClick={goToStep2}><span>Continue to Network Selection →</span></button>
+
+              <button className='dp-btn dp-btn-dark' style={{ width: '100%' }} onClick={goToStep2}><span>Continue →</span></button>
             </div>
 
-            {/* STEP 2 — NETWORK */}
-            <div className={`dp-card dp-section dp-reveal${step === 2 ? ' visible' : ''}`} style={{ padding: '28px 24px', marginBottom: 20, transitionDelay: '.08s' }}>
-              <div style={{ marginBottom: 4 }}>
-                <button onClick={() => setStep(1)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', fontSize: '.75rem', letterSpacing: '.08em', textTransform: 'uppercase', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <svg width='14' height='14' fill='none' stroke='currentColor' strokeWidth='2' viewBox='0 0 24 24'><polyline points='15 18 9 12 15 6' /></svg>Back
-                </button>
-              </div>
+            {/* ── STEP 2: NETWORK ── */}
+            <div className={`dp-card dp-section dp-reveal${step === 2 ? ' visible' : ''}`} style={{ padding: '24px', marginBottom: 20, transitionDelay: '.08s' }}>
+              <button onClick={() => setStep(1)} className='dp-back-btn'>
+                <svg width='14' height='14' fill='none' stroke='currentColor' strokeWidth='2' viewBox='0 0 24 24'><polyline points='15 18 9 12 15 6' /></svg>Back
+              </button>
               <span className='dp-label'>Step 2 of 4</span>
-              <div className='dp-section-title' style={{ fontSize: '1.15rem', marginBottom: 20 }}>Select Network</div>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginBottom: 24 }}>
-                {['TRC-20', 'ERC-20', 'BEP-20'].map(net => (
-                  <button key={net} className={`dp-net-pill${selectedNet === net ? ' selected' : ''}`}
-                    onClick={() => { setSelectedNet(net); setNetInfoVisible(true) }}>
-                    {net} <span style={{ color: 'var(--txt3)', fontSize: '.68rem' }}>· {net === 'TRC-20' ? 'TRON' : net === 'ERC-20' ? 'Ethereum' : 'BNB Smart Chain'}</span>
-                  </button>
-                ))}
+              <div className='dp-section-title' style={{ fontSize: '1.15rem', marginBottom: 18 }}>Select Network</div>
+
+              <div className='dp-network-grid'>
+                {['TRC-20', 'ERC-20', 'BEP-20'].map(net => {
+                  const meta = NET_INFO[net]
+                  const feeInfo = NET_FEES[net]
+                  return (
+                    <button key={net} className={`dp-net-card${selectedNet === net ? ' selected' : ''}`}
+                      onClick={() => { setSelectedNet(net); setNetInfoVisible(true) }}>
+                      <div className='dp-net-icon' style={{ background: meta.color + '18', border: `1px solid ${meta.color}30` }}>
+                        <span style={{ fontSize: '.65rem', fontWeight: 700, color: meta.color, letterSpacing: '.04em' }}>
+                          {net === 'TRC-20' ? 'TRX' : net === 'ERC-20' ? 'ETH' : 'BNB'}
+                        </span>
+                      </div>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '.84rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 2 }}>{net}</div>
+                        <div style={{ fontSize: '.7rem', color: 'var(--txt2)' }}>{meta.chain}</div>
+                        <div style={{ fontSize: '.65rem', color: meta.color, marginTop: 2 }}>{meta.desc}</div>
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
+                        <span className='dp-net-badge'>{feeInfo.feeLabel}</span>
+                        <span style={{ fontSize: '.62rem', color: 'var(--txt3)' }}>{feeInfo.time}</span>
+                      </div>
+                      {selectedNet === net && <div className='dp-net-check'>✓</div>}
+                    </button>
+                  )
+                })}
               </div>
-              {netInfoVisible && info && (
-                <div style={{ display: 'block', padding: '14px 16px', background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 'var(--r)', marginBottom: 20 }}>
-                  <div className='dp-detail-row'><span className='dp-detail-key'>Network</span><span className='dp-detail-val'>{selectedNet}</span></div>
-                  <div className='dp-detail-row'><span className='dp-detail-key'>Transaction Fee</span><span className='dp-detail-val' style={{ color: 'var(--sage)' }}>{info.feeLabel}</span></div>
-                  <div className='dp-detail-row'><span className='dp-detail-key'>Confirmation Time</span><span className='dp-detail-val'>{info.time}</span></div>
+
+              {!selectedNet && (
+                <div style={{ padding: '12px 14px', background: 'rgba(184,147,90,.05)', border: '1px dashed var(--border)', borderRadius: 'var(--r)', textAlign: 'center', fontSize: '.75rem', color: 'var(--txt3)' }}>
+                  Select a network above to continue
                 </div>
               )}
-              <button className='dp-btn dp-btn-dark' style={{ width: '100%' }} onClick={goToStep3}><span>Continue to Payment Details →</span></button>
+
+              <button className='dp-btn dp-btn-dark' style={{ width: '100%', marginTop: 16 }} onClick={goToStep3}><span>Continue →</span></button>
             </div>
 
-            {/* STEP 3 — PAYMENT */}
-            <div className={`dp-card dp-section dp-reveal${step === 3 ? ' visible' : ''}`} style={{ padding: '28px 24px', marginBottom: 20, transitionDelay: '.08s' }}>
-              <div style={{ marginBottom: 4 }}>
-                <button onClick={() => setStep(2)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', fontSize: '.75rem', letterSpacing: '.08em', textTransform: 'uppercase', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <svg width='14' height='14' fill='none' stroke='currentColor' strokeWidth='2' viewBox='0 0 24 24'><polyline points='15 18 9 12 15 6' /></svg>Back
-                </button>
-              </div>
+            {/* ── STEP 3: PAYMENT ── */}
+            <div className={`dp-card dp-section dp-reveal${step === 3 ? ' visible' : ''}`} style={{ padding: '24px', marginBottom: 20, transitionDelay: '.08s' }}>
+              <button onClick={() => setStep(2)} className='dp-back-btn'>
+                <svg width='14' height='14' fill='none' stroke='currentColor' strokeWidth='2' viewBox='0 0 24 24'><polyline points='15 18 9 12 15 6' /></svg>Back
+              </button>
               <span className='dp-label'>Step 3 of 4</span>
-              <div className='dp-section-title' style={{ fontSize: '1.15rem', marginBottom: 20 }}>Send Payment</div>
-              <div style={{ marginBottom: 18 }}>
-                <label className='dp-form-label'>Deposit Address ({depState.network || selectedNet})</label>
-                <div style={{ display: 'flex', gap: 10, alignItems: 'stretch' }}>
-                  <div className='dp-addr-box'>{depState.address || ADDRESSES['TRC-20']}</div>
-                  <button className='dp-copy-btn' onClick={copyAddress}>Copy</button>
+              <div className='dp-section-title' style={{ fontSize: '1.15rem', marginBottom: 6 }}>Send Payment</div>
+              {netMeta && (
+                <div style={{ fontSize: '.72rem', color: 'var(--txt2)', marginBottom: 18, display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <span style={{ width: 8, height: 8, borderRadius: '50%', background: netMeta.color, display: 'inline-block', flexShrink: 0 }} />
+                  Sending via <strong style={{ color: 'var(--ink)' }}>{depState.network || selectedNet}</strong> · {netMeta.chain}
+                </div>
+              )}
+
+              {/* QR + Address layout */}
+              <div className='dp-payment-layout' style={{ marginBottom: 18 }}>
+                {/* QR Code */}
+                <div className='dp-qr-container'>
+                  <div className='dp-qr-frame'>
+                    <div className='dp-qr-corner dp-qr-tl'/>
+                    <div className='dp-qr-corner dp-qr-tr'/>
+                    <div className='dp-qr-corner dp-qr-bl'/>
+                    <div className='dp-qr-corner dp-qr-br'/>
+                    {/* Real QR code image */}
+                    <img
+                      src={QR_IMAGES[depState.network || selectedNet]}
+                      alt={`QR code for ${depState.network} deposit`}
+                      style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: 2, display: 'block' }}
+                    />
+                  </div>
+                  <div style={{ marginTop: 8, fontSize: '.62rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--txt3)', textAlign: 'center' }}>
+                    Scan to pay
+                  </div>
+                </div>
+
+                {/* Right side info */}
+                <div>
+                  <div style={{ marginBottom: 14 }}>
+                    <label className='dp-form-label' style={{ marginBottom: 8 }}>Deposit Address</label>
+                    <div className='dp-addr-box-new'>
+                      <span className='dp-addr-text'>{depState.address || ADDRESSES['TRC-20']}</span>
+                      <button className={`dp-copy-btn-sm${addrCopied ? ' copied' : ''}`} onClick={copyAddress}>
+                        {addrCopied ? '✓ Copied' : (
+                          <>
+                            <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                              <rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1"/>
+                            </svg>
+                            Copy
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className='dp-pay-summary'>
+                    <div className='dp-pay-row' style={{ borderBottom: '1px solid rgba(184,147,90,.1)', paddingBottom: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: '.65rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--txt3)' }}>You Send</span>
+                      <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.1rem', color: 'var(--ink)', fontWeight: 500 }}>{depState.amount} USDT</span>
+                    </div>
+                    <div className='dp-pay-row' style={{ borderBottom: '1px solid rgba(184,147,90,.1)', paddingBottom: 8, marginBottom: 8 }}>
+                      <span style={{ fontSize: '.65rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--txt3)' }}>Network Fee</span>
+                      <span style={{ fontSize: '.82rem', color: 'var(--sage)', fontWeight: 500 }}>Free</span>
+                    </div>
+                    <div className='dp-pay-row' style={{ borderBottom: 'none' }}>
+                      <span style={{ fontSize: '.65rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--txt3)' }}>You Receive</span>
+                      <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.1rem', color: 'var(--sage)', fontWeight: 600 }}>{depState.amount} USDT</span>
+                    </div>
+                  </div>
                 </div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 20, marginBottom: 20, flexWrap: 'wrap' }}>
-                <div className='dp-qr-wrap'><canvas ref={qrRef} width='100' height='100' /></div>
-                <div style={{ fontSize: '.78rem', color: 'var(--txt3)', lineHeight: 1.7 }}>
-                  Scan the QR code or copy the address above.<br />
-                  Send <strong style={{ color: 'var(--ink)' }}>{depState.amount}</strong> USDT via <strong style={{ color: 'var(--ink)' }}>{depState.network}</strong> network.<br />
-                  <span style={{ color: '#c0392b', fontSize: '.72rem' }}>⚠ Do not send other coins to this address.</span>
-                </div>
+
+              {/* Important notice */}
+              <div style={{ padding: '11px 14px', background: 'rgba(155,58,58,.04)', border: '1px solid rgba(155,58,58,.15)', borderRadius: 'var(--r)', marginBottom: 16, fontSize: '.7rem', color: '#9b5a3a', lineHeight: 1.7, display: 'flex', gap: 8 }}>
+                <span style={{ flexShrink: 0, fontSize: '1rem' }}>⚠</span>
+                <span>Only send <strong>USDT</strong> using the <strong>{depState.network || selectedNet}</strong> network. Sending other coins or using wrong networks will result in permanent loss. Double-check the address before sending.</span>
               </div>
-              <div style={{ padding: '14px 16px', background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 'var(--r)', marginBottom: 20 }}>
-                <div className='dp-detail-row'><span className='dp-detail-key'>You Send</span><span className='dp-detail-val'>{depState.amount} USDT</span></div>
-                <div className='dp-detail-row'><span className='dp-detail-key'>Transaction Fee</span><span className='dp-detail-val' style={{ color: 'var(--sage)' }}>Free</span></div>
-                <div className='dp-detail-row'><span className='dp-detail-key'>You Receive</span><span className='dp-detail-val' style={{ color: 'var(--sage)', fontWeight: 600 }}>{depState.amount} USDT</span></div>
-                <div className='dp-detail-row'><span className='dp-detail-key'>Network</span><span className='dp-detail-val'>{depState.network}</span></div>
-                <div className='dp-detail-row'><span className='dp-detail-key'>Estimated Time</span><span className='dp-detail-val'>{NET_FEES[depState.network || selectedNet]?.time || '—'}</span></div>
-              </div>
+
               {/* Lock notice */}
-              <div style={{ padding: '12px 14px', background: 'rgba(155,90,58,.06)', border: '1px solid rgba(155,90,58,.2)', borderRadius: 'var(--r)', marginBottom: 20, display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: '.71rem', color: 'rgba(155,90,58,.9)' }}>
+              <div style={{ padding: '10px 13px', background: 'rgba(155,90,58,.06)', border: '1px solid rgba(155,90,58,.2)', borderRadius: 'var(--r)', marginBottom: 18, fontSize: '.7rem', color: 'rgba(155,90,58,.9)', display: 'flex', gap: 8, alignItems: 'flex-start' }}>
                 <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.8" viewBox="0 0 24 24" style={{ flexShrink: 0, marginTop: 1 }}>
                   <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
                 </svg>
-                <span>Once approved by admin, your deposit will be <strong>locked for 5 minutes</strong> before it can be withdrawn. You can still invest it in seasons immediately.</span>
+                <span>Once approved by admin, your deposit will be <strong>locked for 5 minutes</strong> before withdrawal is available. You can invest it in seasons immediately.</span>
               </div>
+
               <button className='dp-btn dp-btn-dark' style={{ width: '100%' }} onClick={goToStep4}><span>I've Sent the Payment →</span></button>
             </div>
 
-            {/* STEP 4 — CONFIRM */}
-            <div className={`dp-card dp-section dp-reveal${step === 4 ? ' visible' : ''}`} style={{ padding: '28px 24px', marginBottom: 20, transitionDelay: '.08s' }}>
-              <div style={{ marginBottom: 4 }}>
-                <button onClick={() => setStep(3)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', fontSize: '.75rem', letterSpacing: '.08em', textTransform: 'uppercase', fontFamily: "'DM Sans',sans-serif", display: 'flex', alignItems: 'center', gap: 5 }}>
-                  <svg width='14' height='14' fill='none' stroke='currentColor' strokeWidth='2' viewBox='0 0 24 24'><polyline points='15 18 9 12 15 6' /></svg>Back
-                </button>
-              </div>
+            {/* ── STEP 4: CONFIRM ── */}
+            <div className={`dp-card dp-section dp-reveal${step === 4 ? ' visible' : ''}`} style={{ padding: '24px', marginBottom: 20, transitionDelay: '.08s' }}>
+              <button onClick={() => setStep(3)} className='dp-back-btn'>
+                <svg width='14' height='14' fill='none' stroke='currentColor' strokeWidth='2' viewBox='0 0 24 24'><polyline points='15 18 9 12 15 6' /></svg>Back
+              </button>
               <span className='dp-label'>Step 4 of 4</span>
-              <div className='dp-section-title' style={{ fontSize: '1.15rem', marginBottom: 8 }}>Confirm Payment</div>
-              <div style={{ fontSize: '.82rem', color: 'var(--txt2)', marginBottom: 22 }}>
-                Enter your blockchain transaction ID to complete the deposit request.
+              <div className='dp-section-title' style={{ fontSize: '1.15rem', marginBottom: 8 }}>Confirm & Submit</div>
+              <div style={{ fontSize: '.8rem', color: 'var(--txt2)', marginBottom: 20, lineHeight: 1.6 }}>
+                Enter the blockchain transaction ID to complete your deposit request.
               </div>
               <div style={{ marginBottom: 20 }}>
                 <label className='dp-form-label'>Transaction ID / Hash</label>
-                <input className='dp-form-input' type='text' placeholder='e.g. 0xabcd1234...ef56 or TXN hash' value={txnId} onChange={e => setTxnId(e.target.value)} />
-                <div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 6 }}>
+                <input className='dp-form-input' type='text' placeholder='e.g. 0xabcd1234…ef56 or TXN hash' value={txnId} onChange={e => setTxnId(e.target.value)} />
+                <div style={{ fontSize: '.68rem', color: 'var(--txt3)', marginTop: 6 }}>
                   Copy the transaction hash from your wallet or exchange after sending.
                 </div>
               </div>
+
+              {/* Summary */}
               <div style={{ padding: '14px 16px', background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 'var(--r)', marginBottom: 20 }}>
-                <div className='dp-detail-row'><span className='dp-detail-key'>Amount</span><span className='dp-detail-val'>{depState.amount} USDT</span></div>
-                <div className='dp-detail-row'><span className='dp-detail-key'>Network</span><span className='dp-detail-val'>{depState.network}</span></div>
-                <div className='dp-detail-row'><span className='dp-detail-key'>To Receive</span><span className='dp-detail-val' style={{ color: 'var(--sage)' }}>{depState.amount} USDT</span></div>
-                <div className='dp-detail-row' style={{ borderBottom: 'none' }}>
-                  <span className='dp-detail-key'>Security Lock</span>
-                  <span className='dp-detail-val' style={{ color: 'rgba(155,90,58,.9)', display: 'flex', alignItems: 'center', gap: 4 }}>
-                    <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                    5 minutes after approval
-                  </span>
-                </div>
+                {[
+                  ['Amount', `${depState.amount} USDT`, 'var(--ink)'],
+                  ['Network', depState.network, 'var(--ink)'],
+                  ['To Receive', `${depState.amount} USDT`, 'var(--sage)'],
+                  ['Security Lock', '5 min after approval', 'rgba(155,90,58,.9)'],
+                ].map(([k, v, c]) => (
+                  <div key={k} className='dp-detail-row'>
+                    <span className='dp-detail-key'>{k}</span>
+                    <span className='dp-detail-val' style={{ color: c }}>{v}</span>
+                  </div>
+                ))}
               </div>
+
               <button className='dp-btn dp-btn-dark' style={{ width: '100%' }} onClick={confirmDeposit}><span>✓ Confirm Deposit</span></button>
             </div>
 
-            {/* DEPOSIT HISTORY */}
+            {/* ── DEPOSIT HISTORY ── */}
             <div className='dp-reveal' style={{ marginTop: 36, transitionDelay: '.14s' }}>
               <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
                 <div>
@@ -588,39 +633,41 @@ export default function DepositPage() {
                     }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: 12, flex: 1, minWidth: 0 }}>
                         <div style={{
-                          width: 34, height: 34,
-                          background: locked ? 'rgba(155,90,58,.12)' : 'rgba(184,147,90,0.1)',
+                          width: 36, height: 36,
+                          background: locked ? 'rgba(155,90,58,.12)' : d.status === 'approved' ? 'rgba(74,103,65,.1)' : d.status === 'rejected' ? 'rgba(155,58,58,.08)' : 'rgba(184,147,90,0.1)',
                           border: `1px solid ${locked ? 'rgba(155,90,58,.3)' : 'var(--border)'}`,
                           borderRadius: 'var(--r)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0
                         }}>
                           {locked ? (
                             <svg width="14" height="14" fill="none" stroke="rgba(155,90,58,.9)" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
+                          ) : d.status === 'approved' ? (
+                            <svg width='14' height='14' fill='none' stroke='var(--sage)' strokeWidth='1.8' viewBox='0 0 24 24'><polyline points='20 6 9 17 4 12'/></svg>
+                          ) : d.status === 'rejected' ? (
+                            <svg width='14' height='14' fill='none' stroke='#9b3a3a' strokeWidth='1.8' viewBox='0 0 24 24'><line x1='18' y1='6' x2='6' y2='18'/><line x1='6' y1='6' x2='18' y2='18'/></svg>
                           ) : (
-                            <svg width='14' height='14' fill='none' stroke='var(--gold)' strokeWidth='1.8' viewBox='0 0 24 24'><line x1='12' y1='19' x2='12' y2='5' /><polyline points='5 12 12 5 19 12' /></svg>
+                            <svg width='14' height='14' fill='none' stroke='var(--gold)' strokeWidth='1.8' viewBox='0 0 24 24'><circle cx='12' cy='12' r='10'/><polyline points='12 6 12 12 16 14'/></svg>
                           )}
                         </div>
                         <div style={{ minWidth: 0 }}>
-                          <div style={{ fontSize: '.82rem', fontWeight: 500, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                            {d.id.slice(0, 8).toUpperCase()}
+                          <div style={{ fontSize: '.8rem', fontWeight: 500, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 7, flexWrap: 'wrap' }}>
+                            <span style={{ fontFamily: 'monospace', fontSize: '.72rem' }}>{d.id.slice(0, 8).toUpperCase()}</span>
                             <span className={`dp-tag dp-tag-${d.status}`}>{d.status}</span>
                             {locked && (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', background: 'rgba(155,90,58,.1)', border: '1px solid rgba(155,90,58,.25)', borderRadius: 100, fontSize: '.58rem', letterSpacing: '.08em', textTransform: 'uppercase', color: 'rgba(155,90,58,.9)' }}>
-                                <svg width="9" height="9" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                                Locked · {countdown}
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 7px', background: 'rgba(155,90,58,.1)', border: '1px solid rgba(155,90,58,.25)', borderRadius: 100, fontSize: '.58rem', textTransform: 'uppercase', color: 'rgba(155,90,58,.9)' }}>
+                                🔒 {countdown}
                               </span>
                             )}
                             {wasLocked && !locked && (
-                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '2px 8px', background: 'rgba(74,103,65,.1)', border: '1px solid rgba(74,103,65,.2)', borderRadius: 100, fontSize: '.58rem', letterSpacing: '.08em', textTransform: 'uppercase', color: 'var(--sage)' }}>
-                                <svg width="9" height="9" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" opacity=".4"/><path d="M8 11V8a4 4 0 018 0" opacity=".4"/></svg>
-                                Unlocked
+                              <span style={{ display: 'inline-flex', alignItems: 'center', gap: 3, padding: '2px 7px', background: 'rgba(74,103,65,.1)', border: '1px solid rgba(74,103,65,.2)', borderRadius: 100, fontSize: '.58rem', textTransform: 'uppercase', color: 'var(--sage)' }}>
+                                🔓 Unlocked
                               </span>
                             )}
                           </div>
-                          <div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 2 }}>{d.date} · {d.network}</div>
+                          <div style={{ fontSize: '.68rem', color: 'var(--txt3)', marginTop: 3 }}>{d.date} · {d.network}</div>
                         </div>
                       </div>
                       <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.1rem', color: 'var(--ink)', fontWeight: 500 }}>+${d.amount.toLocaleString()}</div>
+                        <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.15rem', color: 'var(--ink)', fontWeight: 500 }}>+${d.amount.toLocaleString()}</div>
                         <button onClick={() => { setModalEntry(d); setModalOpen(true) }}
                           style={{ fontSize: '.68rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--gold)', background: 'none', border: 'none', cursor: 'pointer', marginTop: 2 }}>
                           View →
@@ -644,34 +691,38 @@ export default function DepositPage() {
               <span className='dp-label'>Transaction</span>
               <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.3rem', fontWeight: 400 }}>Deposit Details</div>
             </div>
-            <button onClick={() => setModalOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt3)', fontSize: '1.4rem', lineHeight: 1 }}>×</button>
+            <button onClick={() => setModalOpen(false)} style={{ background: 'rgba(184,147,90,.1)', border: '1px solid var(--border)', borderRadius: 'var(--r)', cursor: 'pointer', width: 32, height: 32, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', color: 'var(--txt2)' }}>×</button>
           </div>
           {modalEntry && (
             <>
               <div style={{ padding: '14px 16px', background: 'var(--parchment)', border: '1px solid var(--border)', borderRadius: 'var(--r)', marginBottom: 16 }}>
-                <div className='dp-detail-row'><span className='dp-detail-key'>Transaction ID</span><span className='dp-detail-val'>{modalEntry.id}</span></div>
-                <div className='dp-detail-row'><span className='dp-detail-key'>Status</span><span className='dp-detail-val'><span className={`dp-tag dp-tag-${modalEntry.status}`} style={{ fontSize: '.72rem' }}>{modalEntry.status}</span></span></div>
-                <div className='dp-detail-row'><span className='dp-detail-key'>Date</span><span className='dp-detail-val'>{modalEntry.date}</span></div>
-                <div className='dp-detail-row'><span className='dp-detail-key'>Amount Sent</span><span className='dp-detail-val'>{modalEntry.amount} USDT</span></div>
-                <div className='dp-detail-row'><span className='dp-detail-key'>Transaction Fee</span><span className='dp-detail-val' style={{ color: 'var(--sage)' }}>Free</span></div>
-                <div className='dp-detail-row'><span className='dp-detail-key'>Amount Received</span><span className='dp-detail-val' style={{ color: 'var(--sage)' }}>{modalEntry.amount} USDT</span></div>
-                <div className='dp-detail-row'><span className='dp-detail-key'>Network</span><span className='dp-detail-val'>{modalEntry.network}</span></div>
-                {/* Lock status row */}
+                {[
+                  ['Transaction ID', modalEntry.id],
+                  ['Status', null],
+                  ['Date', modalEntry.date],
+                  ['Amount Sent', `${modalEntry.amount} USDT`],
+                  ['Network Fee', 'Free'],
+                  ['Amount Received', `${modalEntry.amount} USDT`],
+                  ['Network', modalEntry.network],
+                ].map(([k, v]) => (
+                  <div key={k as string} className='dp-detail-row'>
+                    <span className='dp-detail-key'>{k}</span>
+                    {k === 'Status' ? (
+                      <span className={`dp-tag dp-tag-${modalEntry.status}`}>{modalEntry.status}</span>
+                    ) : k === 'Network Fee' ? (
+                      <span className='dp-detail-val' style={{ color: 'var(--sage)' }}>{v}</span>
+                    ) : k === 'Amount Received' ? (
+                      <span className='dp-detail-val' style={{ color: 'var(--sage)' }}>{v}</span>
+                    ) : (
+                      <span className='dp-detail-val' style={{ fontSize: '.76rem', wordBreak: 'break-all', maxWidth: 200, textAlign: 'right' }}>{v as string}</span>
+                    )}
+                  </div>
+                ))}
                 {modalEntry.lockedUntil && (
                   <div className='dp-detail-row' style={{ borderBottom: 'none' }}>
                     <span className='dp-detail-key'>Lock Status</span>
-                    <span className='dp-detail-val' style={{ color: isLocked(modalEntry) ? 'rgba(155,90,58,.9)' : 'var(--sage)', display: 'flex', alignItems: 'center', gap: 4, fontSize: '.76rem' }}>
-                      {isLocked(modalEntry) ? (
-                        <>
-                          <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                          Locked · {lockCountdowns[modalEntry.id] || '—'}
-                        </>
-                      ) : (
-                        <>
-                          <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2" opacity=".4"/><path d="M8 11V8a4 4 0 018 0" opacity=".4"/></svg>
-                          Unlocked
-                        </>
-                      )}
+                    <span className='dp-detail-val' style={{ color: isLocked(modalEntry) ? 'rgba(155,90,58,.9)' : 'var(--sage)', fontSize: '.76rem' }}>
+                      {isLocked(modalEntry) ? `🔒 Locked · ${lockCountdowns[modalEntry.id] || '—'}` : '🔓 Unlocked'}
                     </span>
                   </div>
                 )}

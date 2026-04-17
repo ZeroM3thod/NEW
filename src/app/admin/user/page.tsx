@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import AdminSidebar from '../AdminSidebar';
 import VaultXLoader from '@/components/VaultXLoader';
 import { createClient } from '@/utils/supabase/client';
+import VaultXLoader from '@/components/VaultXLoader';
 
 /* ══════════════════════════════
    HELPERS
@@ -210,7 +211,6 @@ export default function AdminUserPage() {
       first_name: firstName,
       last_name: lastName,
       username: formState.username,
-      email: formState.email,
       phone_number: formState.phone,
       country: formState.country,
       balance: formState.balance,

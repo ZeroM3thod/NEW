@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, useCallback } from 'react';
 import AdminSidebar from '../AdminSidebar';
 import VaultXLoader from '@/components/VaultXLoader';
 import { createClient } from '@/utils/supabase/client';
+import VaultXLoader from '@/components/VaultXLoader';
 
 /* ══════════════════════════════
    TYPES

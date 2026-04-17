@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import AdminSidebar from '../AdminSidebar';
 import VaultXLoader from '@/components/VaultXLoader';
 import { createClient } from '@/utils/supabase/client';
+import VaultXLoader from '@/components/VaultXLoader';
 
 /* ── Types ── */
 interface WdEntry {

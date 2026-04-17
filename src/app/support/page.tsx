@@ -4,6 +4,7 @@ import { useRouter } from 'next/navigation';
 import UserSidebar from '@/components/UserSidebar';
 import VaultXLoader from '@/components/VaultXLoader';
 import { createClient } from '@/utils/supabase/client';
+import VaultXLoader from '@/components/VaultXLoader';
 
 interface Ticket { id:string;subject:string;category:string;priority:string;date:string;status:'open'|'pending'|'closed' }
 
@@ -45,6 +46,7 @@ export default function SupportPage() {
   const [faqSearch, setFaqSearch] = useState('');
   const [openFaq, setOpenFaq] = useState<number|null>(null);
   const [profile, setProfile] = useState<any>(null);
+  const [pageLoading, setPageLoading] = useState(true);
   const [tickets, setTickets] = useState<Ticket[]>(INIT_TICKETS);
   const [pageLoading, setPageLoading] = useState(true);
   

@@ -320,6 +320,10 @@ export default function DashboardPage() {
   const refCode        = profile?.referral_code || '—'
   const avgRoi         = computedAvgRoi
 
+  // ── FIX 3: cap locked at current balance so it never exceeds what's there ──
+  const effectiveLockedAmount   = Math.min(lockedAmount, balance)
+  const effectiveWithdrawable   = Math.max(0, withdrawable - effectiveLockedAmount)
+
   const activeSeasonDays  = activeInvestment?.seasons?.duration_days || 90
   const activeSeasonStart = activeInvestment?.seasons?.start_date    || null
   const activeSeasonName  = activeInvestment?.seasons?.name          || null
@@ -330,8 +334,6 @@ export default function DashboardPage() {
   const bestRoi = historyInvestments.length
     ? Math.max(...historyInvestments.map(i => Number(i.seasons?.final_roi) || 0))
     : null
-
-  const effectiveWithdrawable = Math.max(0, withdrawable - lockedAmount)
 
   return (
     <>
@@ -513,7 +515,7 @@ export default function DashboardPage() {
             </div>
 
             {/* LOCKED AMOUNT ALERT */}
-            {lockedAmount > 0 && (
+            {effectiveLockedAmount > 0 && (
               <div className='db-reveal' style={{ marginBottom: 16, transitionDelay: '.02s' }}>
                 <div style={{
                   background: 'rgba(155,90,58,.08)', border: '1px solid rgba(155,90,58,.3)',
@@ -529,7 +531,7 @@ export default function DashboardPage() {
                     </div>
                     <div>
                       <div style={{ fontSize: '.8rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 2 }}>
-                        ${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT is security-locked
+                        ${effectiveLockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT is security-locked
                       </div>
                       <div style={{ fontSize: '.68rem', color: 'var(--txt2)' }}>
                         You can invest these funds now · Withdrawal available in {lockCountdown || '—'}
@@ -559,7 +561,7 @@ export default function DashboardPage() {
                       {avgRoi >= 0 ? '+' : ''}{avgRoi}% avg ROI
                     </span>
                   </div>
-                  {lockedAmount > 0 && (
+                  {effectiveLockedAmount > 0 && (
                     <div style={{ marginTop: 8, fontSize: '.72rem', color: 'rgba(246,241,233,0.5)', display: 'flex', alignItems: 'center', gap: 6 }}>
                       <svg width="11" height="11" fill="none" stroke="rgba(246,241,233,0.5)" strokeWidth="2" viewBox="0 0 24 24">
                         <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
@@ -606,7 +608,7 @@ export default function DashboardPage() {
                   icon:<path d='M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6'/>,
                   lbl:'Withdrawable',
                   val:`$${effectiveWithdrawable.toLocaleString(undefined, { minimumFractionDigits: 2 })}`,
-                  sub: lockedAmount > 0 ? `$${lockedAmount.toLocaleString()} locked` : 'available now',
+                  sub: effectiveLockedAmount > 0 ? `$${effectiveLockedAmount.toLocaleString()} locked` : 'available now',
                   cls:'db-stat-up',
                 },
                 {
@@ -615,16 +617,16 @@ export default function DashboardPage() {
                   lbl:'Total Profits', val: fmtPnL(profitsTotal), sub:'all time', cls: pnlCls(profitsTotal),
                 },
                 {
-                  bg: lockedAmount > 0 ? 'rgba(155,90,58,.1)' : 'rgba(74,103,65,.08)',
-                  svgColor: lockedAmount > 0 ? 'rgba(155,90,58,.9)' : 'var(--sage)',
-                  icon: lockedAmount > 0
+                  bg: effectiveLockedAmount > 0 ? 'rgba(155,90,58,.1)' : 'rgba(74,103,65,.08)',
+                  svgColor: effectiveLockedAmount > 0 ? 'rgba(155,90,58,.9)' : 'var(--sage)',
+                  icon: effectiveLockedAmount > 0
                     ? <><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></>
                     : <><rect x="3" y="11" width="18" height="11" rx="2" opacity=".4"/><path d="M8 11V8a4 4 0 018 0" opacity=".4"/></>,
                   lbl: 'Locked Amount',
-                  val: lockedAmount > 0 ? `$${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '$0.00',
-                  sub: lockedAmount > 0 ? `Available in ${lockCountdown || '—'}` : 'No funds locked',
+                  val: effectiveLockedAmount > 0 ? `$${effectiveLockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })}` : '$0.00',
+                  sub: effectiveLockedAmount > 0 ? `Available in ${lockCountdown || '—'}` : 'No funds locked',
                   cls: '',
-                  chColor: lockedAmount > 0 ? 'rgba(155,90,58,.9)' : 'var(--sage)',
+                  chColor: effectiveLockedAmount > 0 ? 'rgba(155,90,58,.9)' : 'var(--sage)',
                 },
               ] as {bg:string;svgColor:string;icon:React.ReactNode;lbl:string;val:string;sub:string;cls:string;chColor?:string}[]).map((s,i) => (
                 <div key={i} className='db-card db-card-hover' style={{padding:'18px 16px'}}>

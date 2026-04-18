@@ -337,19 +337,30 @@ export default function SeasonPage() {
       showToast('⚠ Insufficient balance.')
       return
     }
-    // Check if pool has enough room
-    const remaining = s.pool - s.poolFilled
-    if (remaining < amt) {
-      showToast(`⚠ Only ${fmtUSDT(remaining)} USDT space left in this pool.`)
-      return
-    }
 
     try {
+      // ── FIX 1: read fresh current_pool BEFORE inserting so we get the
+      //    real DB value, not stale component state, and do ONE update. ──
+      const { data: freshSeasonRow } = await supabase
+        .from('seasons')
+        .select('current_pool')
+        .eq('id', investId)
+        .single()
+
+      const freshFilled = Number(freshSeasonRow?.current_pool) || 0
+      const remaining = s.pool - freshFilled
+      if (remaining < amt) {
+        showToast(`⚠ Only ${fmtUSDT(remaining)} USDT space left in this pool.`)
+        return
+      }
+
+      // Insert investment record
       const { error: invError } = await supabase.from('investments').insert({
         user_id: userProfile.id, season_id: investId, amount: amt, status: 'active'
       })
       if (invError) throw invError
 
+      // Deduct from user balance
       const newBalance = Number(userProfile.balance) - amt
       const newWithdrawable = Math.max(0, (Number(userProfile.withdrawable_total) || 0) - amt)
       const { error: profileError } = await supabase.from('profiles').update({
@@ -359,13 +370,9 @@ export default function SeasonPage() {
       }).eq('id', userProfile.id)
       if (profileError) throw profileError
 
-      // Update pool
-      const { error: poolError } = await supabase.rpc('increment_season_pool', {
-        p_season_id: investId, p_amount: amt
-      })
-      if (poolError) {
-        await supabase.from('seasons').update({ current_pool: (s.poolFilled || 0) + amt }).eq('id', investId)
-      }
+      // ── FIX 1: single pool update using the fresh value we already read ──
+      const newPool = freshFilled + amt
+      await supabase.from('seasons').update({ current_pool: newPool }).eq('id', investId)
 
       setModalState('success')
       showToast('✓ Investment confirmed!', 'ok')

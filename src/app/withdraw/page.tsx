@@ -131,26 +131,31 @@ export default function WithdrawPage() {
   useEffect(() => {
     if (lockedDeposits.length === 0) {
       setLockCountdowns({})
+      setLockedAmount(0)
       return
     }
     const tick = () => {
       const now = Date.now()
       const newCountdowns: Record<string, string> = {}
-      let stillLockedTotal = 0
+      let stillLockedRaw = 0
       let anyStillLocked = false
 
       lockedDeposits.forEach(d => {
         const ms = new Date(d.lockedUntil).getTime() - now
         if (ms > 0) {
           newCountdowns[d.id] = getLockCountdown(d.lockedUntil)
-          stillLockedTotal += d.amount
+          stillLockedRaw += d.amount
           anyStillLocked = true
         } else {
           newCountdowns[d.id] = 'Unlocked'
         }
       })
+
+      // ── FIX 3: cap locked at the user's current balance ──
+      const profileBalance = Number(userProfile?.balance) || 0
       setLockCountdowns(newCountdowns)
-      setLockedAmount(stillLockedTotal)
+      setLockedAmount(Math.min(stillLockedRaw, profileBalance))
+
       if (!anyStillLocked) {
         if (lockTimerRef.current) clearInterval(lockTimerRef.current)
       }
@@ -158,7 +163,7 @@ export default function WithdrawPage() {
     tick()
     lockTimerRef.current = setInterval(tick, 1000)
     return () => { if (lockTimerRef.current) clearInterval(lockTimerRef.current) }
-  }, [lockedDeposits])
+  }, [lockedDeposits, userProfile])   // ← add userProfile dependency
 
   useEffect(() => {
     const cvs = bgRef.current; if (!cvs) return
@@ -229,7 +234,9 @@ export default function WithdrawPage() {
   // withdrawal requests), then subtract any still-locked deposit amounts.
   const currentBalance        = Number(userProfile?.balance)           || 0
   const withdrawableTotal     = Number(userProfile?.withdrawable_total) || 0
-  const effectiveWithdrawable = Math.max(0, withdrawableTotal - lockedAmount)
+  // ── FIX 3: locked can never exceed the actual balance ──
+  const effectiveLockedAmount = Math.min(lockedAmount, currentBalance)
+  const effectiveWithdrawable = Math.max(0, withdrawableTotal - effectiveLockedAmount)
 
   const onAmtChange = (v: string) => {
     setWdAmt(v)
@@ -349,13 +356,13 @@ export default function WithdrawPage() {
                   <div style={{ fontSize: '.75rem', color: 'rgba(246,241,233,0.4)', marginTop: 4 }}>USDT · BNB Smart Chain</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
-                  {lockedAmount > 0 ? (
+                  {effectiveLockedAmount > 0 ? (
                     <div>
                       <div style={{ fontSize: '.68rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'rgba(246,241,233,0.3)', marginBottom: 4 }}>Total Balance</div>
                       <div style={{ fontSize: '.82rem', color: 'rgba(246,241,233,0.7)', letterSpacing: '.04em' }}>${currentBalance.toLocaleString(undefined, { minimumFractionDigits: 2 })}</div>
                       <div style={{ fontSize: '.7rem', color: 'rgba(155,90,58,.7)', marginTop: 2, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'flex-end' }}>
                         <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                        ${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} locked · available in {lockCountdowns[soonestLock?.id || ''] || '—'}
+                        ${effectiveLockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} locked · available in {lockCountdowns[soonestLock?.id || ''] || '—'}
                       </div>
                     </div>
                   ) : (
@@ -370,7 +377,7 @@ export default function WithdrawPage() {
             </div>
 
             {/* LOCK WARNING BANNER */}
-            {lockedAmount > 0 && (
+            {effectiveLockedAmount > 0 && (
               <div className='wd-reveal' style={{ marginBottom: 20 }}>
                 <div style={{
                   background: 'rgba(155,90,58,.08)', border: '1px solid rgba(155,90,58,.3)',
@@ -381,7 +388,7 @@ export default function WithdrawPage() {
                       <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
                     </svg>
                     <div style={{ fontSize: '.8rem', fontWeight: 500, color: 'var(--ink)' }}>
-                      ${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT is security-locked
+                      ${effectiveLockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT is security-locked
                     </div>
                   </div>
                   <div style={{ fontSize: '.72rem', color: 'var(--txt2)', lineHeight: 1.7 }}>
@@ -445,10 +452,10 @@ export default function WithdrawPage() {
                 <div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                   <span>Minimum: $10</span>
                   <span>Available: <strong style={{ color: 'var(--ink)' }}>${effectiveWithdrawable.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></span>
-                  {lockedAmount > 0 && (
+                  {effectiveLockedAmount > 0 && (
                     <span style={{ color: 'rgba(155,90,58,.8)', display: 'flex', alignItems: 'center', gap: 3 }}>
                       <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                      ${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} locked (unlocks in {lockCountdowns[soonestLock?.id || ''] || '—'})
+                      ${effectiveLockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} locked (unlocks in {lockCountdowns[soonestLock?.id || ''] || '—'})
                     </span>
                   )}
                 </div>
@@ -483,12 +490,12 @@ export default function WithdrawPage() {
                 <div className='wd-detail-row'><span className='wd-detail-key'>You Request</span><span className='wd-detail-val'>{fsReq}</span></div>
                 <div className='wd-detail-row'><span className='wd-detail-key'>Transaction Fee</span><span className='wd-detail-val' style={{ color: 'var(--sage)' }}>Free</span></div>
                 <div className='wd-detail-row'><span className='wd-detail-key'>You Receive</span><span className='wd-detail-val' style={{ color: 'var(--sage)', fontWeight: 600 }}>{fsRecv}</span></div>
-                {lockedAmount > 0 && (
+                {effectiveLockedAmount > 0 && (
                   <div className='wd-detail-row' style={{ borderBottom: 'none' }}>
                     <span className='wd-detail-key'>Locked (unavailable)</span>
                     <span className='wd-detail-val' style={{ color: 'rgba(155,90,58,.8)', display: 'flex', alignItems: 'center', gap: 4, fontSize: '.76rem' }}>
                       <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                      ${lockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} · available {lockCountdowns[soonestLock?.id || ''] || '—'}
+                      ${effectiveLockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} · available {lockCountdowns[soonestLock?.id || ''] || '—'}
                     </span>
                   </div>
                 )}
@@ -507,7 +514,7 @@ export default function WithdrawPage() {
                 <span>Request Withdrawal →</span>
               </button>
 
-              {effectiveWithdrawable < 10 && lockedAmount > 0 && (
+              {effectiveWithdrawable < 10 && effectiveLockedAmount > 0 && (
                 <div style={{ textAlign: 'center', marginTop: 10, fontSize: '.72rem', color: 'rgba(155,90,58,.8)' }}>
                   Funds locked for 60 days · Available in {lockCountdowns[soonestLock?.id || ''] || '—'}
                 </div>

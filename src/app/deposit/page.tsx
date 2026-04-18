@@ -92,6 +92,7 @@ export default function DepositPage() {
   const [addrCopied, setAddrCopied] = useState(false)
 
   const [lockCountdowns, setLockCountdowns] = useState<Record<string, string>>({})
+  const [lockedAmount, setLockedAmount] = useState(0)
 
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bgRef = useRef<HTMLCanvasElement>(null)
@@ -173,24 +174,30 @@ export default function DepositPage() {
   useEffect(() => {
     const tick = () => {
       const newCountdowns: Record<string, string> = {}
-      let anyLocked = false
+      let stillLockedTotal = 0
+
       history.forEach(d => {
         if (d.lockedUntil && d.status === 'approved') {
           const ms = new Date(d.lockedUntil).getTime() - Date.now()
           if (ms > 0) {
             newCountdowns[d.id] = getCountdown(d.lockedUntil)
-            anyLocked = true
+            stillLockedTotal += d.amount
           } else {
             newCountdowns[d.id] = 'Unlocked'
           }
         }
       })
+
+      // ── FIX 3: cap locked at the user's current balance ──
+      const profileBalance = Number(userProfile?.balance) || 0
+      const cappedLocked   = Math.min(stillLockedTotal, profileBalance)
       setLockCountdowns(newCountdowns)
+      setLockedAmount(cappedLocked)
     }
     tick()
     countdownRef.current = setInterval(tick, 1000)
     return () => { if (countdownRef.current) clearInterval(countdownRef.current) }
-  }, [history])
+  }, [history, userProfile])   // ← add userProfile dependency
 
   useEffect(() => {
     emailCheckRef.current = setInterval(() => {
@@ -328,7 +335,6 @@ export default function DepositPage() {
     return !!(d.lockedUntil && new Date(d.lockedUntil).getTime() > Date.now() && d.status === 'approved')
   }
 
-  const lockedAmount = history.filter(d => isLocked(d)).reduce((sum, d) => sum + d.amount, 0)
   const netMeta = depState.network ? NET_INFO[depState.network] : null
 
   return (

@@ -196,25 +196,47 @@ export default function AdminSeasonPage() {
     setPoolModalOpen(true);
     setPoolLoading(true);
     setPoolSearch('');
-    const { data } = await supabase
+
+    // ── FIX 2: two-step fetch avoids silent FK-join failures ──
+    // Step 1: fetch investments
+    const { data: investments, error: invErr } = await supabase
       .from('investments')
-      .select('id, amount, status, created_at, user_id, profiles(first_name, last_name, username, email)')
+      .select('id, amount, status, created_at, user_id')
       .eq('season_id', season.id)
       .order('created_at', { ascending: false });
 
+    if (invErr || !investments || investments.length === 0) {
+      setPoolInvestors([]);
+      setPoolLoading(false);
+      return;
+    }
+
+    // Step 2: fetch profiles for all investors in one query
+    const uniqueUserIds = [...new Set(investments.map((inv: any) => inv.user_id))];
+    const { data: profiles } = await supabase
+      .from('profiles')
+      .select('id, first_name, last_name, username, email')
+      .in('id', uniqueUserIds);
+
+    const profileMap = new Map<string, any>((profiles || []).map((p: any) => [p.id, p]));
+
     setPoolInvestors(
-      (data || []).map((inv: any) => ({
-        id: inv.id,
-        userId: inv.user_id,
-        amount: Number(inv.amount),
-        status: inv.status,
-        joinedAt: inv.created_at,
-        name: `${inv.profiles?.first_name || ''} ${inv.profiles?.last_name || ''}`.trim(),
-        username: inv.profiles?.username || '—',
-        email: inv.profiles?.email || '—',
-        init: (inv.profiles?.first_name?.[0] || '') + (inv.profiles?.last_name?.[0] || ''),
-      }))
+      investments.map((inv: any) => {
+        const p = profileMap.get(inv.user_id);
+        return {
+          id:       inv.id,
+          userId:   inv.user_id,
+          amount:   Number(inv.amount),
+          status:   inv.status,
+          joinedAt: inv.created_at,
+          name:     p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : 'Unknown',
+          username: p?.username || '—',
+          email:    p?.email    || '—',
+          init:     (p?.first_name?.[0] || '?') + (p?.last_name?.[0] || '?'),
+        };
+      })
     );
+
     setPoolLoading(false);
   }, [supabase]);
 

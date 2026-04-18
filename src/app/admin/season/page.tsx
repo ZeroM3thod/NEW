@@ -190,6 +190,16 @@ export default function AdminSeasonPage() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  /* ── Cleanup auto-close timers on unmount ── */
+  useEffect(() => {
+    return () => {
+      // Clear all pending auto-close timers on unmount
+      for (const id in autoCloseTimers.current) {
+        clearTimeout(autoCloseTimers.current[id])
+      }
+    }
+  }, [])
+
   /* ── Pool Modal Fetch ── */
   const openPoolModal = useCallback(async (season: ActiveSeason | PrevSeason) => {
     setPoolSeason(season);

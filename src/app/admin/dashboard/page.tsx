@@ -10,6 +10,7 @@ interface WdEntry {
   id: string; init: string; name: string; un: string;
   amt: string; wallet: string; date: string; season: string;
   status: 'pending' | 'approved' | 'rejected';
+  userId: string;   // ← ADD
 }
 interface User {
   init: string; name: string; un: string; email: string;
@@ -117,7 +118,8 @@ export default function AdminDashboardPage() {
         wallet: w.address,
         date: new Date(w.created_at).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
         season: 'Pending',
-        status: 'pending'
+        status: 'pending',
+        userId: w.user_id,   // ← ADD
       })));
     }
 
@@ -354,6 +356,13 @@ export default function AdminDashboardPage() {
     const { error } = await supabase.from('withdrawals').update({ status: 'approved' }).eq('id', id);
     if (error) { showToast('✕ Error approving withdrawal', 'err'); return; }
 
+    // ← FIX: deduct from user's balance
+    const rawAmt = Number(w.amt.replace(/[^0-9.]/g, ''));
+    const { data: profile } = await supabase.from('profiles').select('balance').eq('id', w.userId).single();
+    if (profile) {
+      await supabase.from('profiles').update({ balance: Number(profile.balance) - rawAmt }).eq('id', w.userId);
+    }
+
     setWdState(prev => prev.map(x => x.id===id ? {...x, status:'approved'} : x));
     setStats(s => ({ ...s, pendingWithdrawals: s.pendingWithdrawals - 1 }));
     showToast(`✓ ${w.amt} withdrawal approved for ${w.name}`, 'ok');
@@ -381,6 +390,15 @@ export default function AdminDashboardPage() {
     const ids = pending.map(p => p.id);
     const { error } = await supabase.from('withdrawals').update({ status: 'approved' }).in('id', ids);
     if (error) { showToast('✕ Error approving all withdrawals', 'err'); return; }
+
+    // ← FIX: deduct each user's balance
+    for (const p of pending) {
+      const rawAmt = Number(p.amt.replace(/[^0-9.]/g, ''));
+      const { data: prof } = await supabase.from('profiles').select('balance').eq('id', p.userId).single();
+      if (prof) {
+        await supabase.from('profiles').update({ balance: Number(prof.balance) - rawAmt }).eq('id', p.userId);
+      }
+    }
 
     setWdState(prev => prev.map(x => x.status==='pending' ? {...x,status:'approved'} : x));
     setStats(s => ({ ...s, pendingWithdrawals: 0 }));

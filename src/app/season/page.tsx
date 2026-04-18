@@ -339,16 +339,16 @@ export default function SeasonPage() {
     }
 
     try {
-      // ── FIX 1: read fresh current_pool BEFORE inserting so we get the
-      //    real DB value, not stale component state, and do ONE update. ──
+      // Atomically check and increment pool via the RPC function
       const { data: freshSeasonRow } = await supabase
         .from('seasons')
-        .select('current_pool')
+        .select('current_pool, pool_cap')
         .eq('id', investId)
         .single()
 
-      const freshFilled = Number(freshSeasonRow?.current_pool) || 0
-      const remaining = s.pool - freshFilled
+      const freshFilled  = Number(freshSeasonRow?.current_pool) || 0
+      const freshCap     = Number(freshSeasonRow?.pool_cap)     || s.pool
+      const remaining    = freshCap - freshFilled
       if (remaining < amt) {
         showToast(`⚠ Only ${fmtUSDT(remaining)} USDT space left in this pool.`)
         return
@@ -370,9 +370,12 @@ export default function SeasonPage() {
       }).eq('id', userProfile.id)
       if (profileError) throw profileError
 
-      // ── FIX 1: single pool update using the fresh value we already read ──
-      const newPool = freshFilled + amt
-      await supabase.from('seasons').update({ current_pool: newPool }).eq('id', investId)
+      // Atomic pool increment (no read-modify-write race)
+      const { error: poolError } = await supabase.rpc('increment_season_pool', {
+        p_season_id: investId,
+        p_amount: amt,
+      })
+      if (poolError) console.error('Pool update error:', poolError)
 
       setModalState('success')
       showToast('✓ Investment confirmed!', 'ok')

@@ -116,6 +116,7 @@
 /* ── BADGES ── */
 .sm-badge { display: inline-block; padding: 3px 10px; border-radius: 100px; font-size: .6rem; letter-spacing: .08em; text-transform: uppercase }
 .sm-b-running   { background: rgba(74,103,65,.1);  color: var(--sage);     border: 1px solid rgba(74,103,65,.2) }
+.sm-b-pending   { background: rgba(184,147,90,.12); color: var(--gold-d); border: 1px solid var(--border) }
 .sm-b-paused    { background: rgba(184,147,90,.1); color: var(--gold);     border: 1px solid var(--border) }
 .sm-b-closed    { background: rgba(28,28,28,.07);  color: var(--text-sec); border: 1px solid rgba(28,28,28,.12) }
 .sm-b-autoclose { background: rgba(74,103,65,.08); color: var(--sage);     border: 1px solid rgba(74,103,65,.18) }

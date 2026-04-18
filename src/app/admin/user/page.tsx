@@ -72,6 +72,7 @@ export default function AdminUserPage() {
   const toastTimer  = useRef<ReturnType<typeof setTimeout>|null>(null);
 
   const [loading, setLoading] = useState(true);
+  const [modalLoading, setModalLoading] = useState(false)
 
   /* ── Fetch Users ── */
   const fetchUsers = useCallback(async () => {
@@ -163,7 +164,7 @@ export default function AdminUserPage() {
 
   /* ── Open modal ── */
   const openModal = async (u: User) => {
-    setLoading(true);
+    setModalLoading(true);
     const { data: deposits } = await supabase.from('deposits').select('*').eq('user_id', u.uid);
     const { data: withdrawals } = await supabase.from('withdrawals').select('*').eq('user_id', u.uid);
     const { data: investments } = await supabase.from('investments').select('*, seasons(name, final_roi, status, roi_range)').eq('user_id', u.uid);
@@ -195,7 +196,7 @@ export default function AdminUserPage() {
     setTxFilter('all');
     setNewRefInput('');
     setModalOpen(true);
-    setLoading(false);
+    setModalLoading(false);
   };
   const closeModal = () => { setModalOpen(false); setActiveUser(null); };
 
@@ -353,7 +354,12 @@ export default function AdminUserPage() {
           </div>
 
           <div className="adm-modal-body">
-
+            {modalLoading ? (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--text-sec)', fontSize: '.82rem' }}>
+                Loading user data…
+              </div>
+            ) : (
+              <>
             {/* ── BASIC INFO ── */}
             {activeTab === 'basic' && (
               <div className="adm-tab-pane active">
@@ -516,6 +522,8 @@ export default function AdminUserPage() {
               </div>
             )}
 
+              </>
+            )}
           </div>{/* /modal-body */}
 
           <div className="adm-modal-footer">

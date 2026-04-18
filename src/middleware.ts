@@ -2,6 +2,13 @@ import { createServerClient, type CookieOptions } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
 export async function updateSession(request: NextRequest) {
+  // Static assets — skip all DB work
+  const { pathname } = request.nextUrl
+  if (pathname.startsWith('/_next') || pathname.startsWith('/api/') ||
+      /\.(svg|png|jpg|jpeg|gif|webp|ico|css|js)$/.test(pathname)) {
+    return NextResponse.next({ request })
+  }
+
   let supabaseResponse = NextResponse.next({
     request,
   })
@@ -102,6 +109,10 @@ export async function updateSession(request: NextRequest) {
 }
 
 export async function middleware(request: NextRequest) {
+  // Skip expensive Middleware for API routes entirely
+  if (request.nextUrl.pathname.startsWith('/api/')) {
+    return NextResponse.next()
+  }
   return await updateSession(request)
 }
 

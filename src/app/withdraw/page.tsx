@@ -24,6 +24,11 @@ interface PendingWd {
   recv: string
   shortAddr: string
 }
+interface LockedDeposit {
+  id: string
+  amount: number
+  lockedUntil: string
+}
 
 function pad2(n: number) { return String(n).padStart(2, '0') }
 
@@ -61,7 +66,7 @@ export default function WithdrawPage() {
   const [userProfile, setUserProfile] = useState<any>(null)
 
   // Locked deposit tracking
-  const [lockedDeposits, setLockedDeposits] = useState<Array<{ id: string; amount: number; lockedUntil: string }>>([])
+  const [lockedDeposits, setLockedDeposits] = useState<LockedDeposit[]>([])
   const [lockedAmount, setLockedAmount] = useState(0)
   const [lockCountdowns, setLockCountdowns] = useState<Record<string, string>>({})
 
@@ -166,6 +171,15 @@ export default function WithdrawPage() {
   }, [lockedDeposits, userProfile])   // ← add userProfile dependency
 
   useEffect(() => {
+    // When all locks have expired, refresh profile so withdrawable_total is recalculated from server
+    const allExpired = lockedDeposits.length > 0 &&
+      lockedDeposits.every((d: LockedDeposit) => new Date(d.lockedUntil).getTime() <= Date.now())
+    if (allExpired) {
+      fetchData()
+    }
+  }, [lockedDeposits, fetchData])
+
+  useEffect(() => {
     const cvs = bgRef.current; if (!cvs) return
     const cx = cvs.getContext('2d'); if (!cx) return
     type C = { x: number; y: number; w: number; h: number; wick: number; up: boolean; spd: number; ph: number }
@@ -234,9 +248,9 @@ export default function WithdrawPage() {
   // withdrawal requests), then subtract any still-locked deposit amounts.
   const currentBalance        = Number(userProfile?.balance)           || 0
   const withdrawableTotal     = Number(userProfile?.withdrawable_total) || 0
-  // ── FIX 3: locked can never exceed the actual balance ──
+  // withdrawable_total already = balance - locked - pending_withdrawals; don't subtract locked again
   const effectiveLockedAmount = Math.min(lockedAmount, currentBalance)
-  const effectiveWithdrawable = Math.max(0, withdrawableTotal - effectiveLockedAmount)
+  const effectiveWithdrawable = withdrawableTotal   // ← was incorrectly subtracting lockedAmount twice
 
   const onAmtChange = (v: string) => {
     setWdAmt(v)

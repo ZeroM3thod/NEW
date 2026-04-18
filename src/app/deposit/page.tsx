@@ -200,6 +200,12 @@ export default function DepositPage() {
   }, [history, userProfile])   // ← add userProfile dependency
 
   useEffect(() => {
+    // Only start the interval if there are deposits that could become unlockable
+    const watchable = history.filter(
+      (d: DepHistory) => d.status === 'approved' && d.lockedUntil && !d.unlockEmailSent
+    )
+    if (watchable.length === 0) return   // ← nothing to watch, don't start interval
+
     emailCheckRef.current = setInterval(() => {
       checkUnlockNotifications(history)
     }, 30000)

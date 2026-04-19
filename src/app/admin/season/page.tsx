@@ -508,7 +508,6 @@ export default function AdminSeasonPage() {
       <canvas ref={bgRef} style={{ position: 'fixed', inset: 0, width: '100%', height: '100%', pointerEvents: 'none', zIndex: 0, opacity: .04 }} />
 
       <div className={`sm-toast${toast.show ? ' show' : ''}${toast.cls ? ' ' + toast.cls : ''}`}>{toast.msg}</div>
-      <div className={`adm-sb-overlay${sidebarOpen ? ' show' : ''}`} onClick={() => setSidebarOpen(false)} />
 
       {/* ══ CREATE/EDIT SEASON MODAL ══ */}
       <div className={`sm-modal-overlay${smOpen ? ' open' : ''}`} onClick={e => { if (e.target === e.currentTarget) setSmOpen(false); }}>

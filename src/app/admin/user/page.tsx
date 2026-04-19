@@ -326,7 +326,6 @@ export default function AdminUserPage() {
       {loading && <VaultXLoader pageName="Admin · Users" />}
       <canvas ref={bgCanvasRef} style={{ position:'fixed', inset:0, width:'100%', height:'100%', pointerEvents:'none', zIndex:0, opacity:.04 }} />
       <div className={`adm-toast${toastShow?' show':''}${toastType?' '+toastType:''}`}>{toastMsg}</div>
-      <div className={`adm-sb-overlay${sidebarOpen?' show':''}`} onClick={() => setSidebarOpen(false)} />
 
       {/* ── USER MODAL ── */}
       <div className={`adm-modal-overlay${modalOpen?' open':''}`} onClick={e => { if (e.target === e.currentTarget) closeModal(); }}>

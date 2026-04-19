@@ -548,46 +548,106 @@ export default function DashboardPage() {
 
             {/* BALANCE HERO */}
             <div className='db-balance-hero db-reveal' style={{marginBottom:20,transitionDelay:'.06s'}}>
+              {/* Decorative corner accents */}
+              <div style={{position:'absolute',top:16,left:16,width:20,height:20,borderTop:'1px solid rgba(184,147,90,0.4)',borderLeft:'1px solid rgba(184,147,90,0.4)',pointerEvents:'none',zIndex:1}}/>
+              <div style={{position:'absolute',top:16,right:16,width:20,height:20,borderTop:'1px solid rgba(184,147,90,0.4)',borderRight:'1px solid rgba(184,147,90,0.4)',pointerEvents:'none',zIndex:1}}/>
+              <div style={{position:'absolute',bottom:progWidth!=='0%'?52:16,left:16,width:20,height:20,borderBottom:'1px solid rgba(184,147,90,0.25)',borderLeft:'1px solid rgba(184,147,90,0.25)',pointerEvents:'none',zIndex:1}}/>
+              <div style={{position:'absolute',bottom:progWidth!=='0%'?52:16,right:16,width:20,height:20,borderBottom:'1px solid rgba(184,147,90,0.25)',borderRight:'1px solid rgba(184,147,90,0.25)',pointerEvents:'none',zIndex:1}}/>
+
+              {/* Top accent line */}
+              <div style={{position:'absolute',top:0,left:'10%',right:'10%',height:'1.5px',background:'linear-gradient(90deg,transparent,rgba(184,147,90,0.5),transparent)',pointerEvents:'none'}}/>
+
               <div style={{display:'flex',flexWrap:'wrap',alignItems:'flex-start',justifyContent:'space-between',gap:16,position:'relative',zIndex:1}}>
                 <div>
-                  <div className='db-balance-label' style={{marginBottom:8}}>Total Portfolio · USDT</div>
-                  <div className='db-balance-num'>${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                  <div className='db-balance-sub' style={{marginTop:8}}>
-                    <span style={{color: pnlColor(profitsTotal)}}>
+                  {/* Section label */}
+                  <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:10}}>
+                    <div style={{width:16,height:1,background:'rgba(184,147,90,0.5)'}}/>
+                    <div className='db-balance-label'>Total Portfolio · USDT</div>
+                    <div style={{width:16,height:1,background:'rgba(184,147,90,0.5)'}}/>
+                  </div>
+
+                  {/* Main balance */}
+                  <div className='db-balance-num'>
+                    ${balance.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                  </div>
+
+                  {/* P&L row */}
+                  <div className='db-balance-sub' style={{marginTop:10,display:'flex',alignItems:'center',gap:8,flexWrap:'wrap'}}>
+                    <span style={{
+                      display:'inline-flex',alignItems:'center',gap:4,
+                      background:`${pnlColor(profitsTotal)}22`,
+                      border:`1px solid ${pnlColor(profitsTotal)}44`,
+                      borderRadius:100,padding:'3px 10px',
+                      color:pnlColor(profitsTotal),fontSize:'.72rem',letterSpacing:'.04em',
+                    }}>
                       {pnlArrow(profitsTotal)} {fmtPnL(profitsTotal)}
                     </span>
-                    &nbsp;·&nbsp;all-time profit&nbsp;·&nbsp;
-                    <span style={{color:'var(--gold-l)'}}>
-                      {avgRoi >= 0 ? '+' : ''}{avgRoi}% avg ROI
-                    </span>
+                    <span style={{color:'rgba(246,241,233,0.35)',fontSize:'.68rem'}}>all-time profit</span>
+                    {avgRoi !== 0 && (
+                      <>
+                        <span style={{color:'rgba(184,147,90,0.4)',fontSize:'.65rem'}}>·</span>
+                        <span style={{
+                          display:'inline-flex',alignItems:'center',gap:4,
+                          background:'rgba(184,147,90,0.12)',border:'1px solid rgba(184,147,90,0.3)',
+                          borderRadius:100,padding:'3px 10px',
+                          color:'var(--gold-l)',fontSize:'.72rem',letterSpacing:'.04em',
+                        }}>
+                          {avgRoi >= 0 ? '+' : ''}{avgRoi}% avg ROI
+                        </span>
+                      </>
+                    )}
                   </div>
+
+                  {/* Locked amount line */}
                   {effectiveLockedAmount > 0 && (
-                    <div style={{ marginTop: 8, fontSize: '.72rem', color: 'rgba(246,241,233,0.5)', display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <svg width="11" height="11" fill="none" stroke="rgba(246,241,233,0.5)" strokeWidth="2" viewBox="0 0 24 24">
+                    <div style={{marginTop:10,fontSize:'.72rem',color:'rgba(246,241,233,0.45)',display:'flex',alignItems:'center',gap:6}}>
+                      <svg width="12" height="12" fill="none" stroke="rgba(184,147,90,0.6)" strokeWidth="2" viewBox="0 0 24 24">
                         <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
                       </svg>
-                      <span>Withdrawable now: <strong style={{ color: 'rgba(246,241,233,0.75)' }}>${effectiveWithdrawable.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></span>
+                      <span>Withdrawable now:&nbsp;
+                        <strong style={{color:'rgba(246,241,233,0.75)',fontWeight:500}}>
+                          ${effectiveWithdrawable.toLocaleString(undefined,{minimumFractionDigits:2})}
+                        </strong>
+                      </span>
                     </div>
                   )}
                 </div>
+
+                {/* Right: active season ROI */}
                 {activeInvestment && activeSeasonName && (
-                  <div style={{textAlign:'right'}}>
-                    <div className='db-balance-label' style={{marginBottom:6}}>{activeSeasonName}</div>
-                    <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.6rem',fontWeight:300,color:'rgba(246,241,233,0.85)'}}>
-                      {activeSeasonRoi}%
+                  <div style={{textAlign:'right',flexShrink:0}}>
+                    <div style={{
+                      background:'rgba(255,255,255,0.06)',border:'1px solid rgba(184,147,90,0.2)',
+                      borderRadius:10,padding:'14px 18px',
+                    }}>
+                      <div style={{fontSize:'.58rem',letterSpacing:'.18em',textTransform:'uppercase',color:'rgba(246,241,233,0.35)',marginBottom:6}}>
+                        {activeSeasonName}
+                      </div>
+                      {/* FIX: removed the extra % — roi_range already contains % */}
+                      <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.8rem',fontWeight:300,color:'rgba(246,241,233,0.88)',lineHeight:1}}>
+                        {activeSeasonRoi}
+                      </div>
+                      <div style={{fontSize:'.6rem',letterSpacing:'.1em',textTransform:'uppercase',color:'rgba(246,241,233,0.3)',marginTop:4}}>
+                        Projected ROI
+                      </div>
                     </div>
-                    <div className='db-balance-sub'>Projected ROI</div>
                   </div>
                 )}
               </div>
+
+              {/* Season progress bar */}
               {activeInvestment && activeSeasonStart && (
-                <div style={{marginTop:24,position:'relative',zIndex:1}}>
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:'.7rem',color:'rgba(246,241,233,0.35)',letterSpacing:'.06em',textTransform:'uppercase',marginBottom:8}}>
-                    <span>Season Progress</span>
-                    <span style={{color:'var(--gold-l)'}}>{progWidth}</span>
+                <div style={{marginTop:22,position:'relative',zIndex:1}}>
+                  {/* Progress label row */}
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:'.65rem',color:'rgba(246,241,233,0.3)',letterSpacing:'.06em',textTransform:'uppercase',marginBottom:6,alignItems:'center'}}>
+                    <div style={{display:'flex',alignItems:'center',gap:5}}>
+                      <div style={{width:6,height:6,borderRadius:'50%',background:'var(--sage)',opacity:0.7,animation:'dbLivePulse 1.8s ease-in-out infinite'}}/>
+                      <span>Season Progress</span>
+                    </div>
+                    <span style={{color:'var(--gold-l)',fontWeight:500}}>{progWidth}</span>
                   </div>
                   <div className='db-prog-track'><div className='db-prog-fill' style={{width:progWidth}}/></div>
-                  <div style={{display:'flex',justifyContent:'space-between',fontSize:'.68rem',color:'rgba(246,241,233,0.25)',marginTop:6}}>
+                  <div style={{display:'flex',justifyContent:'space-between',fontSize:'.64rem',color:'rgba(246,241,233,0.2)',marginTop:5}}>
                     <span>Entry ${myInvestAmount.toLocaleString()}</span>
                     <span>Target {activeSeasonRoi}</span>
                   </div>

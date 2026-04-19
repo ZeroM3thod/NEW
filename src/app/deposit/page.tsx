@@ -30,6 +30,36 @@ const NET_INFO: Record<string, { chain: string; color: string; desc: string }> =
   'BEP-20': { chain: 'BNB Smart Chain', color: '#F0B90B', desc: 'Low fees, fast confirmation' },
 }
 
+const NET_ICONS: Record<string, React.ReactNode> = {
+  'TRC-20': (
+    <svg viewBox="0 0 36 36" width="24" height="24" style={{display:'block'}}>
+      <circle cx="18" cy="18" r="18" fill="rgba(232,66,61,0.14)"/>
+      <polygon points="18,5 31,29 5,29" fill="none" stroke="#e8423d" strokeWidth="2.2" strokeLinejoin="round" strokeLinecap="round"/>
+      <circle cx="18" cy="23" r="3.2" fill="#e8423d"/>
+    </svg>
+  ),
+  'ERC-20': (
+    <svg viewBox="0 0 36 36" width="24" height="24" style={{display:'block'}}>
+      <circle cx="18" cy="18" r="18" fill="rgba(98,126,234,0.14)"/>
+      <path d="M18 6 L18 17 L27 21 Z" fill="#627EEA" opacity="0.7"/>
+      <path d="M18 6 L9 21 L18 17 Z" fill="#627EEA" opacity="0.9"/>
+      <path d="M18 24 L27 21 L18 30 Z" fill="#627EEA" opacity="0.45"/>
+      <path d="M18 24 L9 21 L18 30 Z" fill="#627EEA" opacity="0.75"/>
+      <path d="M18 17 L27 21 L18 24 L9 21 Z" fill="#627EEA"/>
+    </svg>
+  ),
+  'BEP-20': (
+    <svg viewBox="0 0 36 36" width="24" height="24" style={{display:'block'}}>
+      <circle cx="18" cy="18" r="18" fill="rgba(240,185,11,0.14)"/>
+      <rect x="15" y="7.5" width="6" height="6" rx="1" fill="#F0B90B" transform="rotate(45 18 10.5)"/>
+      <rect x="7.5" y="15" width="6" height="6" rx="1" fill="#F0B90B" transform="rotate(45 10.5 18)"/>
+      <rect x="15" y="15" width="6" height="6" rx="1" fill="#F0B90B" transform="rotate(45 18 18)"/>
+      <rect x="22.5" y="15" width="6" height="6" rx="1" fill="#F0B90B" transform="rotate(45 25.5 18)"/>
+      <rect x="15" y="22.5" width="6" height="6" rx="1" fill="#F0B90B" transform="rotate(45 18 25.5)"/>
+    </svg>
+  ),
+}
+
 interface DepHistory {
   id: string
   date: string
@@ -466,27 +496,89 @@ export default function DepositPage() {
               <div className='dp-section-title' style={{ fontSize: '1.15rem', marginBottom: 18 }}>Select Network</div>
 
               <div className='dp-network-grid'>
-                {['TRC-20', 'ERC-20', 'BEP-20'].map(net => {
+                {(['TRC-20', 'ERC-20', 'BEP-20'] as const).map(net => {
                   const meta = NET_INFO[net]
                   const feeInfo = NET_FEES[net]
+                  const isSelected = selectedNet === net
+                  const isTRC = net === 'TRC-20'
                   return (
-                    <button key={net} className={`dp-net-card${selectedNet === net ? ' selected' : ''}`}
-                      onClick={() => { setSelectedNet(net); setNetInfoVisible(true) }}>
-                      <div className='dp-net-icon' style={{ background: meta.color + '18', border: `1px solid ${meta.color}30` }}>
-                        <span style={{ fontSize: '.65rem', fontWeight: 700, color: meta.color, letterSpacing: '.04em' }}>
-                          {net === 'TRC-20' ? 'TRX' : net === 'ERC-20' ? 'ETH' : 'BNB'}
+                    <button
+                      key={net}
+                      className={`dp-net-card${isSelected ? ' selected' : ''}`}
+                      onClick={() => { setSelectedNet(net); setNetInfoVisible(true) }}
+                      style={{
+                        background: isSelected
+                          ? `linear-gradient(135deg, ${meta.color}10, var(--cream))`
+                          : 'var(--cream)',
+                        borderColor: isSelected ? meta.color : undefined,
+                        position: 'relative',
+                      }}
+                    >
+                      {/* Network icon */}
+                      <div style={{
+                        width: 52, height: 52, borderRadius: 12, flexShrink: 0,
+                        background: isSelected ? `${meta.color}22` : `${meta.color}10`,
+                        border: `1.5px solid ${meta.color}${isSelected ? '55' : '25'}`,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        transition: 'all .25s',
+                      }}>
+                        {NET_ICONS[net]}
+                      </div>
+
+                      {/* Network info */}
+                      <div style={{ flex: 1, minWidth: 0, textAlign: 'left' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 3, flexWrap: 'wrap' }}>
+                          <span style={{ fontSize: '.88rem', fontWeight: 600, color: 'var(--ink)', letterSpacing: '.01em' }}>
+                            {net}
+                          </span>
+                          {isTRC && (
+                            <span style={{
+                              fontSize: '.52rem', letterSpacing: '.1em', textTransform: 'uppercase', fontWeight: 600,
+                              background: 'rgba(74,103,65,.1)', color: 'var(--sage)',
+                              border: '1px solid rgba(74,103,65,.2)', borderRadius: 100, padding: '2px 7px',
+                            }}>
+                              Recommended
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize: '.73rem', fontWeight: 500, color: meta.color, marginBottom: 3 }}>
+                          {meta.chain}
+                        </div>
+                        <div style={{ fontSize: '.67rem', color: 'var(--txt3)', lineHeight: 1.45 }}>
+                          {meta.desc}
+                        </div>
+                      </div>
+
+                      {/* Fee + confirmation time */}
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
+                        <span style={{
+                          fontSize: '.58rem', letterSpacing: '.09em', textTransform: 'uppercase', fontWeight: 600,
+                          background: 'rgba(74,103,65,.1)', color: 'var(--sage)',
+                          border: '1px solid rgba(74,103,65,.2)', borderRadius: 100, padding: '3px 10px',
+                        }}>
+                          {feeInfo.feeLabel}
+                        </span>
+                        <span style={{
+                          fontSize: '.64rem', color: 'var(--txt3)',
+                          display: 'flex', alignItems: 'center', gap: 4,
+                        }}>
+                          <svg width="11" height="11" fill="none" stroke="var(--gold)" strokeWidth="1.8" viewBox="0 0 24 24">
+                            <circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/>
+                          </svg>
+                          {feeInfo.time}
                         </span>
                       </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '.84rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 2 }}>{net}</div>
-                        <div style={{ fontSize: '.7rem', color: 'var(--txt2)' }}>{meta.chain}</div>
-                        <div style={{ fontSize: '.65rem', color: meta.color, marginTop: 2 }}>{meta.desc}</div>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 4, flexShrink: 0 }}>
-                        <span className='dp-net-badge'>{feeInfo.feeLabel}</span>
-                        <span style={{ fontSize: '.62rem', color: 'var(--txt3)' }}>{feeInfo.time}</span>
-                      </div>
-                      {selectedNet === net && <div className='dp-net-check'>✓</div>}
+
+                      {/* Selected indicator */}
+                      {isSelected && (
+                        <div style={{
+                          position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
+                          width: 24, height: 24, borderRadius: '50%',
+                          background: 'var(--sage)', color: 'white',
+                          fontSize: '.72rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                          fontWeight: 700, boxShadow: '0 2px 8px rgba(74,103,65,.3)',
+                        }}>✓</div>
+                      )}
                     </button>
                   )
                 })}

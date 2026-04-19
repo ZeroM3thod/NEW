@@ -424,9 +424,6 @@ export default function AdminDashboardPage() {
       {/* Toast */}
       <div className={`adm-toast${toastShow?' show':''}${toastType?' '+toastType:''}`}>{toastMsg}</div>
 
-      {/* Overlay */}
-      <div className={`adm-sb-overlay${sidebarOpen?' show':''}`} onClick={() => setSidebarOpen(false)} />
-
       <div className="adm-layout">
         <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onToast={showToast} />
 

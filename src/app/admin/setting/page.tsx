@@ -209,7 +209,6 @@ export default function AdminSettingPage() {
     <>
       <canvas ref={bgRef} style={{position:'fixed',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:0,opacity:.04}}/>
       <div className={`ws-toast${toast.show?' show':''}${toast.cls?' '+toast.cls:''}`}>{toast.msg}</div>
-      <div className={`adm-sb-overlay${sidebarOpen?' show':''}`} onClick={()=>setSidebarOpen(false)}/>
 
       <div className="adm-layout">
         <AdminSidebar open={sidebarOpen} onClose={()=>setSidebarOpen(false)} onToast={showToast}/>

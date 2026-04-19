@@ -370,13 +370,6 @@ export default function SeasonPage() {
       }).eq('id', userProfile.id)
       if (profileError) throw profileError
 
-      // Atomic pool increment (no read-modify-write race)
-      const { error: poolError } = await supabase.rpc('increment_season_pool', {
-        p_season_id: investId,
-        p_amount: amt,
-      })
-      if (poolError) console.error('Pool update error:', poolError)
-
       setModalState('success')
       showToast('✓ Investment confirmed!', 'ok')
       fetchData()

@@ -551,13 +551,22 @@ export default function DepositPage() {
 
                       {/* Fee + confirmation time */}
                       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 6, flexShrink: 0 }}>
-                        <span style={{
-                          fontSize: '.58rem', letterSpacing: '.09em', textTransform: 'uppercase', fontWeight: 600,
-                          background: 'rgba(74,103,65,.1)', color: 'var(--sage)',
-                          border: '1px solid rgba(74,103,65,.2)', borderRadius: 100, padding: '3px 10px',
-                        }}>
-                          {feeInfo.feeLabel}
-                        </span>
+                        {isSelected ? (
+                          <div style={{
+                            width: 22, height: 22, borderRadius: '50%',
+                            background: 'var(--sage)', color: 'white',
+                            fontSize: '.7rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontWeight: 700, boxShadow: '0 2px 6px rgba(74,103,65,.3)',
+                          }}>✓</div>
+                        ) : (
+                          <span style={{
+                            fontSize: '.58rem', letterSpacing: '.09em', textTransform: 'uppercase', fontWeight: 600,
+                            background: 'rgba(74,103,65,.1)', color: 'var(--sage)',
+                            border: '1px solid rgba(74,103,65,.2)', borderRadius: 100, padding: '3px 10px',
+                          }}>
+                            {feeInfo.feeLabel}
+                          </span>
+                        )}
                         <span style={{
                           fontSize: '.64rem', color: 'var(--txt3)',
                           display: 'flex', alignItems: 'center', gap: 4,
@@ -568,17 +577,6 @@ export default function DepositPage() {
                           {feeInfo.time}
                         </span>
                       </div>
-
-                      {/* Selected indicator */}
-                      {isSelected && (
-                        <div style={{
-                          position: 'absolute', right: 14, top: '50%', transform: 'translateY(-50%)',
-                          width: 24, height: 24, borderRadius: '50%',
-                          background: 'var(--sage)', color: 'white',
-                          fontSize: '.72rem', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontWeight: 700, boxShadow: '0 2px 8px rgba(74,103,65,.3)',
-                        }}>✓</div>
-                      )}
                     </button>
                   )
                 })}

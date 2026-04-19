@@ -354,3 +354,387 @@
     -webkit-backdrop-filter: blur(16px);
   }
 }
+
+
+
+/* ═══════════════════════════════════════════════════════
+   PROFILE PAGE — ENHANCED MOBILE DECORATIONS
+   Add this at the end of src/app/profile/profile.css
+   (or merge into your existing mobile breakpoints)
+═══════════════════════════════════════════════════════ */
+
+/* ── Mobile-only decorative overrides ── */
+@media (max-width: 900px) {
+
+  /* PAGE WRAPPER */
+  .pf-main {
+    padding: 0 0 60px;
+    background:
+      radial-gradient(ellipse 80% 40% at 50% -10%, rgba(184,147,90,0.07) 0%, transparent 60%),
+      var(--cream);
+  }
+
+  /* ── HEADING SECTION ── */
+  .pf-main > div > .pf-reveal:first-child {
+    padding: 24px 18px 0;
+  }
+  .pf-main > div > .pf-reveal:first-child .pf-label {
+    font-size: .58rem;
+    letter-spacing: .28em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .pf-main > div > .pf-reveal:first-child .pf-label::before {
+    content: '';
+    display: inline-block;
+    width: 20px;
+    height: 1px;
+    background: var(--gold);
+    opacity: .6;
+  }
+
+  /* ── HERO CARD — rich dark treatment ── */
+  .pf-hero-card {
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    padding: 28px 18px 24px !important;
+    background:
+      radial-gradient(ellipse 120% 60% at 100% 0%, rgba(184,147,90,0.14) 0%, transparent 55%),
+      radial-gradient(ellipse 80% 80% at 0% 100%, rgba(74,103,65,0.08) 0%, transparent 50%),
+      var(--ink) !important;
+    border-color: rgba(184,147,90,0.2) !important;
+    margin-bottom: 0;
+    gap: 20px !important;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Decorative corner marks */
+  .pf-hero-card::before {
+    content: '';
+    position: absolute;
+    top: 12px; left: 12px;
+    width: 18px; height: 18px;
+    border-top: 1px solid rgba(184,147,90,0.4);
+    border-left: 1px solid rgba(184,147,90,0.4);
+    pointer-events: none;
+    z-index: 0;
+  }
+  .pf-hero-card::after {
+    content: '';
+    position: absolute;
+    bottom: 12px; right: 12px;
+    width: 18px; height: 18px;
+    border-bottom: 1px solid rgba(184,147,90,0.4);
+    border-right: 1px solid rgba(184,147,90,0.4);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Avatar on dark bg */
+  .pf-avatar-lg {
+    width: 72px !important;
+    height: 72px !important;
+    font-size: 1.5rem !important;
+    background: rgba(184,147,90,0.12) !important;
+    box-shadow:
+      0 0 0 1.5px rgba(184,147,90,0.5),
+      0 0 0 4px rgba(184,147,90,0.12),
+      0 8px 24px rgba(0,0,0,0.25) !important;
+  }
+  .pf-online-dot {
+    width: 13px; height: 13px;
+    border: 2px solid var(--ink) !important;
+    box-shadow: 0 0 6px rgba(74,103,65,0.6);
+  }
+
+  /* Hero text overrides for dark bg */
+  .pf-hero-name {
+    color: var(--cream) !important;
+    font-size: clamp(1.3rem, 5vw, 1.7rem) !important;
+    letter-spacing: .01em;
+  }
+  .pf-hero-uid {
+    color: rgba(246,241,233,0.4) !important;
+    font-size: .7rem;
+  }
+
+  /* Pill tags on dark */
+  .pf-pill {
+    background: rgba(255,255,255,0.07) !important;
+    border-color: rgba(255,255,255,0.1) !important;
+    color: rgba(246,241,233,0.6) !important;
+    font-size: .62rem;
+    letter-spacing: .06em;
+  }
+  .pf-pill strong { color: var(--gold-l) !important; }
+
+  /* Action buttons on dark bg */
+  .pf-hero-card .pf-btn-ghost {
+    background: rgba(255,255,255,0.06);
+    border-color: rgba(255,255,255,0.15);
+    color: rgba(246,241,233,0.7);
+    font-size: .65rem;
+    padding: 8px 16px;
+  }
+  .pf-hero-card .pf-btn-ghost:hover {
+    border-color: var(--gold);
+    color: var(--gold-l);
+  }
+  .pf-hero-card .pf-btn-danger {
+    background: rgba(155,58,58,0.15);
+    border-color: rgba(155,58,58,0.3);
+    font-size: .65rem;
+    padding: 8px 16px;
+  }
+
+  /* ── SECTION WRAPPERS ── */
+  .pf-two-col {
+    padding: 0 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px !important;
+    margin-top: 16px;
+  }
+
+  /* ── CARD ENHANCEMENTS ── */
+  .pf-card {
+    border-radius: 12px !important;
+    border-color: rgba(184,147,90,0.2);
+    box-shadow:
+      0 2px 20px rgba(184,147,90,0.05),
+      0 1px 0 rgba(255,255,255,0.7) inset;
+    overflow: visible;
+  }
+
+  .pf-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 16px; right: 16px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(184,147,90,0.5), transparent);
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* ── INNER PADDING ── */
+  .pf-cp {
+    padding: 20px 16px !important;
+  }
+
+  /* ── SECTION LABELS ── */
+  .pf-sec-label {
+    font-size: .58rem;
+    letter-spacing: .22em;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .pf-sec-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(184,147,90,0.25), transparent);
+    max-width: 60px;
+  }
+
+  /* ── SECTION TITLE ── */
+  .pf-sec-title {
+    font-size: 1.2rem !important;
+    line-height: 1.2;
+  }
+
+  /* ── FORM INPUTS ── */
+  .pf-fi {
+    background: rgba(246,241,233,0.7) !important;
+    font-size: .8rem;
+    padding: 10px 11px;
+    border-radius: 6px;
+  }
+  .pf-fl {
+    font-size: .58rem;
+    letter-spacing: .14em;
+    color: rgba(107,100,89,0.7);
+  }
+  .pf-form-grid {
+    gap: 12px !important;
+    grid-template-columns: 1fr !important;
+  }
+
+  /* ── SAVE / CANCEL BTN ── */
+  .pf-btn-ink {
+    background: var(--ink);
+    padding: 10px 22px;
+    font-size: .7rem;
+    border-radius: 6px;
+    letter-spacing: .12em;
+  }
+  .pf-btn-ink::after {
+    z-index: 0;
+  }
+  .pf-btn-ghost {
+    padding: 10px 18px;
+    font-size: .68rem;
+    border-radius: 6px;
+  }
+
+  /* ── REFERRAL CODE BOX ── */
+  .pf-ref-code-box {
+    background:
+      radial-gradient(ellipse 80% 100% at 0% 50%, rgba(184,147,90,0.07) 0%, transparent 60%),
+      var(--parchment);
+    border: 1px solid rgba(184,147,90,0.3);
+    border-radius: 8px;
+    padding: 14px;
+  }
+  .pf-ref-code-val {
+    font-size: 1rem;
+    letter-spacing: .2em;
+  }
+  .pf-btn-copy {
+    font-size: .62rem;
+    padding: 8px 14px;
+    border-radius: 5px;
+    letter-spacing: .09em;
+  }
+
+  /* ── STAT TRIO ── */
+  .pf-stat-trio {
+    border-radius: 10px;
+    overflow: hidden;
+    border: 1px solid rgba(184,147,90,0.2);
+    box-shadow: 0 2px 12px rgba(184,147,90,0.05);
+  }
+  .pf-stat-cell {
+    padding: 16px 10px;
+    background:
+      radial-gradient(ellipse 100% 100% at 50% 0%, rgba(184,147,90,0.05) 0%, transparent 70%),
+      var(--cream);
+    border-right: 1px solid rgba(184,147,90,0.12);
+    position: relative;
+  }
+  .pf-stat-cell:last-child {
+    border-right: none;
+  }
+  .pf-stat-cell::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 20%; right: 20%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(184,147,90,0.35), transparent);
+  }
+  .pf-stat-val {
+    font-size: 1.4rem !important;
+    color: var(--gold);
+  }
+  .pf-stat-val span { color: var(--ink) !important; }
+  .pf-stat-lbl {
+    font-size: .55rem;
+    color: rgba(107,100,89,0.7);
+    letter-spacing: .12em;
+    margin-top: 3px;
+  }
+
+  /* ── WALLET ROWS ── */
+  .pf-wrow {
+    border-radius: 6px;
+    border: 1px solid rgba(184,147,90,0.14);
+    padding: 12px 13px;
+    background: linear-gradient(135deg, var(--cream) 0%, var(--parchment) 100%);
+  }
+  .pf-wrow-lbl {
+    font-size: .59rem;
+    letter-spacing: .1em;
+  }
+  .pf-wrow-val {
+    font-size: 1rem;
+    font-weight: 500;
+  }
+
+  /* ── SECURITY ROWS ── */
+  .pf-sec-row {
+    border-radius: 6px;
+    border: 1px solid rgba(184,147,90,0.14);
+    background: linear-gradient(135deg, var(--cream) 0%, rgba(246,241,233,0.5) 100%);
+    padding: 13px 12px;
+    font-size: .78rem;
+  }
+
+  /* ── REFERRAL TABLE ── */
+  .pf-tbl-wrap {
+    border-radius: 8px;
+    border: 1px solid rgba(184,147,90,0.18);
+    overflow: hidden;
+  }
+  .pf-rtbl th {
+    font-size: .55rem;
+    letter-spacing: .14em;
+    background:
+      linear-gradient(135deg, var(--parchment) 0%, rgba(237,231,218,0.7) 100%);
+    padding: 10px 10px;
+  }
+  .pf-rtbl td {
+    padding: 10px 10px;
+    font-size: .74rem;
+  }
+  .pf-td-nm { font-size: .74rem; }
+  .pf-td-hd { font-size: .62rem; }
+
+  /* ── LOCK OVERLAY MOBILE POLISH ── */
+  .pf-lock-overlay {
+    border-radius: 8px;
+    background: rgba(246,241,233,0.98);
+  }
+  .pf-lock-title {
+    font-size: .78rem;
+    font-weight: 500;
+  }
+  .pf-lock-message {
+    font-size: .65rem;
+    line-height: 1.6;
+  }
+
+  /* ── FLOATING GOLD ACCENT STRIP ── */
+  .pf-col:first-child .pf-card:first-child {
+    border-top: 2px solid rgba(184,147,90,0.4);
+  }
+
+  /* ── BOTTOM WALLET CARD ── */
+  .pf-col:last-child .pf-card:last-child {
+    background:
+      linear-gradient(160deg, var(--surface) 60%, rgba(184,147,90,0.05) 100%);
+  }
+}
+
+/* ── Very small screens ── */
+@media (max-width: 420px) {
+  .pf-hero-card {
+    padding: 22px 14px 20px !important;
+  }
+  .pf-avatar-lg {
+    width: 60px !important;
+    height: 60px !important;
+    font-size: 1.2rem !important;
+  }
+  .pf-hero-name {
+    font-size: 1.25rem !important;
+  }
+  .pf-stat-val {
+    font-size: 1.2rem !important;
+  }
+  .pf-two-col {
+    padding: 0 10px;
+  }
+  .pf-cp {
+    padding: 16px 13px !important;
+  }
+  .pf-meta-pills {
+    gap: 5px;
+  }
+  .pf-pill {
+    font-size: .58rem;
+    padding: 2px 8px;
+  }
+}

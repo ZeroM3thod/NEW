@@ -213,3 +213,524 @@ table.rf-dtbl{width:100%;border-collapse:collapse;font-size:.77rem;min-width:480
 @media(max-width:360px){
   .rf-stats-grid{grid-template-columns:1fr}
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+/* ═══════════════════════════════════════════════════════
+   REFERRAL PAGE — ENHANCED MOBILE DECORATIONS
+   Add this at the end of src/app/referral/referral.css
+   (or merge into your existing mobile breakpoints)
+═══════════════════════════════════════════════════════ */
+
+@media (max-width: 900px) {
+
+  /* ── PAGE WRAPPER ── */
+  .rf-main {
+    padding: 0 0 56px;
+    background:
+      radial-gradient(ellipse 90% 35% at 50% -5%, rgba(184,147,90,0.08) 0%, transparent 60%),
+      var(--cream);
+  }
+
+  /* ── HEADING SECTION ── */
+  .rf-main > div > .rf-reveal:first-child {
+    padding: 24px 16px 0;
+  }
+
+  .rf-sec-label {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    font-size: .58rem;
+    letter-spacing: .26em;
+  }
+  .rf-sec-label::before {
+    content: '';
+    display: block;
+    width: 16px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--gold));
+    flex-shrink: 0;
+  }
+  .rf-sec-label::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(90deg, rgba(184,147,90,0.3), transparent);
+    max-width: 70px;
+  }
+
+  .rf-sec-title {
+    font-size: clamp(1.5rem, 5.5vw, 2rem) !important;
+    line-height: 1.15;
+    letter-spacing: -.01em;
+  }
+
+  .rf-sec-sub {
+    font-size: .75rem;
+    line-height: 1.75;
+    color: rgba(107,100,89,0.75);
+  }
+
+  /* ── HERO REFERRAL CARD ── */
+  .rf-hero {
+    border-radius: 0 !important;
+    border-left: none !important;
+    border-right: none !important;
+    padding: 20px 16px !important;
+    background:
+      radial-gradient(ellipse 140% 80% at 100% 0%, rgba(184,147,90,0.1) 0%, transparent 50%),
+      radial-gradient(ellipse 60% 60% at 0% 100%, rgba(74,103,65,0.07) 0%, transparent 50%),
+      var(--surface);
+    border-color: rgba(184,147,90,0.2) !important;
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Gold top rule */
+  .rf-hero::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 5%; right: 5%;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--gold), transparent);
+    border-radius: 0 0 2px 2px;
+    z-index: 2;
+  }
+  /* Bottom accent */
+  .rf-hero::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 10%; right: 10%;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(184,147,90,0.3), transparent);
+    z-index: 0;
+  }
+
+  /* ── TABS ── */
+  .rf-tabs {
+    width: 100%;
+    border-radius: 7px;
+    overflow: hidden;
+    border: 1px solid rgba(184,147,90,0.25);
+    box-shadow: 0 2px 8px rgba(184,147,90,0.08);
+  }
+  .rf-tab {
+    flex: 1;
+    text-align: center;
+    padding: 10px 8px;
+    font-size: .62rem;
+    letter-spacing: .09em;
+    background: rgba(250,247,242,0.8);
+  }
+  .rf-tab.active {
+    background: var(--ink);
+    color: var(--gold-l) !important;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.1);
+  }
+
+  /* ── LINK / CODE ROW ── */
+  .rf-link-row {
+    border-radius: 7px;
+    overflow: hidden;
+    border: 1px solid rgba(184,147,90,0.25);
+    box-shadow: 0 2px 10px rgba(184,147,90,0.07);
+    background: linear-gradient(135deg, var(--cream) 0%, var(--parchment) 100%);
+    margin-top: 14px;
+  }
+  .rf-link-input {
+    font-size: .75rem;
+    padding: 12px 10px;
+    color: rgba(28,28,28,0.7);
+    background: transparent;
+  }
+  .rf-code-display {
+    font-size: .88rem;
+    letter-spacing: .14em;
+    padding: 12px 10px;
+    color: var(--gold);
+    font-weight: 600;
+  }
+  .rf-btn-copy {
+    padding: 0 16px;
+    font-size: .62rem;
+    letter-spacing: .1em;
+    background: var(--ink);
+    color: var(--gold-l);
+    border-left: 1px solid rgba(255,255,255,0.05);
+    min-width: 80px;
+    text-align: center;
+  }
+  .rf-btn-copy.copied {
+    background: var(--sage);
+  }
+
+  /* ── SHARE ROW ── */
+  .rf-share-row {
+    margin-top: 14px;
+    gap: 6px;
+  }
+  .rf-share-btn {
+    flex: 1 1 calc(50% - 4px);
+    justify-content: center;
+    padding: 9px 8px;
+    font-size: .62rem;
+    letter-spacing: .06em;
+    border-radius: 6px;
+    background: linear-gradient(135deg, var(--cream) 0%, var(--parchment) 100%);
+    border: 1px solid rgba(184,147,90,0.2);
+    color: var(--txt2);
+    transition: all .2s;
+  }
+  .rf-share-btn:active {
+    background: rgba(184,147,90,0.12);
+    border-color: var(--gold);
+    color: var(--gold-d);
+    transform: scale(0.97);
+  }
+
+  /* ── STATS GRID ── */
+  .rf-stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 8px !important;
+    padding: 0 14px;
+    margin-bottom: 10px !important;
+  }
+
+  .rf-stat-card {
+    border-radius: 12px;
+    padding: 16px 13px !important;
+    background:
+      radial-gradient(ellipse 100% 80% at 100% 0%, rgba(184,147,90,0.06) 0%, transparent 60%),
+      var(--surface);
+    border: 1px solid rgba(184,147,90,0.18);
+    box-shadow: 0 2px 12px rgba(184,147,90,0.05);
+    overflow: hidden;
+    position: relative;
+  }
+  /* Card top accent line */
+  .rf-stat-card::after {
+    content: '';
+    position: absolute;
+    top: 0; left: 16px; right: 16px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(184,147,90,0.4), transparent);
+  }
+
+  .rf-stat-icon {
+    width: 28px !important;
+    height: 28px !important;
+    border-radius: 7px !important;
+    margin-bottom: 9px !important;
+  }
+  .rf-stat-icon svg {
+    width: 13px !important;
+    height: 13px !important;
+  }
+  .rf-stat-val {
+    font-size: 1.4rem !important;
+    line-height: 1;
+    margin-bottom: 3px;
+    letter-spacing: -.01em;
+  }
+  .rf-stat-lbl {
+    font-size: .55rem !important;
+    letter-spacing: .12em;
+    color: rgba(107,100,89,0.65);
+  }
+  .rf-stat-change {
+    font-size: .6rem !important;
+    margin-top: 5px;
+    line-height: 1.4;
+  }
+
+  /* ── HOW IT WORKS CARD ── */
+  .rf-how-card {
+    margin: 0 14px;
+    border-radius: 12px !important;
+    padding: 18px 16px !important;
+    background:
+      radial-gradient(ellipse 120% 60% at 0% 0%, rgba(184,147,90,0.06) 0%, transparent 50%),
+      var(--surface);
+    border: 1px solid rgba(184,147,90,0.18);
+    box-shadow: 0 2px 16px rgba(184,147,90,0.05);
+    position: relative;
+  }
+  .rf-how-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 14px; right: 14px;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(184,147,90,0.4), transparent);
+    border-radius: 0 0 2px 2px;
+  }
+
+  /* ── STEPS ── */
+  .rf-steps-grid {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+    margin-top: 14px !important;
+  }
+
+  .rf-step-item {
+    border-radius: 8px;
+    padding: 13px 13px;
+    background: linear-gradient(135deg, var(--cream) 0%, var(--parchment) 100%);
+    border: 1px solid rgba(184,147,90,0.15);
+    transition: border-color .2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .rf-step-item::after {
+    content: '';
+    position: absolute;
+    left: 0; top: 20%; bottom: 20%;
+    width: 2px;
+    background: linear-gradient(180deg, transparent, var(--gold), transparent);
+    border-radius: 2px;
+  }
+  .rf-step-num {
+    width: 24px !important;
+    height: 24px !important;
+    font-size: .82rem !important;
+    border-radius: 5px !important;
+    background: linear-gradient(135deg, var(--ink) 0%, var(--charcoal) 100%);
+    box-shadow: 0 2px 8px rgba(28,28,28,0.2);
+    flex-shrink: 0;
+  }
+  .rf-step-title {
+    font-size: .76rem;
+    letter-spacing: .02em;
+  }
+  .rf-step-desc {
+    font-size: .68rem;
+    line-height: 1.55;
+    color: rgba(107,100,89,0.7);
+  }
+
+  /* ── MILESTONE RING CARD ── */
+  #rf-side-panels .rf-how-card {
+    padding: 16px 14px !important;
+  }
+  .rf-milestone-ring {
+    width: 72px !important;
+    height: 72px !important;
+  }
+  .rf-milestone-ring svg {
+    width: 72px !important;
+    height: 72px !important;
+  }
+  .rf-ring-label {
+    font-size: .88rem !important;
+  }
+  .rf-ring-sublabel {
+    font-size: .44rem !important;
+  }
+  .rf-prog-bar {
+    height: 5px;
+    border-radius: 3px;
+  }
+
+  /* ── DIVIDER ── */
+  .rf-divider {
+    margin: 20px 14px;
+    background: linear-gradient(90deg, transparent, rgba(184,147,90,0.35), transparent);
+  }
+
+  /* ── TABLE CARD ── */
+  .rf-table-card {
+    margin: 0 14px;
+    border-radius: 12px !important;
+    border: 1px solid rgba(184,147,90,0.2);
+    box-shadow: 0 2px 16px rgba(184,147,90,0.06);
+    overflow: hidden;
+  }
+
+  .rf-table-head {
+    padding: 14px 14px;
+    background:
+      linear-gradient(135deg, var(--surface) 0%, rgba(246,241,233,0.7) 100%);
+    border-bottom: 1px solid rgba(184,147,90,0.14);
+  }
+  .rf-table-title {
+    font-size: 1rem;
+  }
+  .rf-table-sub {
+    font-size: .63rem;
+    color: rgba(107,100,89,0.6);
+  }
+
+  /* ── FILTER PILLS ── */
+  .rf-filter-row {
+    padding: 0 14px;
+    gap: 5px;
+  }
+  .rf-filter-pill {
+    padding: 5px 11px;
+    font-size: .58rem;
+    letter-spacing: .08em;
+    border-radius: 100px;
+    background: linear-gradient(135deg, var(--cream) 0%, var(--parchment) 100%);
+  }
+  .rf-filter-pill.active {
+    background: var(--ink);
+    box-shadow: 0 2px 8px rgba(28,28,28,0.15);
+  }
+
+  /* ── MOBILE CARDS ── */
+  .rf-mob-cards {
+    padding: 10px 0 !important;
+    gap: 8px !important;
+  }
+
+  .rf-mob-card {
+    border-radius: 10px;
+    border: 1px solid rgba(184,147,90,0.16);
+    padding: 14px 13px;
+    background:
+      radial-gradient(ellipse 100% 80% at 100% 0%, rgba(184,147,90,0.04) 0%, transparent 60%),
+      linear-gradient(160deg, var(--cream) 0%, var(--parchment) 100%);
+    box-shadow: 0 1px 10px rgba(184,147,90,0.06);
+    position: relative;
+    overflow: hidden;
+  }
+  .rf-mob-card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 12px; right: 12px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(184,147,90,0.3), transparent);
+  }
+
+  .rf-mob-card-top {
+    margin-bottom: 10px;
+    gap: 6px;
+  }
+  .rf-td-av {
+    width: 28px !important;
+    height: 28px !important;
+    font-size: .68rem !important;
+    box-shadow: 0 0 0 1.5px rgba(184,147,90,0.3);
+  }
+  .rf-td-name {
+    font-size: .8rem;
+    font-weight: 500;
+    letter-spacing: .01em;
+  }
+  .rf-td-sub {
+    font-size: .65rem;
+    color: rgba(107,100,89,0.65);
+  }
+
+  .rf-mob-row {
+    padding: 9px 0;
+    border-bottom: 1px solid rgba(184,147,90,0.08);
+  }
+  .rf-mob-row:last-child {
+    border-bottom: none;
+  }
+  .rf-mob-key {
+    font-size: .56rem;
+    letter-spacing: .12em;
+    color: rgba(107,100,89,0.6);
+  }
+
+  /* ── BADGES ── */
+  .rf-badge {
+    padding: 3px 9px;
+    border-radius: 100px;
+    font-size: .56rem;
+    letter-spacing: .1em;
+  }
+  .rf-b-active {
+    box-shadow: 0 0 8px rgba(74,103,65,0.2);
+  }
+
+  /* ── PAGINATION ── */
+  .rf-pagination {
+    padding: 12px 14px;
+    border-top: 1px solid rgba(184,147,90,0.12);
+    background: rgba(250,247,242,0.5);
+  }
+  .rf-page-info {
+    font-size: .62rem;
+    color: rgba(107,100,89,0.6);
+  }
+  .rf-page-btn {
+    width: 28px;
+    height: 28px;
+    border-radius: 5px;
+    font-size: .68rem;
+  }
+  .rf-page-btn.active {
+    box-shadow: 0 2px 8px rgba(28,28,28,0.15);
+  }
+
+  /* ── TOAST ── */
+  .rf-toast {
+    max-width: calc(100vw - 28px);
+    white-space: normal;
+    text-align: center;
+    font-size: .71rem;
+    border-radius: 8px;
+    padding: 10px 18px;
+    box-shadow: 0 8px 28px rgba(0,0,0,0.18);
+  }
+
+  /* ── LIVE DOT ── */
+  .rf-live-dot {
+    width: 7px;
+    height: 7px;
+    box-shadow: 0 0 6px rgba(74,103,65,0.6);
+  }
+}
+
+/* ── Very small screens ── */
+@media (max-width: 380px) {
+  .rf-stats-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 7px !important;
+  }
+  .rf-stat-val {
+    font-size: 1.25rem !important;
+  }
+  .rf-sec-title {
+    font-size: 1.4rem !important;
+  }
+  .rf-hero {
+    padding: 18px 13px !important;
+  }
+  .rf-how-card {
+    margin: 0 10px;
+  }
+  .rf-table-card {
+    margin: 0 10px;
+  }
+  .rf-filter-row {
+    padding: 0 10px;
+  }
+  .rf-mob-cards {
+    padding: 8px 0 !important;
+  }
+}

@@ -106,7 +106,7 @@ export default function AdminSeasonPage() {
   const [dmSub, setDmSub] = useState('');
   const [dmDate, setDmDate] = useState('');
 
-  // Pool Investors Modal ← NEW
+  // Pool Investors Modal
   const [poolModalOpen, setPoolModalOpen] = useState(false);
   const [poolSeason, setPoolSeason] = useState<ActiveSeason | PrevSeason | null>(null);
   const [poolInvestors, setPoolInvestors] = useState<PoolInvestor[]>([]);
@@ -130,8 +130,12 @@ export default function AdminSeasonPage() {
 
     if (error) {
       showToast('✕ Error fetching seasons', 'err');
-    } else if (seasons) {
-      // Fetch investor counts per season in one query
+      setLoading(false);
+      return;
+    }
+
+    if (seasons) {
+      // Fetch investor counts per season
       const { data: investCounts } = await supabase
         .from('investments')
         .select('season_id, id')
@@ -159,7 +163,7 @@ export default function AdminSeasonPage() {
             roi: s.roi_range || '', finalROI: Number(s.final_roi) || 0,
             pool: Number(s.pool_cap) || 0,
             min: Number(s.min_entry) || 0,
-            max: Number(s.max_entry) || 50000,   // ← FIX: read from DB
+            max: Number(s.max_entry) || 50000,
           });
         } else {
           activeArr.push({
@@ -168,10 +172,10 @@ export default function AdminSeasonPage() {
             roi: s.roi_range || '',
             pool: Number(s.pool_cap) || 0,
             min: Number(s.min_entry) || 0,
-            max: Number(s.max_entry) || 50000,   // ← FIX: read from DB
+            max: Number(s.max_entry) || 50000,
             status: s.status as any,
             poolFilled: Number(s.current_pool) || 0,
-            investors: countMap[s.id] || 0,       // ← FIX: real count
+            investors: countMap[s.id] || 0,
             dayStart: s.start_date || '',
             autoClose: null,
           });
@@ -193,12 +197,11 @@ export default function AdminSeasonPage() {
   /* ── Cleanup auto-close timers on unmount ── */
   useEffect(() => {
     return () => {
-      // Clear all pending auto-close timers on unmount
       for (const id in autoCloseTimers.current) {
-        clearTimeout(autoCloseTimers.current[id])
+        clearTimeout(autoCloseTimers.current[id]);
       }
-    }
-  }, [])
+    };
+  }, []);
 
   /* ── Pool Modal Fetch ── */
   const openPoolModal = useCallback(async (season: ActiveSeason | PrevSeason) => {
@@ -208,7 +211,6 @@ export default function AdminSeasonPage() {
     setPoolSearch('');
     setPoolInvestors([]);
 
-    // Step 1: fetch investments — investments table uses `joined_at`, not `created_at`
     const { data: investments, error: invErr } = await supabase
       .from('investments')
       .select('id, amount, status, joined_at, user_id')
@@ -226,7 +228,6 @@ export default function AdminSeasonPage() {
       return;
     }
 
-    // Step 2: fetch profiles for all investors in one query
     const uniqueUserIds = [...new Set(investments.map((inv: any) => inv.user_id))];
     const { data: profiles, error: profErr } = await supabase
       .from('profiles')
@@ -247,7 +248,7 @@ export default function AdminSeasonPage() {
           userId:   inv.user_id,
           amount:   Number(inv.amount),
           status:   inv.status,
-          joinedAt: inv.joined_at,          // ← was inv.created_at (wrong column)
+          joinedAt: inv.joined_at,
           name:     p ? `${p.first_name || ''} ${p.last_name || ''}`.trim() : 'Unknown',
           username: p?.username || '—',
           email:    p?.email    || '—',
@@ -320,19 +321,43 @@ export default function AdminSeasonPage() {
     return () => { document.body.style.overflow = ''; };
   }, [sidebarOpen, smOpen, cmOpen, dmOpen, poolModalOpen]);
 
-  /* ── Auto-close ── */
+  /* ── Auto-close helpers ── */
   const cancelAutoClose = useCallback((id: string) => {
-    if (autoCloseTimers.current[id]) { clearTimeout(autoCloseTimers.current[id]); delete autoCloseTimers.current[id]; }
+    if (autoCloseTimers.current[id]) {
+      clearTimeout(autoCloseTimers.current[id]);
+      delete autoCloseTimers.current[id];
+    }
   }, []);
 
+  /* FIX: executeAutoClose now fetches fresh data from DB instead of using stale state */
   const executeAutoClose = useCallback(async (id: string) => {
-    const s = active.find(x => x.id === id);
-    if (!s || !s.autoClose) return;
-    const roi = s.autoClose.finalROI;
-    const { error } = await supabase.from('seasons').update({ status: 'closed', final_roi: roi }).eq('id', id);
+    // Fetch fresh season data from DB to avoid stale closure
+    const { data: freshSeason } = await supabase
+      .from('seasons')
+      .select('*, name')
+      .eq('id', id)
+      .single();
+
+    if (!freshSeason) { showToast('✕ Season not found for auto-close', 'err'); return; }
+
+    // Find the autoClose ROI from the active state (it was set when scheduling)
+    const currentActive = active.find(x => x.id === id);
+    const roi = currentActive?.autoClose?.finalROI;
+    if (roi === undefined || roi === null) {
+      showToast('✕ Auto-close ROI not set', 'err');
+      return;
+    }
+
+    const { error } = await supabase
+      .from('seasons')
+      .update({ status: 'closed', final_roi: roi })
+      .eq('id', id);
+
     if (error) { showToast('✕ Auto-close failed', 'err'); return; }
-    showToast(`⏰ ${s.name} auto-closed with +${roi}% ROI`, 'ok');
-    fetchData(); cancelAutoClose(id);
+
+    showToast(`⏰ ${freshSeason.name} auto-closed with +${roi}% ROI`, 'ok');
+    fetchData();
+    cancelAutoClose(id);
   }, [active, cancelAutoClose, fetchData, showToast, supabase]);
 
   const scheduleAutoClose = useCallback((s: ActiveSeason) => {
@@ -376,9 +401,12 @@ export default function AdminSeasonPage() {
       roi_range: fRoi,
       pool_cap: pool,
       min_entry: mn,
-      max_entry: mx,   // ← FIX: always save max_entry
+      max_entry: mx,
     };
-    if (!smEditId) seasonData.status = 'open';
+    if (!smEditId) {
+      seasonData.status = 'open';
+      seasonData.current_pool = 0; // FIX: initialize pool to 0
+    }
 
     if (smEditId) {
       const { error } = await supabase.from('seasons').update(seasonData).eq('id', smEditId);
@@ -395,7 +423,7 @@ export default function AdminSeasonPage() {
   /* ── Pause / Resume ── */
   const togglePause = async (id: string) => {
     const s = active.find(x => x.id === id); if (!s) return;
-    const newStatus = s.status === 'running' ? 'paused' : 'running';
+    const newStatus = s.status === 'running' ? 'paused' : s.status === 'paused' ? 'running' : 'paused';
     const { error } = await supabase.from('seasons').update({ status: newStatus }).eq('id', id);
     if (error) { showToast('✕ Error updating status', 'err'); return; }
     showToast(newStatus === 'running' ? `▶ ${s.name} resumed` : `⏸ ${s.name} paused`, 'ok');
@@ -439,45 +467,51 @@ export default function AdminSeasonPage() {
       showToast(`⏰ Auto-Close set for ${s.name} — closes on ${fmtDate(s.finishDate)} with +${roi}% ROI`, 'ok');
     } else {
       setLoading(true);
-      const { data: investments } = await supabase
-        .from('investments').select('*').eq('season_id', cmId).eq('status', 'active');
+      try {
+        const { data: investments } = await supabase
+          .from('investments').select('*').eq('season_id', cmId).eq('status', 'active');
 
-      if (investments && investments.length > 0) {
-        for (const inv of investments) {
-          const principal = Number(inv.amount);
-          const profit = principal * (roi / 100);
-          const totalReturn = principal + profit;
-          const { data: profile } = await supabase
-            .from('profiles').select('balance, profits_total, invested_total, referred_by').eq('id', inv.user_id).single();
-          if (profile) {
-            const newBalance = Number(profile.balance) + totalReturn;
-            await supabase.from('profiles').update({
-              balance: newBalance, withdrawable_total: newBalance,
-              profits_total: Number(profile.profits_total) + profit,
-              invested_total: Math.max(0, Number(profile.invested_total) - principal),
-            }).eq('id', inv.user_id);
-            await supabase.from('investments').update({ status: 'completed' }).eq('id', inv.id);
-            if (profile.referred_by && profit > 0) {
-              const commission = profit * 0.07;
-              const { data: referrer } = await supabase.from('profiles').select('balance, referral_earned').eq('id', profile.referred_by).single();
-              if (referrer) {
-                const newRefBalance = Number(referrer.balance) + commission;
-                await supabase.from('profiles').update({
-                  balance: newRefBalance, withdrawable_total: newRefBalance,
-                  referral_earned: (Number(referrer.referral_earned) || 0) + commission,
-                }).eq('id', profile.referred_by);
+        if (investments && investments.length > 0) {
+          for (const inv of investments) {
+            const principal = Number(inv.amount);
+            const profit = principal * (roi / 100);
+            const totalReturn = principal + profit;
+            const { data: profile } = await supabase
+              .from('profiles').select('balance, profits_total, invested_total, referred_by').eq('id', inv.user_id).single();
+            if (profile) {
+              const newBalance = Number(profile.balance) + totalReturn;
+              await supabase.from('profiles').update({
+                balance: newBalance, withdrawable_total: newBalance,
+                profits_total: Number(profile.profits_total) + profit,
+                invested_total: Math.max(0, Number(profile.invested_total) - principal),
+              }).eq('id', inv.user_id);
+              await supabase.from('investments').update({ status: 'completed' }).eq('id', inv.id);
+              if (profile.referred_by && profit > 0) {
+                const commission = profit * 0.07;
+                const { data: referrer } = await supabase.from('profiles').select('balance, referral_earned').eq('id', profile.referred_by).single();
+                if (referrer) {
+                  const newRefBalance = Number(referrer.balance) + commission;
+                  await supabase.from('profiles').update({
+                    balance: newRefBalance, withdrawable_total: newRefBalance,
+                    referral_earned: (Number(referrer.referral_earned) || 0) + commission,
+                  }).eq('id', profile.referred_by);
+                }
               }
             }
           }
         }
-      }
 
-      const { error } = await supabase.from('seasons').update({ status: 'closed', final_roi: roi }).eq('id', cmId);
-      if (error) { showToast('✕ Error closing season', 'err'); setLoading(false); return; }
-      setCmOpen(false);
-      const count = investments?.length || 0;
-      showToast(`✓ ${s.name} closed. Payouts processed for ${count} investor${count !== 1 ? 's' : ''}.`, 'ok');
-      fetchData();
+        const { error } = await supabase.from('seasons').update({ status: 'closed', final_roi: roi }).eq('id', cmId);
+        if (error) throw error;
+
+        setCmOpen(false);
+        const count = investments?.length || 0;
+        showToast(`✓ ${s.name} closed. Payouts processed for ${count} investor${count !== 1 ? 's' : ''}.`, 'ok');
+        fetchData();
+      } catch (err: any) {
+        showToast('✕ Error closing season: ' + (err.message || 'Unknown error'), 'err');
+        setLoading(false); // FIX: always reset loading on error
+      }
     }
   };
 
@@ -501,6 +535,13 @@ export default function AdminSeasonPage() {
   const poolPct = poolCap > 0 ? Math.min(100, (poolTotalInvested / poolCap) * 100) : 0;
 
   const periodDisplay = calcPeriodStr(fEntry, fFinish);
+
+  // FIX: helper to get button label for pause/resume
+  const getPauseLabel = (s: ActiveSeason) => {
+    if (s.status === 'running') return '⏸ Pause Season';
+    if (s.status === 'paused') return '▶ Resume Season';
+    return '⏸ Pause Season';
+  };
 
   return (
     <>
@@ -561,7 +602,6 @@ export default function AdminSeasonPage() {
                   <input className="sm-form-input" type="number" placeholder="e.g. 50000" value={fMax} onChange={e => setFMax(e.target.value)} />
                 </div>
               </div>
-              {/* Entry amount preview */}
               {fMin && fMax && parseFloat(fMin) > 0 && parseFloat(fMax) > 0 && (
                 <div style={{ padding: '10px 13px', background: 'rgba(184,147,90,.05)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: '.74rem', color: 'var(--text-sec)' }}>
                   💰 Each investor can contribute between&nbsp;
@@ -667,7 +707,7 @@ export default function AdminSeasonPage() {
         </div>
       </div>
 
-      {/* ══ POOL INVESTORS MODAL ── NEW ══ */}
+      {/* ══ POOL INVESTORS MODAL ══ */}
       <div
         className={`sm-modal-overlay${poolModalOpen ? ' open' : ''}`}
         onClick={e => { if (e.target === e.currentTarget) setPoolModalOpen(false); }}
@@ -680,25 +720,20 @@ export default function AdminSeasonPage() {
           transform: poolModalOpen ? 'translateX(0)' : 'translateX(40px)',
           transition: 'transform .35s cubic-bezier(.16,1,.3,1)', overflow: 'hidden',
         }}>
-          {/* Header */}
           <div style={{ padding: '18px 22px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexShrink: 0, background: 'var(--surface)' }}>
             <div>
               <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.15rem', fontWeight: 400, color: 'var(--ink)' }}>
                 Pool Investors — {poolSeason?.name}
               </div>
-              <div style={{ fontSize: '.67rem', color: 'var(--text-sec)', marginTop: 2 }}>
-                All investments in this season
-              </div>
+              <div style={{ fontSize: '.67rem', color: 'var(--text-sec)', marginTop: 2 }}>All investments in this season</div>
             </div>
-            <button
-              onClick={() => setPoolModalOpen(false)}
-              style={{ width: 30, height: 30, borderRadius: '50%', background: 'transparent', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .2s', flexShrink: 0 }}
-            >
+            <button onClick={() => setPoolModalOpen(false)}
+              style={{ width: 30, height: 30, borderRadius: '50%', background: 'transparent', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', transition: 'all .2s', flexShrink: 0 }}>
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--charcoal)" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" /></svg>
             </button>
           </div>
 
-          {/* Pool Summary Cards */}
+          {/* Pool Summary */}
           <div style={{ padding: '16px 22px', borderBottom: '1px solid var(--border)', background: 'var(--parchment)', flexShrink: 0 }}>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 12 }}>
               {[
@@ -712,7 +747,6 @@ export default function AdminSeasonPage() {
                 </div>
               ))}
             </div>
-            {/* Pool Progress Bar */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
                 <span style={{ fontSize: '.6rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text-sec)' }}>Pool Filled</span>
@@ -756,13 +790,12 @@ export default function AdminSeasonPage() {
               </div>
             ) : (
               <div>
-                {/* Table header */}
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 120px 90px 80px', gap: 8, padding: '10px 0', borderBottom: '1px solid var(--border)', position: 'sticky', top: 0, background: 'var(--surface)' }}>
                   {['Investor', 'Email', 'Amount', 'Date', 'Status'].map(h => (
                     <div key={h} style={{ fontSize: '.6rem', letterSpacing: '.12em', textTransform: 'uppercase', color: 'var(--text-sec)' }}>{h}</div>
                   ))}
                 </div>
-                {filteredPoolInvestors.map((inv, i) => (
+                {filteredPoolInvestors.map((inv) => (
                   <div key={inv.id} style={{
                     display: 'grid', gridTemplateColumns: '1fr 1fr 120px 90px 80px', gap: 8,
                     padding: '12px 0', borderBottom: '1px solid rgba(184,147,90,.07)', alignItems: 'center',
@@ -771,7 +804,6 @@ export default function AdminSeasonPage() {
                     onMouseEnter={e => (e.currentTarget.style.background = 'rgba(184,147,90,.025)')}
                     onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
                   >
-                    {/* Name + Username */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
                       <div style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--parchment)', border: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Cormorant Garamond',serif", fontSize: '.68rem', fontWeight: 600, color: 'var(--gold)', flexShrink: 0 }}>
                         {inv.init || '??'}
@@ -781,19 +813,20 @@ export default function AdminSeasonPage() {
                         <div style={{ fontSize: '.65rem', color: 'var(--text-sec)' }}>@{inv.username}</div>
                       </div>
                     </div>
-                    {/* Email */}
                     <div style={{ fontSize: '.72rem', color: 'var(--text-sec)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{inv.email}</div>
-                    {/* Amount */}
                     <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '.96rem', fontWeight: 500, color: 'var(--gold)' }}>
                       ${inv.amount.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                     </div>
-                    {/* Date */}
                     <div style={{ fontSize: '.68rem', color: 'var(--text-sec)' }}>
                       {new Date(inv.joinedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                     </div>
-                    {/* Status */}
+                    {/* FIX: added paused status badge */}
                     <div>
-                      <span className={`adm-badge ${inv.status === 'completed' ? 'adm-b-completed' : inv.status === 'active' ? 'adm-b-active' : 'adm-b-pending'}`} style={{ fontSize: '.57rem' }}>
+                      <span className={`adm-badge ${
+                        inv.status === 'completed' ? 'adm-b-completed'
+                        : inv.status === 'active' ? 'adm-b-active'
+                        : 'adm-b-pending'
+                      }`} style={{ fontSize: '.57rem' }}>
                         {inv.status}
                       </span>
                     </div>
@@ -803,7 +836,6 @@ export default function AdminSeasonPage() {
             )}
           </div>
 
-          {/* Footer */}
           <div style={{ padding: '12px 22px', borderTop: '1px solid var(--border)', background: 'var(--surface)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div style={{ fontSize: '.72rem', color: 'var(--text-sec)' }}>
               Total invested: <strong style={{ color: 'var(--gold)' }}>{fmtUSDT(poolTotalInvested)}</strong>
@@ -818,7 +850,6 @@ export default function AdminSeasonPage() {
         <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onToast={showToast} />
 
         <div className="adm-main-area">
-          {/* Header */}
           <header className="adm-top-header">
             <button className="adm-ham-btn" onClick={() => setSidebarOpen(o => !o)}><span /><span /><span /></button>
             <a className="adm-back-pill" href="/admin/dashboard">
@@ -893,17 +924,25 @@ export default function AdminSeasonPage() {
                     const totalDays = calcRunningDays(s.entryDate, s.finishDate);
                     const curDay = Math.min(calcDaysCurrent(s.dayStart), totalDays);
                     const dayPct = totalDays > 0 ? Math.round(curDay / totalDays * 100) : 0;
-                    const poolPct = s.pool > 0 ? Math.min(100, Math.round((s.poolFilled / s.pool) * 100)) : 0;
+                    // FIX: Use actual current_pool from DB for pool percentage
+                    const poolPctAdmin = s.pool > 0 ? Math.min(100, Math.round((s.poolFilled / s.pool) * 100)) : 0;
                     const isRunning = s.status === 'running';
+                    const isPaused = s.status === 'paused';
                     const hasAuto = !!s.autoClose;
 
                     return (
-                      <div key={s.id} className={`sm-season-card${s.status === 'paused' ? ' paused' : ''}`}>
+                      <div key={s.id} className={`sm-season-card${(isPaused) ? ' paused' : ''}`}>
                         {/* Header row */}
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                             <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.18rem', fontWeight: 500, color: 'var(--ink)' }}>{s.name}</div>
-                            <span className={`sm-badge ${isRunning ? 'sm-b-running' : s.status === 'open' ? 'sm-b-pending' : 'sm-b-paused'}`}>{s.status.toUpperCase()}</span>
+                            {/* FIX: paused badge */}
+                            <span className={`sm-badge ${
+                              isRunning ? 'sm-b-running'
+                              : s.status === 'open' ? 'sm-b-pending'
+                              : isPaused ? 'sm-b-paused'
+                              : 'sm-b-paused'
+                            }`}>{s.status.toUpperCase()}</span>
                             {hasAuto && <span className="sm-badge sm-b-autoclose">⏰ Auto-Close Set</span>}
                           </div>
                           <div style={{ fontSize: '.68rem', color: 'var(--text-sec)' }}>{fmtDate(s.entryDate)} → {fmtDate(s.finishDate)}</div>
@@ -927,7 +966,7 @@ export default function AdminSeasonPage() {
                             ['Running Period', `${totalDays} days`, ''],
                             ['Expected ROI', s.roi, 'gold'],
                             ['Min Entry', fmtUSDT(s.min), ''],
-                            ['Max Entry', fmtUSDT(s.max), ''],   // ← FIX: now shows real value
+                            ['Max Entry', fmtUSDT(s.max), ''],
                           ].map(([lbl, val, cls]) => (
                             <div key={lbl}>
                               <div className="sm-meta-lbl">{lbl}</div>
@@ -949,11 +988,11 @@ export default function AdminSeasonPage() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                               <span style={{ fontSize: '.6rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text-sec)' }}>Pool Filled</span>
                               <span style={{ fontSize: '.6rem', color: 'var(--text-sec)' }}>
-                                {poolPct}% · {fmtUSDT(s.poolFilled)} / {fmtUSDT(s.pool)}
+                                {poolPctAdmin}% · {fmtUSDT(s.poolFilled)} / {fmtUSDT(s.pool)}
                               </span>
                             </div>
                             <div className="sm-pool-bar">
-                              <div className="sm-pool-fill" style={{ width: `${poolPct}%`, background: 'linear-gradient(90deg,var(--sage),var(--sage-l))' }} />
+                              <div className="sm-pool-fill" style={{ width: `${poolPctAdmin}%`, background: 'linear-gradient(90deg,var(--sage),var(--sage-l))' }} />
                             </div>
                           </div>
                         </div>
@@ -971,12 +1010,12 @@ export default function AdminSeasonPage() {
 
                         {/* Actions */}
                         <div className="sm-season-actions">
+                          {/* FIX: pause/resume works for both running and paused */}
                           <button className="sm-btn-sage sm-btn-sm" onClick={() => togglePause(s.id)}>
-                            {isRunning ? '⏸ Pause Season' : '▶ Resume Season'}
+                            {getPauseLabel(s)}
                           </button>
                           <button className="sm-btn-ghost sm-btn-sm" onClick={() => openDateModal(s.id)}>📅 Change Finish Date</button>
                           <button className="sm-btn-ghost sm-btn-sm" onClick={() => openSeasonModal(s.id)}>✏ Edit</button>
-                          {/* ← NEW: Pool button */}
                           <button
                             className="sm-btn-ghost sm-btn-sm"
                             style={{ borderColor: 'rgba(74,103,65,.3)', color: 'var(--sage)' }}
@@ -1035,12 +1074,11 @@ export default function AdminSeasonPage() {
                               </td>
                               <td style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '.95rem', color: 'var(--ink)' }}>{fmtUSDT(s.pool)}</td>
                               <td style={{ fontSize: '.78rem', color: 'var(--text-sec)' }}>{fmtUSDT(s.min)}</td>
-                              <td style={{ fontSize: '.78rem', color: 'var(--text-sec)' }}>{fmtUSDT(s.max)}</td>  {/* ← FIX */}
+                              <td style={{ fontSize: '.78rem', color: 'var(--text-sec)' }}>{fmtUSDT(s.max)}</td>
                               <td><span className="sm-badge sm-b-closed">Closed</span></td>
                               <td>
                                 <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
                                   <button className="sm-btn-ghost sm-btn-sm" onClick={() => openSeasonModal(s.id)}>Edit</button>
-                                  {/* Pool button for history seasons too */}
                                   <button
                                     className="sm-btn-ghost sm-btn-sm"
                                     style={{ borderColor: 'rgba(74,103,65,.25)', color: 'var(--sage)' }}

@@ -24,7 +24,7 @@ interface ActiveSeason {
   endDate: Date
   roi: string
   min: number
-  max: number   // ← now correctly read from DB
+  max: number
   pool: number
   poolFilled: number
   joined: boolean
@@ -67,6 +67,11 @@ function fmtUSDT(n: number) {
   return '$' + n.toLocaleString('en-US')
 }
 
+// Strip trailing % from roi string for numeric operations
+function roiToNumber(roi: string): number {
+  return parseFloat(roi.replace(/[^0-9.\-]/g, '')) || 0
+}
+
 export default function SeasonPage() {
   const router = useRouter()
   const supabase = createClient()
@@ -85,6 +90,7 @@ export default function SeasonPage() {
   const [amountError, setAmountError] = useState('')
   const [userProfile, setUserProfile] = useState<any>(null)
   const [loading, setLoading] = useState(true)
+  const [submitting, setSubmitting] = useState(false)
   const [countdowns, setCountdowns] = useState<Record<string, string>>({})
   const [countdownLabel, setCountdownLabel] = useState<Record<string, string>>({})
   const [poolWidths, setPoolWidths] = useState<Record<string, string>>({})
@@ -116,8 +122,9 @@ export default function SeasonPage() {
       .eq('user_id', resolvedUid)
 
     if (dbSeasons) {
+      // FIX: include 'paused' in active display (show card but disable invest)
       const activeMapped: ActiveSeason[] = dbSeasons
-        .filter(s => s.status === 'open' || s.status === 'running')
+        .filter(s => s.status === 'open' || s.status === 'running' || s.status === 'paused')
         .map(s => {
           const myInv = myInvestments?.find(inv => inv.season_id === s.id)
           const poolCap    = Number(s.pool_cap) || 1000000
@@ -126,14 +133,14 @@ export default function SeasonPage() {
             id: s.id,
             name: s.name,
             status: s.status,
-            statusLabel: s.status === 'open' ? 'Now Open' : 'Running',
-            statusClass: s.status === 'open' ? 'sx-tag-open' : 'sx-tag-ending',
+            statusLabel: s.status === 'open' ? 'Now Open' : s.status === 'running' ? 'Running' : 'Paused',
+            statusClass: s.status === 'open' ? 'sx-tag-open' : s.status === 'paused' ? 'sx-tag-paused' : 'sx-tag-ending',
             period: computePeriod(s),
             entryCloseDate: s.entry_close_date ? new Date(s.entry_close_date) : null,
             endDate: new Date(s.end_date || Date.now() + 7 * 864e5),
             roi: s.roi_range || '',
             min: Number(s.min_entry) || 100,
-            max: Number(s.max_entry) || 50000,   // ← FIX: read from DB
+            max: Number(s.max_entry) || 50000,
             pool: poolCap,
             poolFilled: actualFilled,
             joined: !!myInv,
@@ -241,6 +248,9 @@ export default function SeasonPage() {
       const labels: Record<string,string> = {}
       seasons.forEach(s => {
         const now = Date.now()
+        if (s.status === 'paused') {
+          cds[s.id] = 'Paused'; labels[s.id] = 'Season is paused'; return
+        }
         if (s.status === 'open' && s.entryCloseDate) {
           const diff = s.entryCloseDate.getTime() - now
           if (diff > 0) {
@@ -284,7 +294,7 @@ export default function SeasonPage() {
   /* ── Filtered history rows ── */
   const filteredHistory = history.filter(r => {
     if (histTab === 'all')       return true
-    if (histTab === 'active')    return r.dbStatus === 'open' || r.dbStatus === 'running'
+    if (histTab === 'active')    return r.dbStatus === 'open' || r.dbStatus === 'running' || r.dbStatus === 'paused'
     if (histTab === 'completed') return r.dbStatus === 'closed'
     if (histTab === 'mine')      return r.mySeasonId !== null
     return true
@@ -309,9 +319,9 @@ export default function SeasonPage() {
     if (amt > (Number(userProfile?.balance) || 0)) { setAmountError('Insufficient balance.'); return }
   }
 
-  /* ── Confirm invest ── */
+  /* ── Confirm invest ── FIX: now updates current_pool in seasons table ── */
   const confirmInvest = async () => {
-    if (!investId || !userProfile) return
+    if (!investId || !userProfile || submitting) return
     const s = seasons.find(x => x.id === investId)
     if (!s) return
     const amt = parseFloat(amountVal)
@@ -327,7 +337,7 @@ export default function SeasonPage() {
       showToast(`⚠ Minimum investment is ${fmtUSDT(s.min)} USDT.`)
       return
     }
-    if (amt > s.max) {                                    // ← FIX: enforce max
+    if (amt > s.max) {
       setAmountError(`Maximum entry is ${fmtUSDT(s.max)} USDT.`)
       showToast(`⚠ Maximum investment is ${fmtUSDT(s.max)} USDT.`)
       return
@@ -338,29 +348,55 @@ export default function SeasonPage() {
       return
     }
 
+    setSubmitting(true)
+
     try {
-      // Atomically check and increment pool via the RPC function
-      const { data: freshSeasonRow } = await supabase
+      // Fetch fresh season data to check pool capacity (race-condition safe)
+      const { data: freshSeasonRow, error: seasonFetchErr } = await supabase
         .from('seasons')
-        .select('current_pool, pool_cap')
+        .select('current_pool, pool_cap, status')
         .eq('id', investId)
         .single()
 
-      const freshFilled  = Number(freshSeasonRow?.current_pool) || 0
-      const freshCap     = Number(freshSeasonRow?.pool_cap)     || s.pool
-      const remaining    = freshCap - freshFilled
-      if (remaining < amt) {
-        showToast(`⚠ Only ${fmtUSDT(remaining)} USDT space left in this pool.`)
+      if (seasonFetchErr || !freshSeasonRow) {
+        showToast('⚠ Could not verify season status. Please try again.')
+        setSubmitting(false)
         return
       }
 
-      // Insert investment record
+      // Check season is still open
+      if (freshSeasonRow.status !== 'open') {
+        showToast('⚠ This season is no longer accepting entries.')
+        setSubmitting(false)
+        fetchData()
+        return
+      }
+
+      const freshFilled  = Number(freshSeasonRow.current_pool) || 0
+      const freshCap     = Number(freshSeasonRow.pool_cap)     || s.pool
+      const remaining    = freshCap - freshFilled
+      if (remaining < amt) {
+        showToast(`⚠ Only ${fmtUSDT(remaining)} USDT space left in this pool.`)
+        setSubmitting(false)
+        fetchData()
+        return
+      }
+
+      // 1. Insert investment record
       const { error: invError } = await supabase.from('investments').insert({
         user_id: userProfile.id, season_id: investId, amount: amt, status: 'active'
       })
       if (invError) throw invError
 
-      // Deduct from user balance
+      // 2. FIX: Update current_pool in seasons table (THIS WAS MISSING!)
+      const newPoolFilled = freshFilled + amt
+      const { error: poolError } = await supabase
+        .from('seasons')
+        .update({ current_pool: newPoolFilled })
+        .eq('id', investId)
+      if (poolError) throw poolError
+
+      // 3. Deduct from user balance and update invested_total
       const newBalance = Number(userProfile.balance) - amt
       const newWithdrawable = Math.max(0, (Number(userProfile.withdrawable_total) || 0) - amt)
       const { error: profileError } = await supabase.from('profiles').update({
@@ -370,11 +406,21 @@ export default function SeasonPage() {
       }).eq('id', userProfile.id)
       if (profileError) throw profileError
 
+      // 4. Update local userProfile state immediately so UI is consistent
+      setUserProfile((prev: any) => ({
+        ...prev,
+        balance: newBalance,
+        withdrawable_total: newWithdrawable,
+        invested_total: (Number(prev.invested_total) || 0) + amt,
+      }))
+
       setModalState('success')
       showToast('✓ Investment confirmed!', 'ok')
       fetchData()
     } catch (err: any) {
       showToast(`⚠ Error: ${err.message || 'Transaction failed'}`)
+    } finally {
+      setSubmitting(false)
     }
   }
 
@@ -447,7 +493,7 @@ export default function SeasonPage() {
                 <h2 className='sx-hist-section-title'>Active Seasons</h2>
               </div>
               <div style={{display:'flex',alignItems:'center',gap:6,fontSize:'.72rem',color:'var(--text-sec)'}}>
-                <span className='sx-live-dot'/>{seasons.length} season{seasons.length!==1?'s':''} live
+                <span className='sx-live-dot'/>{seasons.filter(s=>s.status!=='paused').length} season{seasons.filter(s=>s.status!=='paused').length!==1?'s':''} live
               </div>
             </div>
 
@@ -459,19 +505,20 @@ export default function SeasonPage() {
               ) : seasons.map(s => {
                 const pct = s.pool > 0 ? Math.min(100, Math.round((s.poolFilled / s.pool) * 100)) : 0
                 const isEntryExpired = s.entryCloseDate && s.entryCloseDate.getTime() <= Date.now()
-                const isOpen    = s.status === 'open' && !isEntryExpired
+                const isPaused  = s.status === 'paused'
+                const isOpen    = s.status === 'open' && !isEntryExpired && !isPaused
                 const isRunning = s.status === 'running' || (s.status === 'open' && isEntryExpired)
                 const remaining = Math.max(0, s.pool - s.poolFilled)
                 const isFull    = remaining <= 0
 
                 return (
-                  <div key={s.id} className='sx-season-card'>
+                  <div key={s.id} className='sx-season-card' style={isPaused ? {opacity:0.75} : {}}>
                     <div className='sx-sc-head'>
                       <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
                         <span className='sx-sc-name'>{s.name}</span>
                         <span className={`sx-tag ${s.statusClass}`}>{s.statusLabel}</span>
                       </div>
-                      <div className='sx-countdown-lbl'>{countdownLabel[s.id] || (isOpen ? 'Entry window closes in' : 'Season finishes in')}</div>
+                      <div className='sx-countdown-lbl'>{countdownLabel[s.id] || (isOpen ? 'Entry window closes in' : isPaused ? 'Season is paused' : 'Season finishes in')}</div>
                       <div className='sx-countdown'>{countdowns[s.id] || '—'}</div>
                     </div>
 
@@ -479,7 +526,8 @@ export default function SeasonPage() {
                       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10,marginBottom:10}}>
                         <div>
                           <div style={{fontSize:'.62rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-sec)',marginBottom:3}}>Projected ROI</div>
-                          <div className='sx-roi-val'>{s.roi}<span style={{fontSize:'1rem',color:'var(--text-sec)'}}>%</span></div>
+                          {/* FIX: removed extra % — roi_range already contains % */}
+                          <div className='sx-roi-val'>{s.roi}</div>
                         </div>
                         <div style={{textAlign:'right'}}>
                           <div style={{fontSize:'.62rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-sec)',marginBottom:3}}>Period</div>
@@ -494,7 +542,7 @@ export default function SeasonPage() {
                         </div>
                         <div className='sx-detail-item'>
                           <span>Max. Entry</span>
-                          <strong style={{color:'var(--gold)'}}>{fmtUSDT(s.max)}</strong>  {/* ← FIX */}
+                          <strong style={{color:'var(--gold)'}}>{fmtUSDT(s.max)}</strong>
                         </div>
                         <div className='sx-detail-item' style={{gridColumn:'span 2'}}>
                           <span>Pool Filled · {pct}%</span>
@@ -528,6 +576,10 @@ export default function SeasonPage() {
                         <div style={{display:'flex',alignItems:'center',justifyContent:'space-between'}}>
                           <span style={{fontSize:'.75rem',color:'var(--sage)',fontWeight:500}}>✓ Invested {fmtUSDT(s.myAmount)}</span>
                           <span className='sx-tag sx-tag-open' style={{fontSize:'.6rem'}}>Joined</span>
+                        </div>
+                      ) : isPaused ? (
+                        <div style={{textAlign:'center',fontSize:'.75rem',color:'var(--gold)',fontWeight:500,padding:'4px 0'}}>
+                          ⏸ Season Paused · Entries Suspended
                         </div>
                       ) : isOpen && !isFull ? (
                         <button className='sx-btn-sage' style={{width:'100%',textAlign:'center'}} onClick={() => openInvest(s.id)}>
@@ -594,9 +646,11 @@ export default function SeasonPage() {
                         </span>
                       </td>
                       <td>
+                        {/* FIX: Added paused case */}
                         {r.dbStatus==='closed' ? <span className='sx-tag sx-tag-done'>Closed</span>
                           : r.dbStatus==='running' ? <span className='sx-tag sx-tag-ending'>Running</span>
                           : r.dbStatus==='open' ? <span className='sx-tag sx-tag-open'>Open</span>
+                          : r.dbStatus==='paused' ? <span className='sx-tag sx-tag-paused'>Paused</span>
                           : <span className='sx-tag sx-tag-done'>Upcoming</span>}
                       </td>
                       <td>
@@ -606,6 +660,8 @@ export default function SeasonPage() {
                           </button>
                         ) : r.dbStatus==='running' ? (
                           <span style={{fontSize:'.72rem',color:'var(--gold)'}}>Entry Closed</span>
+                        ) : r.dbStatus==='paused' ? (
+                          <span style={{fontSize:'.72rem',color:'var(--text-sec)'}}>Paused</span>
                         ) : r.dbStatus==='closed' ? (
                           <span style={{fontSize:'.72rem',color:'var(--text-sec)'}}>Closed</span>
                         ) : (
@@ -632,8 +688,10 @@ export default function SeasonPage() {
                       {r.mySeasonId && <span className='sx-my-tag'>mine</span>}
                     </div>
                     <div>
+                      {/* FIX: Added paused case */}
                       {r.dbStatus==='closed' ? <span className='sx-tag sx-tag-done'>Closed</span>
                         : r.dbStatus==='running' ? <span className='sx-tag sx-tag-ending'>Running</span>
+                        : r.dbStatus==='paused' ? <span className='sx-tag sx-tag-paused'>Paused</span>
                         : <span className='sx-tag sx-tag-open'>Open</span>}
                     </div>
                   </div>
@@ -691,7 +749,8 @@ export default function SeasonPage() {
                   <div style={{fontSize:'.68rem',color:'var(--text-sec)',marginTop:2}}>{currentSeason.period}</div>
                 </div>
                 <div style={{textAlign:'right'}}>
-                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.4rem',fontWeight:300,color:'var(--sage)'}}>{currentSeason.roi}%</div>
+                  {/* FIX: removed extra % — roi_range already contains % */}
+                  <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.4rem',fontWeight:300,color:'var(--sage)'}}>{currentSeason.roi}</div>
                   <div style={{fontSize:'.62rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-sec)'}}>Projected ROI</div>
                 </div>
               </div>
@@ -755,13 +814,13 @@ export default function SeasonPage() {
                 ) : (
                   <div className='sx-modal-limits'>
                     <span>Min: <strong style={{color:'var(--sage)'}}>{fmtUSDT(currentSeason.min)}</strong></span>
-                    <span>Max: <strong style={{color:'var(--gold)'}}>{fmtUSDT(currentSeason.max)}</strong></span>   {/* ← FIX */}
+                    <span>Max: <strong style={{color:'var(--gold)'}}>{fmtUSDT(currentSeason.max)}</strong></span>
                     <span>Available: <strong style={{color:'var(--ink)'}}>{fmtUSDT(availableBalance)}</strong></span>
                   </div>
                 )}
               </div>
 
-              {/* Expected return preview */}
+              {/* Expected return preview — FIX: removed extra % */}
               {amountVal && parseFloat(amountVal) >= currentSeason.min && parseFloat(amountVal) <= currentSeason.max && !amountError && (
                 <div style={{marginBottom:16,padding:'12px 14px',background:'rgba(74,103,65,.06)',border:'1px solid rgba(74,103,65,.2)',borderRadius:6}}>
                   <div style={{fontSize:'.67rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-sec)',marginBottom:8}}>Projected Return</div>
@@ -770,10 +829,17 @@ export default function SeasonPage() {
                     <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'.9rem'}}>{fmtUSDT(parseFloat(amountVal))}</span>
                   </div>
                   <div style={{display:'flex',justifyContent:'space-between',fontSize:'.78rem',color:'var(--sage)',marginTop:4}}>
-                    <span>Est. Profit ({currentSeason.roi}% ROI range)</span>
+                    {/* FIX: use roi_range as label (already has %) */}
+                    <span>Est. Profit ({currentSeason.roi} ROI range)</span>
                     <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'.9rem'}}>
                       {currentSeason.roi.includes('–') || currentSeason.roi.includes('-')
-                        ? `+${fmtUSDT(parseFloat(amountVal) * (parseFloat(currentSeason.roi.split(/[–-]/)[0]) / 100))} – +${fmtUSDT(parseFloat(amountVal) * (parseFloat(currentSeason.roi.split(/[–-]/)[1]) / 100))}`
+                        ? (() => {
+                            const parts = currentSeason.roi.replace(/%/g,'').split(/[–\-]/)
+                            const lo = parseFloat(parts[0]) || 0
+                            const hi = parseFloat(parts[1]) || 0
+                            const base = parseFloat(amountVal)
+                            return `+${fmtUSDT(base * lo / 100)} – +${fmtUSDT(base * hi / 100)}`
+                          })()
                         : `+${fmtUSDT(parseFloat(amountVal) * (parseFloat(currentSeason.roi) / 100))}`
                       }
                     </span>
@@ -789,11 +855,11 @@ export default function SeasonPage() {
               <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
                 <button
                   className='sx-btn-ink'
-                  style={{flex:1,minWidth:130,textAlign:'center',opacity: amountError || !amountVal ? 0.55 : 1}}
+                  style={{flex:1,minWidth:130,textAlign:'center',opacity: (amountError || !amountVal || submitting) ? 0.55 : 1}}
                   onClick={confirmInvest}
-                  disabled={!!amountError || !amountVal}
+                  disabled={!!amountError || !amountVal || submitting}
                 >
-                  Confirm Investment
+                  {submitting ? 'Processing…' : 'Confirm Investment'}
                 </button>
                 <button className='sx-btn-ghost' style={{flex:1,minWidth:100,textAlign:'center'}} onClick={() => setModalOpen(false)}>Cancel</button>
               </div>
@@ -816,8 +882,9 @@ export default function SeasonPage() {
                     <strong style={{color:'var(--sage)'}}>{fmtUSDT(parseFloat(amountVal || '0'))}</strong>
                   </div>
                   <div style={{display:'flex',justifyContent:'space-between'}}>
+                    {/* FIX: roi_range already has % */}
                     <span>Projected ROI</span>
-                    <strong style={{color:'var(--gold)'}}>{currentSeason.roi}%</strong>
+                    <strong style={{color:'var(--gold)'}}>{currentSeason.roi}</strong>
                   </div>
                 </div>
               </div>
@@ -827,11 +894,16 @@ export default function SeasonPage() {
         </div>
       </div>
 
-      {/* Extra styles for error state on amount input */}
+      {/* Extra styles */}
       <style>{`
         .sx-fi-err {
           border-color: #9b3a3a !important;
           box-shadow: 0 0 0 3px rgba(155,58,58,.07) !important;
+        }
+        .sx-tag-paused {
+          background: rgba(184,147,90,.1);
+          color: var(--gold-d);
+          border: 1px solid rgba(184,147,90,.3);
         }
       `}</style>
     </>

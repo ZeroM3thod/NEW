@@ -334,7 +334,7 @@ function SetPasswordContent() {
         </div>
       </div>
 
-      <div className="page-caption">© 2025 VaultX · All rights reserved</div>
+      <div className="page-caption">© 2024 VaultX · All rights reserved</div>
 
       <style>{`
         @keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }

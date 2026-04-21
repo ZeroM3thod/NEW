@@ -2,9 +2,9 @@
 import { useRouter } from 'next/navigation';
 
 const footerCols = [
-  {title:'Platform',links:[{label:'Seasons',href:'#seasons'},{label:'Start Investing',href:'#',action:'signup'},{label:'Referral Programme',href:'#'},{label:'Portfolio Tracker',href:'#'}]},
+  {title:'Platform',links:[{label:'Seasons',href:'#seasons'},{label:'Start Investing',href:'#',action:'signup'},{label:'Referral Programme',href:'#'},{label:'Portfolio Tracker',href:'/dashboard'}]},
   {title:'Company',links:[{label:'About Us',href:'#about'},{label:'Press',href:'#'},{label:'Careers',href:'#'},{label:'Contact',href:'#contact'}]},
-  {title:'Legal',links:[{label:'Terms of Service',href:'#'},{label:'Privacy Policy',href:'#'},{label:'Risk Disclosure',href:'#'},{label:'KYC Policy',href:'#'}]},
+  {title:'Legal',links:[{label:'Terms of Service',href:'/terms-of-service'},{label:'Privacy Policy',href:'/privacy-policy'},{label:'Risk Disclosure',href:'#'},{label:'KYC Policy',href:'/kyc'}]},
 ];
 
 export default function Footer() {
@@ -37,7 +37,7 @@ export default function Footer() {
             ))}
           </div>
           <div className="footer-bottom">
-            <p>© 2025 VaultX. All rights reserved. Investment returns are not guaranteed.</p>
+            <p>© 2024 VaultX. All rights reserved. Investment returns are not guaranteed.</p>
             <div className="footer-legal">
               <a href="#">Privacy</a><a href="#">Terms</a><a href="#">Risk</a>
             </div>

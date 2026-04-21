@@ -82,7 +82,7 @@ export default function SignInPage() {
     let valid = true;
     const email = lEmail.trim(), pw = lPw;
     if (!email) { setLEmailMsg('⚠ Email or phone is required.'); setLEmailCls('fi-err'); valid=false; }
-    else if (!EMAIL_RX.test(email) && !PHONE_RX.test(email.replace('+880',''))) { setLEmailMsg('⚠ Enter a valid email or phone number.'); setLEmailCls('fi-err'); valid=false; }
+    else if (!EMAIL_RX.test(email) && !PHONE_RX.test(email.replace('+880',''))) { setLEmailMsg('⚠ Enter a valid email.'); setLEmailCls('fi-err'); valid=false; }
     else { setLEmailCls('fi-good'); }
     if (!pw) { setLPwMsg('⚠ Password is required.'); setLPwCls('fi-err'); valid=false; }
     else if (pw.length<6) { setLPwMsg('⚠ Password must be at least 6 characters.'); setLPwCls('fi-err'); valid=false; }
@@ -101,7 +101,7 @@ export default function SignInPage() {
       setLEmailCls('fi-err');
       setLPwCls('fi-err');
     } else if (user) {
-      showToast('✓ Welcome back! Redirecting…', 'ok');
+      showToast('✓ Welcome back!', 'ok');
       
       try {
         // Check user role and redirect accordingly
@@ -204,9 +204,9 @@ export default function SignInPage() {
 
             <form className="form-stack" onSubmit={handleLogin} noValidate>
               <div className="fg">
-                <label className="fl">Email or Phone</label>
+                <label className="fl">Email</label>
                 <input className={`fi${lEmailCls?' '+lEmailCls:''}`} type="text"
-                  placeholder="email@example.com or 017XXXXXXXX" autoComplete="username"
+                  placeholder="email@example.com" autoComplete="username"
                   value={lEmail} onChange={e=>setLEmail(e.target.value)}/>
                 {lEmailMsg&&<div className="msg msg-err">{lEmailMsg}</div>}
               </div>
@@ -298,7 +298,7 @@ export default function SignInPage() {
         )}
       </div>
 
-      <div className="page-caption">© 2025 VaultX · All rights reserved</div>
+      <div className="page-caption">© 2024 VaultX · All rights reserved</div>
 
       <style>{`
         @keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }

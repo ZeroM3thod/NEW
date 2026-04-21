@@ -18,7 +18,7 @@ const contactItems = [
       </svg>
     ),
     title: 'Email Support',
-    detail: <>support@vaultx.io<br />Typically within 4–8 hours</>,
+    detail: <>support@vaultx.finance<br />Typically within 4–8 hours</>,
   },
   {
     icon: (
@@ -36,7 +36,7 @@ const contactItems = [
       </svg>
     ),
     title: 'Community Channel',
-    detail: <>Join 50,000+ investors on Telegram<br />@VaultXOfficial</>,
+    detail: <>Join 50,000+ investors on Seasons<br />@VaultXSupport</>,
   },
 ];
 

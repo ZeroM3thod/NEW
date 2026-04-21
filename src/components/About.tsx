@@ -5,7 +5,7 @@ const features = [
   {icon:'⬛',title:'Season-Based Cycles',desc:'Defined entry and exit dates eliminate emotional decision-making and market timing pressure.'},
   {icon:'◈',title:'Full Transparency',desc:'Every season publishes its pool size, strategy summary, and projected return range before entries open.'},
   {icon:'◎',title:'USDT Settlement',desc:'All investments and payouts are in USDT. No currency risk, no conversion friction.'},
-  {icon:'◇',title:'Zero Withdrawal Failures',desc:'Across three seasons, every withdrawal has been processed on time — a record we intend to maintain.'},
+  {icon:'◇',title:'Zero Withdrawal Failures',desc:'Across 65 seasons, every withdrawal has been processed on time — a record we intend to maintain.'},
 ];
 
 export default function About() {
@@ -34,7 +34,7 @@ export default function About() {
               <h3>Secure your position before entries close</h3>
               <p>Only 18 days remain in the Season 4 entry window. The pool cap is $80M. Current fill rate is at 62%. Once full, no further entries are accepted.</p>
               <button className="aside-cta" onClick={() => router.push('/signup')}>Open an Account</button>
-              <div className="aside-note">Minimum investment: $100 USDT · No lock-in fees</div>
+              <div className="aside-note">Minimum investment: $30 USDT · No lock-in fees</div>
             </div>
           </div>
         </div>

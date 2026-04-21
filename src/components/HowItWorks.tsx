@@ -14,12 +14,12 @@ const steps = [
   {
     num: '03',
     title: 'Deposit USDT',
-    desc: 'Fund your position via USDT (TRC-20 or ERC-20). Your investment is locked in for the season duration.',
+    desc: 'Fund your position via USDT (TRC-20 , ERC-20 or BEP-20). Your investment is locked in for the season duration.',
   },
   {
     num: '04',
     title: 'Withdraw Profits',
-    desc: 'At season close, withdraw your principal plus earned returns — directly to your wallet.',
+    desc: 'At season close, withdraw your earned returns — directly to your wallet.',
   },
 ];
 

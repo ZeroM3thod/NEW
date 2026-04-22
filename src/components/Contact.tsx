@@ -4,7 +4,7 @@ import { useState } from 'react';
 
 const SUBJECTS = [
   'Season 4 Investment Query',
-  'Deposit Support'
+  'Deposit Support',
   'Withdrawal Support',
   'Referral Programme',
   'Account Verification',

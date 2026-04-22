@@ -9,23 +9,17 @@ export async function updateSession(request: NextRequest) {
     return NextResponse.next({ request })
   }
 
-  let supabaseResponse = NextResponse.next({
-    request,
-  })
+  let supabaseResponse = NextResponse.next({ request })
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
       cookies: {
-        getAll() {
-          return request.cookies.getAll()
-        },
+        getAll() { return request.cookies.getAll() },
         setAll(cookiesToSet) {
-          cookiesToSet.forEach(({ name, value, options }) => request.cookies.set(name, value))
-          supabaseResponse = NextResponse.next({
-            request,
-          })
+          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
+          supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
             supabaseResponse.cookies.set(name, value, options)
           )
@@ -34,11 +28,9 @@ export async function updateSession(request: NextRequest) {
     }
   )
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const { data: { user } } = await supabase.auth.getUser()
 
-  // Maintenance mode check
+  // ── Maintenance mode check ──────────────────────────────────
   const { data: settings } = await supabase
     .from('settings')
     .select('maintenance_mode, maintenance_ends_at')
@@ -46,31 +38,50 @@ export async function updateSession(request: NextRequest) {
     .maybeSingle()
 
   const isMaintenance = settings?.maintenance_mode || false
-  const maintenanceEndsAt = settings?.maintenance_ends_at ? new Date(settings.maintenance_ends_at) : null
+  const maintenanceEndsAt = settings?.maintenance_ends_at
+    ? new Date(settings.maintenance_ends_at)
+    : null
   const now = new Date()
+  let effectiveMaintenance = isMaintenance && !(maintenanceEndsAt && maintenanceEndsAt < now)
 
-  let effectiveMaintenance = isMaintenance
-  if (isMaintenance && maintenanceEndsAt && maintenanceEndsAt < now) {
-    effectiveMaintenance = false
-  }
+  const isMaintenancePage = pathname.startsWith('/maintenance')
+  const isSuspendedPage   = pathname.startsWith('/suspended')
+  const isAdminPage       = pathname.startsWith('/admin')
+  const isAuthPage        = pathname.startsWith('/auth')
+  const isApiPage         = pathname.startsWith('/api/')
+  const isHomePage        = pathname === '/'
 
-  const isMaintenancePage = request.nextUrl.pathname.startsWith('/maintenance')
-  const isAdminPage = request.nextUrl.pathname.startsWith('/admin')
-  const isAuthPage = request.nextUrl.pathname.startsWith('/auth')
-  const isApiPage = request.nextUrl.pathname.startsWith('/api/')  // Allow all API routes without auth
-  const isHomePage = request.nextUrl.pathname === '/'
+  // ── Fetch user profile (role + status) ─────────────────────
+  let userRole   = 'user'
+  let userStatus = 'active'
 
-  let userRole = 'user'
   if (user) {
     const { data: profile } = await supabase
       .from('profiles')
-      .select('role')
+      .select('role, status')
       .eq('id', user.id)
       .maybeSingle()
-    userRole = profile?.role || 'user'
+    userRole   = profile?.role   || 'user'
+    userStatus = (profile?.status || 'active').toLowerCase()
   }
 
-  // Maintenance mode logic
+  // ── SUSPENSION CHECK ────────────────────────────────────────
+  // If a logged-in user is suspended they may ONLY visit:
+  //   /            (home)
+  //   /auth/*      (so they can sign out via the sign-in page)
+  //   /suspended   (the suspension page itself)
+  //   /api/*       (API routes are always allowed)
+  if (user && userStatus === 'suspended') {
+    if (!isSuspendedPage && !isHomePage && !isAuthPage && !isApiPage) {
+      const url = request.nextUrl.clone()
+      url.pathname = '/suspended'
+      return NextResponse.redirect(url)
+    }
+    // Allow the suspended page, home, auth, and api — fall through
+    return supabaseResponse
+  }
+
+  // ── MAINTENANCE MODE ────────────────────────────────────────
   if (effectiveMaintenance && userRole !== 'admin' && !isAdminPage && !isMaintenancePage) {
     if (user) {
       const url = request.nextUrl.clone()
@@ -84,19 +95,21 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // ── UNAUTHENTICATED REDIRECT ────────────────────────────────
   if (
     !user &&
-    !request.nextUrl.pathname.startsWith('/auth') &&
-    !request.nextUrl.pathname.startsWith('/maintenance') &&
-    !request.nextUrl.pathname.startsWith('/api/') &&  // ✅ Allow API routes without auth
-    request.nextUrl.pathname !== '/'
+    !isAuthPage &&
+    !isMaintenancePage &&
+    !isSuspendedPage &&
+    !isApiPage &&
+    !isHomePage
   ) {
     const url = request.nextUrl.clone()
     url.pathname = '/auth/signin'
     return NextResponse.redirect(url)
   }
 
-  // Admin route protection
+  // ── ADMIN ROUTE PROTECTION ──────────────────────────────────
   if (isAdminPage) {
     if (!user || userRole !== 'admin') {
       const url = request.nextUrl.clone()
@@ -109,7 +122,6 @@ export async function updateSession(request: NextRequest) {
 }
 
 export async function middleware(request: NextRequest) {
-  // Skip expensive Middleware for API routes entirely
   if (request.nextUrl.pathname.startsWith('/api/')) {
     return NextResponse.next()
   }

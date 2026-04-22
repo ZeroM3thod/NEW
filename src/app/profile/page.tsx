@@ -421,7 +421,7 @@ export default function ProfilePage() {
                     <div className='pf-sec-row'>
                       <div>
                         <div style={{fontSize:'.82rem',fontWeight:500,color:'var(--ink)',marginBottom:2}}>Password</div>
-                        <div style={{fontSize:'.7rem',color:'var(--txt2)'}}>Last changed 45 days ago</div>
+                        <div style={{fontSize:'.7rem',color:'var(--txt2)'}}>Change your passwoard every Month</div>
                       </div>
                       <button className='pf-btn-ghost' style={{fontSize:'.7rem',padding:'7px 14px'}} onClick={handlePasswordChange} disabled={pwResetSent}>
                         {pwResetSent?'Link Sent ✓':'Change'}
@@ -473,7 +473,7 @@ export default function ProfilePage() {
                   <span className='pf-sec-label'>Passive Income</span>
                   <h2 className='pf-sec-title' style={{fontSize:'1.25rem',marginBottom:6}}>Referral Program</h2>
                   <p style={{fontSize:'.78rem',color:'var(--txt2)',fontWeight:300,lineHeight:1.75,marginBottom:20}}>
-                    Earn <strong style={{color:'var(--gold)'}}>5% commission</strong> automatically every time a referred user makes a withdrawal — no cap, no delays.
+                    Earn <strong style={{color:'var(--gold)'}}>7% commission</strong> automatically every time a referred user makes profit — no cap, no delays.
                   </p>
                   <span className='pf-sec-label'>Your Code</span>
                   <div className='pf-ref-code-box' style={{marginBottom:18}}>
@@ -499,7 +499,7 @@ export default function ProfilePage() {
                   </div>
                   <div style={{background:'rgba(184,147,90,.05)',border:'1px solid var(--border)',borderRadius:6,padding:'12px 14px',marginBottom:20}}>
                     <div style={{fontSize:'.68rem',color:'var(--txt2)',lineHeight:1.85,fontWeight:300}}>
-                      📌 Share code → Friend invests → Friend withdraws → <strong style={{color:'var(--gold)'}}>You earn 5%</strong> credited automatically.
+                      📌 Share code → Friend invests → Friend Profits → <strong style={{color:'var(--gold)'}}>You earn 7%</strong> credited automatically.
                     </div>
                   </div>
 

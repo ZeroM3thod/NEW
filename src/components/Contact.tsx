@@ -4,6 +4,7 @@ import { useState } from 'react';
 
 const SUBJECTS = [
   'Season 4 Investment Query',
+  'Deposit Support'
   'Withdrawal Support',
   'Referral Programme',
   'Account Verification',
@@ -127,14 +128,14 @@ export default function Contact() {
                 <div className="form-group">
                   <label>First Name</label>
                   <input
-                    type="text" placeholder="Rafiqul" required
+                    type="text" placeholder="Frist Name" required
                     value={firstName} onChange={e => setFirstName(e.target.value)}
                   />
                 </div>
                 <div className="form-group">
                   <label>Last Name</label>
                   <input
-                    type="text" placeholder="Molla"
+                    type="text" placeholder="Last Name"
                     value={lastName} onChange={e => setLastName(e.target.value)}
                   />
                 </div>

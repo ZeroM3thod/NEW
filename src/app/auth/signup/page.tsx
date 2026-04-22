@@ -516,13 +516,13 @@ export default function SignUpPage() {
             <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}}>
               <div className="fg">
                 <label className="fl">First Name</label>
-                <input className={`fi${rFirstCls?' '+rFirstCls:''}`} type="text" placeholder="Rakib" autoComplete="given-name"
+                <input className={`fi${rFirstCls?' '+rFirstCls:''}`} type="text" placeholder="Frist Name" autoComplete="given-name"
                   value={rFirst} onChange={e=>setRFirst(e.target.value)}/>
                 {rFirstMsg&&<div className="msg msg-err">{rFirstMsg}</div>}
               </div>
               <div className="fg">
                 <label className="fl">Last Name</label>
-                <input className={`fi${rLastCls?' '+rLastCls:''}`} type="text" placeholder="Kowshar" autoComplete="family-name"
+                <input className={`fi${rLastCls?' '+rLastCls:''}`} type="text" placeholder="Last Name" autoComplete="family-name"
                   value={rLast} onChange={e=>setRLast(e.target.value)}/>
                 {rLastMsg&&<div className="msg msg-err">{rLastMsg}</div>}
               </div>
@@ -531,7 +531,7 @@ export default function SignUpPage() {
             {/* Username */}
             <div className="fg">
               <label className="fl">Username</label>
-              <input className={`fi${rUnCls?' '+rUnCls:''}`} type="text" placeholder="rakib.investor" autoComplete="off"
+              <input className={`fi${rUnCls?' '+rUnCls:''}`} type="text" placeholder="example.example" autoComplete="off"
                 value={rUn} onChange={e=>handleUnInput(e.target.value)}/>
               {(rUnMsg||rUnChecking)&&(
                 <div className={`msg ${rUnCls==='fi-err'?'msg-err':rUnCls==='fi-good'?'msg-ok':'msg-info'}`}>
@@ -570,7 +570,7 @@ export default function SignUpPage() {
                 </div>
                 <input
                   className="fi"
-                  type="tel" placeholder="1712-345678" autoComplete="tel"
+                  type="tel" placeholder="101010" autoComplete="tel"
                   value={rPhone} onChange={e=>handlePhoneInput(e.target.value)}
                   style={{border:'none',borderRadius:0,flex:1,background:'transparent',boxShadow:'none'}}
                 />
@@ -669,7 +669,7 @@ export default function SignUpPage() {
         </div>
       </div>
 
-      <div className="page-caption">© 2025 VaultX · All rights reserved</div>
+      <div className="page-caption">© 2024 VaultX · All rights reserved</div>
 
       <style>{`
         @keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }

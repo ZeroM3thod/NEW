@@ -1,0 +1,2 @@
+ALTER TABLE public.seasons 
+ADD COLUMN IF NOT EXISTS auto_close_enabled BOOLEAN DEFAULT FALSE;

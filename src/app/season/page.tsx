@@ -20,7 +20,7 @@ interface ActiveSeason {
   statusLabel: string
   statusClass: string
   period: string
-  entryCloseDate: Date | null
+  entryCloseDate: Date | null   // end of start_date (last entry day)
   endDate: Date
   roi: string
   min: number
@@ -42,6 +42,7 @@ interface HistorySeason {
   plSign: string
   dbStatus: string
   mySeasonId: string | null
+  isEntryExpired: boolean
 }
 
 function pad(n: number) { return String(n).padStart(2, '0') }
@@ -60,16 +61,20 @@ function computePeriod(s: any): string {
   return '—'
 }
 
-// Format USDT amounts nicely
+// ── FIX 3: No K/M abbreviation — show raw numbers ──
 function fmtUSDT(n: number) {
-  if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M'
-  if (n >= 1_000)     return '$' + (n / 1_000).toFixed(0) + 'K'
   return '$' + n.toLocaleString('en-US')
 }
 
-// Strip trailing % from roi string for numeric operations
 function roiToNumber(roi: string): number {
   return parseFloat(roi.replace(/[^0-9.\-]/g, '')) || 0
+}
+
+// ── Helper: get end-of-day timestamp for a date string ──
+function endOfDay(dateStr: string): Date {
+  const d = new Date(dateStr)
+  d.setHours(23, 59, 59, 999)
+  return d
 }
 
 export default function SeasonPage() {
@@ -121,22 +126,65 @@ export default function SeasonPage() {
       .select('*, seasons(*)')
       .eq('user_id', resolvedUid)
 
+    // ── FIX 1: Compute pool fill from investments table for accuracy ──
+    let poolBySeasonId: Record<string, number> = {}
+    if (dbSeasons && dbSeasons.length > 0) {
+      const seasonIds = dbSeasons.map((s: any) => s.id)
+      const { data: allInvs } = await supabase
+        .from('investments')
+        .select('season_id, amount')
+        .in('season_id', seasonIds)
+        .in('status', ['active', 'completed'])
+
+      if (allInvs) {
+        allInvs.forEach((inv: any) => {
+          poolBySeasonId[inv.season_id] = (poolBySeasonId[inv.season_id] || 0) + Number(inv.amount)
+        })
+      }
+    }
+
     if (dbSeasons) {
-      // FIX: include 'paused' in active display (show card but disable invest)
       const activeMapped: ActiveSeason[] = dbSeasons
-        .filter(s => s.status === 'open' || s.status === 'running' || s.status === 'paused')
-        .map(s => {
+        .filter((s: any) => s.status === 'open' || s.status === 'running' || s.status === 'paused')
+        .map((s: any) => {
           const myInv = myInvestments?.find(inv => inv.season_id === s.id)
-          const poolCap    = Number(s.pool_cap) || 1000000
-          const actualFilled = Number(s.current_pool) || 0
+          const poolCap = Number(s.pool_cap) || 1000000
+
+          // ── FIX 1: Use sum from investments, fall back to current_pool ──
+          const actualFilled = poolBySeasonId[s.id] !== undefined
+            ? poolBySeasonId[s.id]
+            : Number(s.current_pool) || 0
+
+          // ── FIX 2: entry closes at END of start_date ──
+          const entryCloseDate = s.start_date ? endOfDay(s.start_date) : null
+          const isEntryExpiredNow = entryCloseDate ? entryCloseDate.getTime() <= Date.now() : false
+          const isPausedNow = s.status === 'paused'
+
+          // ── FIX 2: Compute status label accounting for expired entry ──
+          const statusLabel = isPausedNow
+            ? 'Paused'
+            : (s.status === 'open' && isEntryExpiredNow)
+              ? 'Running'
+              : s.status === 'open'
+                ? 'Now Open'
+                : 'Running'
+
+          const statusClass = isPausedNow
+            ? 'sx-tag-paused'
+            : (s.status === 'open' && isEntryExpiredNow)
+              ? 'sx-tag-ending'
+              : s.status === 'open'
+                ? 'sx-tag-open'
+                : 'sx-tag-ending'
+
           return {
             id: s.id,
             name: s.name,
             status: s.status,
-            statusLabel: s.status === 'open' ? 'Now Open' : s.status === 'running' ? 'Running' : 'Paused',
-            statusClass: s.status === 'open' ? 'sx-tag-open' : s.status === 'paused' ? 'sx-tag-paused' : 'sx-tag-ending',
+            statusLabel,
+            statusClass,
             period: computePeriod(s),
-            entryCloseDate: s.entry_close_date ? new Date(s.entry_close_date) : null,
+            entryCloseDate,
             endDate: new Date(s.end_date || Date.now() + 7 * 864e5),
             roi: s.roi_range || '',
             min: Number(s.min_entry) || 100,
@@ -149,19 +197,24 @@ export default function SeasonPage() {
         })
       setSeasons(activeMapped)
 
-      const historyMapped: HistorySeason[] = dbSeasons.map(s => {
-        const myInv      = myInvestments?.find(inv => inv.season_id === s.id)
-        const isClosed   = s.status === 'closed'
-        const finalRoi   = isClosed && s.final_roi != null ? Number(s.final_roi) : null
-        const profit     = (finalRoi !== null && myInv) ? Number(myInv.amount) * finalRoi / 100 : 0
+      const historyMapped: HistorySeason[] = dbSeasons.map((s: any) => {
+        const myInv = myInvestments?.find(inv => inv.season_id === s.id)
+        const isClosed = s.status === 'closed'
+        const finalRoi = isClosed && s.final_roi != null ? Number(s.final_roi) : null
+        const profit = (finalRoi !== null && myInv) ? Number(myInv.amount) * finalRoi / 100 : 0
 
-        let roiStr  = '—', roiSign = '0'
+        let roiStr = '—', roiSign = '0'
         if (isClosed && finalRoi !== null) {
           roiStr  = `${finalRoi >= 0 ? '+' : ''}${finalRoi}%`
           roiSign = finalRoi >= 0 ? '+' : '-'
         } else if (s.roi_range) {
           roiStr  = s.roi_range; roiSign = '0'
         }
+
+        // ── FIX 2: Compute entry expiry for history rows ──
+        const entryExpiredForHistory = s.start_date
+          ? endOfDay(s.start_date).getTime() <= Date.now()
+          : false
 
         return {
           id: s.id, name: s.name, period: computePeriod(s),
@@ -170,7 +223,8 @@ export default function SeasonPage() {
           myPL: (isClosed && myInv && finalRoi !== null) ? fmtPnL(profit) : '—',
           plSign: (isClosed && myInv && finalRoi !== null) ? (profit >= 0 ? '+' : '-') : '0',
           dbStatus: s.status,
-          mySeasonId: myInv ? myInv.id : null
+          mySeasonId: myInv ? myInv.id : null,
+          isEntryExpired: entryExpiredForHistory
         }
       })
       setHistory(historyMapped)
@@ -229,28 +283,34 @@ export default function SeasonPage() {
     return()=>{ window.removeEventListener('resize',setup); cancelAnimationFrame(animId) }
   }, [])
 
-  /* ── Pool bars animate ── */
+  /* ── FIX 1: Pool bars animate with proper delay so CSS transition fires ── */
   useEffect(() => {
     if (seasons.length > 0) {
-      const widths: Record<string,string> = {}
-      seasons.forEach(s => {
-        const pct = s.pool > 0 ? Math.min(100, (s.poolFilled / s.pool) * 100) : 0
-        widths[s.id] = Math.round(pct) + '%'
-      })
-      setPoolWidths(widths)
+      // Reset to 0 first so CSS transition can animate from 0 → actual
+      setPoolWidths({})
+      const t = setTimeout(() => {
+        const widths: Record<string, string> = {}
+        seasons.forEach(s => {
+          const pct = s.pool > 0 ? Math.min(100, (s.poolFilled / s.pool) * 100) : 0
+          widths[s.id] = pct.toFixed(1) + '%'
+        })
+        setPoolWidths(widths)
+      }, 150)
+      return () => clearTimeout(t)
     }
   }, [seasons])
 
   /* ── Countdown timers ── */
   useEffect(() => {
     const tick = () => {
-      const cds: Record<string,string> = {}
-      const labels: Record<string,string> = {}
+      const cds: Record<string, string> = {}
+      const labels: Record<string, string> = {}
       seasons.forEach(s => {
         const now = Date.now()
         if (s.status === 'paused') {
           cds[s.id] = 'Paused'; labels[s.id] = 'Season is paused'; return
         }
+        // ── FIX 2: Count down to end of entry day ──
         if (s.status === 'open' && s.entryCloseDate) {
           const diff = s.entryCloseDate.getTime() - now
           if (diff > 0) {
@@ -319,14 +379,13 @@ export default function SeasonPage() {
     if (amt > (Number(userProfile?.balance) || 0)) { setAmountError('Insufficient balance.'); return }
   }
 
-  /* ── Confirm invest ── FIX: now updates current_pool in seasons table ── */
+  /* ── Confirm invest ── */
   const confirmInvest = async () => {
     if (!investId || !userProfile || submitting) return
     const s = seasons.find(x => x.id === investId)
     if (!s) return
     const amt = parseFloat(amountVal)
 
-    // Comprehensive validation
     if (!amt || isNaN(amt) || amt <= 0) {
       setAmountError('Please enter a valid amount.')
       showToast('⚠ Please enter a valid amount.')
@@ -351,10 +410,9 @@ export default function SeasonPage() {
     setSubmitting(true)
 
     try {
-      // Fetch fresh season data to check pool capacity (race-condition safe)
       const { data: freshSeasonRow, error: seasonFetchErr } = await supabase
         .from('seasons')
-        .select('current_pool, pool_cap, status')
+        .select('current_pool, pool_cap, status, start_date')
         .eq('id', investId)
         .single()
 
@@ -364,7 +422,7 @@ export default function SeasonPage() {
         return
       }
 
-      // Check season is still open
+      // ── FIX 2: Check entry is still open ──
       if (freshSeasonRow.status !== 'open') {
         showToast('⚠ This season is no longer accepting entries.')
         setSubmitting(false)
@@ -372,9 +430,30 @@ export default function SeasonPage() {
         return
       }
 
-      const freshFilled  = Number(freshSeasonRow.current_pool) || 0
-      const freshCap     = Number(freshSeasonRow.pool_cap)     || s.pool
-      const remaining    = freshCap - freshFilled
+      // ── FIX 2: Check entry date has not passed ──
+      if (freshSeasonRow.start_date) {
+        const entryClose = endOfDay(freshSeasonRow.start_date)
+        if (entryClose.getTime() <= Date.now()) {
+          showToast('⚠ Entry window for this season has closed.')
+          setSubmitting(false)
+          fetchData()
+          return
+        }
+      }
+
+      // ── FIX 1: Compute accurate pool fill from investments ──
+      const { data: existingInvs } = await supabase
+        .from('investments')
+        .select('amount')
+        .eq('season_id', investId)
+        .in('status', ['active', 'completed'])
+
+      const actualFilled = existingInvs
+        ? existingInvs.reduce((sum: number, inv: any) => sum + Number(inv.amount), 0)
+        : Number(freshSeasonRow.current_pool) || 0
+
+      const freshCap = Number(freshSeasonRow.pool_cap) || s.pool
+      const remaining = freshCap - actualFilled
       if (remaining < amt) {
         showToast(`⚠ Only ${fmtUSDT(remaining)} USDT space left in this pool.`)
         setSubmitting(false)
@@ -382,21 +461,18 @@ export default function SeasonPage() {
         return
       }
 
-      // 1. Insert investment record
       const { error: invError } = await supabase.from('investments').insert({
         user_id: userProfile.id, season_id: investId, amount: amt, status: 'active'
       })
       if (invError) throw invError
 
-      // 2. FIX: Update current_pool in seasons table (THIS WAS MISSING!)
-      const newPoolFilled = freshFilled + amt
+      const newPoolFilled = actualFilled + amt
       const { error: poolError } = await supabase
         .from('seasons')
         .update({ current_pool: newPoolFilled })
         .eq('id', investId)
       if (poolError) throw poolError
 
-      // 3. Deduct from user balance and update invested_total
       const newBalance = Number(userProfile.balance) - amt
       const newWithdrawable = Math.max(0, (Number(userProfile.withdrawable_total) || 0) - amt)
       const { error: profileError } = await supabase.from('profiles').update({
@@ -406,7 +482,6 @@ export default function SeasonPage() {
       }).eq('id', userProfile.id)
       if (profileError) throw profileError
 
-      // 4. Update local userProfile state immediately so UI is consistent
       setUserProfile((prev: any) => ({
         ...prev,
         balance: newBalance,
@@ -430,7 +505,6 @@ export default function SeasonPage() {
   const myProfits       = Number(userProfile?.profits_total)  || 0
   const availableBalance = Number(userProfile?.balance) || 0
 
-  // Pool percentage for current season (in modal)
   const modalPoolPct = currentSeason && currentSeason.pool > 0
     ? Math.min(100, (currentSeason.poolFilled / currentSeason.pool) * 100)
     : 0
@@ -504,7 +578,8 @@ export default function SeasonPage() {
                 </div>
               ) : seasons.map(s => {
                 const pct = s.pool > 0 ? Math.min(100, Math.round((s.poolFilled / s.pool) * 100)) : 0
-                const isEntryExpired = s.entryCloseDate && s.entryCloseDate.getTime() <= Date.now()
+                // ── FIX 2: Compute entry expired status from entryCloseDate ──
+                const isEntryExpired = s.entryCloseDate ? s.entryCloseDate.getTime() <= Date.now() : false
                 const isPaused  = s.status === 'paused'
                 const isOpen    = s.status === 'open' && !isEntryExpired && !isPaused
                 const isRunning = s.status === 'running' || (s.status === 'open' && isEntryExpired)
@@ -518,7 +593,9 @@ export default function SeasonPage() {
                         <span className='sx-sc-name'>{s.name}</span>
                         <span className={`sx-tag ${s.statusClass}`}>{s.statusLabel}</span>
                       </div>
-                      <div className='sx-countdown-lbl'>{countdownLabel[s.id] || (isOpen ? 'Entry window closes in' : isPaused ? 'Season is paused' : 'Season finishes in')}</div>
+                      <div className='sx-countdown-lbl'>
+                        {countdownLabel[s.id] || (isOpen ? 'Entry window closes in' : isPaused ? 'Season is paused' : 'Season finishes in')}
+                      </div>
                       <div className='sx-countdown'>{countdowns[s.id] || '—'}</div>
                     </div>
 
@@ -526,7 +603,6 @@ export default function SeasonPage() {
                       <div style={{display:'flex',alignItems:'flex-start',justifyContent:'space-between',gap:10,marginBottom:10}}>
                         <div>
                           <div style={{fontSize:'.62rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-sec)',marginBottom:3}}>Projected ROI</div>
-                          {/* FIX: removed extra % — roi_range already contains % */}
                           <div className='sx-roi-val'>{s.roi}</div>
                         </div>
                         <div style={{textAlign:'right'}}>
@@ -538,6 +614,7 @@ export default function SeasonPage() {
                       <div className='sx-detail-grid'>
                         <div className='sx-detail-item'>
                           <span>Min. Entry</span>
+                          {/* FIX 3: No K/M abbreviation */}
                           <strong style={{color:'var(--sage)'}}>{fmtUSDT(s.min)}</strong>
                         </div>
                         <div className='sx-detail-item'>
@@ -546,6 +623,7 @@ export default function SeasonPage() {
                         </div>
                         <div className='sx-detail-item' style={{gridColumn:'span 2'}}>
                           <span>Pool Filled · {pct}%</span>
+                          {/* FIX 3: No K/M abbreviation */}
                           <strong style={{color: pct >= 90 ? '#9b3a3a' : 'var(--ink)'}}>
                             {fmtUSDT(s.poolFilled)} / {fmtUSDT(s.pool)}
                           </strong>
@@ -582,12 +660,14 @@ export default function SeasonPage() {
                           ⏸ Season Paused · Entries Suspended
                         </div>
                       ) : isOpen && !isFull ? (
+                        // ── FIX 2: Only show Invest Now when entry is still open ──
                         <button className='sx-btn-sage' style={{width:'100%',textAlign:'center'}} onClick={() => openInvest(s.id)}>
                           Invest Now →
                         </button>
                       ) : isOpen && isFull ? (
                         <div style={{textAlign:'center',fontSize:'.75rem',color:'#9b3a3a',fontWeight:500,padding:'4px 0'}}>Pool Full</div>
                       ) : isRunning ? (
+                        // ── FIX 2: Show "Entry Closed · Running" after entry date passes ──
                         <div style={{textAlign:'center',fontSize:'.75rem',color:'var(--gold)',fontWeight:500,padding:'4px 0'}}>
                           ⏱ Entry Closed · Season Running
                         </div>
@@ -646,19 +726,19 @@ export default function SeasonPage() {
                         </span>
                       </td>
                       <td>
-                        {/* FIX: Added paused case */}
                         {r.dbStatus==='closed' ? <span className='sx-tag sx-tag-done'>Closed</span>
-                          : r.dbStatus==='running' ? <span className='sx-tag sx-tag-ending'>Running</span>
+                          : (r.dbStatus==='running' || (r.dbStatus==='open' && r.isEntryExpired)) ? <span className='sx-tag sx-tag-ending'>Running</span>
                           : r.dbStatus==='open' ? <span className='sx-tag sx-tag-open'>Open</span>
                           : r.dbStatus==='paused' ? <span className='sx-tag sx-tag-paused'>Paused</span>
                           : <span className='sx-tag sx-tag-done'>Upcoming</span>}
                       </td>
                       <td>
-                        {r.dbStatus==='open' && !r.mySeasonId ? (
+                        {/* ── FIX 2: Only show Invest Now when entry is open and not expired ── */}
+                        {r.dbStatus==='open' && !r.mySeasonId && !r.isEntryExpired ? (
                           <button className='sx-btn-sage' style={{fontSize:'.7rem',padding:'7px 14px',whiteSpace:'nowrap'}} onClick={() => openInvest(r.id)}>
                             Invest Now
                           </button>
-                        ) : r.dbStatus==='running' ? (
+                        ) : r.dbStatus==='running' || (r.dbStatus==='open' && r.isEntryExpired) ? (
                           <span style={{fontSize:'.72rem',color:'var(--gold)'}}>Entry Closed</span>
                         ) : r.dbStatus==='paused' ? (
                           <span style={{fontSize:'.72rem',color:'var(--text-sec)'}}>Paused</span>
@@ -688,9 +768,8 @@ export default function SeasonPage() {
                       {r.mySeasonId && <span className='sx-my-tag'>mine</span>}
                     </div>
                     <div>
-                      {/* FIX: Added paused case */}
                       {r.dbStatus==='closed' ? <span className='sx-tag sx-tag-done'>Closed</span>
-                        : r.dbStatus==='running' ? <span className='sx-tag sx-tag-ending'>Running</span>
+                        : (r.dbStatus==='running' || (r.dbStatus==='open' && r.isEntryExpired)) ? <span className='sx-tag sx-tag-ending'>Running</span>
                         : r.dbStatus==='paused' ? <span className='sx-tag sx-tag-paused'>Paused</span>
                         : <span className='sx-tag sx-tag-open'>Open</span>}
                     </div>
@@ -715,7 +794,8 @@ export default function SeasonPage() {
                       <div className='sx-hist-card-value' style={{color: r.plSign==='+'?'var(--sage)':r.plSign==='-'?'#b05252':'var(--text-sec)'}}>{r.myPL}</div>
                     </div>
                   </div>
-                  {r.dbStatus==='open' && !r.mySeasonId && (
+                  {/* ── FIX 2: Only show Invest Now in mobile card when entry is open ── */}
+                  {r.dbStatus==='open' && !r.mySeasonId && !r.isEntryExpired && (
                     <div style={{paddingTop:12,borderTop:'1px solid var(--border)'}}>
                       <button className='sx-btn-sage' style={{width:'100%',textAlign:'center',fontSize:'.72rem',padding:'10px'}} onClick={() => openInvest(r.id)}>
                         Invest Now →
@@ -749,7 +829,6 @@ export default function SeasonPage() {
                   <div style={{fontSize:'.68rem',color:'var(--text-sec)',marginTop:2}}>{currentSeason.period}</div>
                 </div>
                 <div style={{textAlign:'right'}}>
-                  {/* FIX: removed extra % — roi_range already contains % */}
                   <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.4rem',fontWeight:300,color:'var(--sage)'}}>{currentSeason.roi}</div>
                   <div style={{fontSize:'.62rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-sec)'}}>Projected ROI</div>
                 </div>
@@ -766,6 +845,7 @@ export default function SeasonPage() {
                 <div style={{height:5,background:'rgba(184,147,90,.12)',borderRadius:100,overflow:'hidden',marginBottom:5}}>
                   <div style={{height:'100%',width:`${modalPoolPct}%`,background: modalPoolPct>=90 ? 'linear-gradient(90deg,#9b3a3a,#c97070)' : 'linear-gradient(90deg,var(--gold-d),var(--gold-l))',borderRadius:100,transition:'width .8s ease'}}/>
                 </div>
+                {/* FIX 3: No K/M abbreviation */}
                 <div style={{display:'flex',justifyContent:'space-between',fontSize:'.62rem',color:'var(--text-sec)'}}>
                   <span>{fmtUSDT(currentSeason.poolFilled)} invested</span>
                   <span style={{color: modalPoolRemaining < currentSeason.min ? '#9b3a3a' : 'inherit'}}>
@@ -790,6 +870,7 @@ export default function SeasonPage() {
                         borderRadius:'var(--radius)',fontSize:'.72rem',cursor:'pointer',transition:'all .2s',fontFamily:"'DM Sans',sans-serif"
                       }}
                     >
+                      {/* FIX 3: Show raw number in chips too */}
                       {fmtUSDT(v)}
                     </button>
                   ))}
@@ -805,7 +886,6 @@ export default function SeasonPage() {
                   <span className='sx-usdt'>USDT</span>
                 </div>
 
-                {/* Validation feedback */}
                 {amountError ? (
                   <div style={{fontSize:'.7rem',color:'#9b3a3a',marginTop:5,display:'flex',alignItems:'center',gap:4}}>
                     <svg width="11" height="11" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
@@ -813,6 +893,7 @@ export default function SeasonPage() {
                   </div>
                 ) : (
                   <div className='sx-modal-limits'>
+                    {/* FIX 3: No K/M in modal limits */}
                     <span>Min: <strong style={{color:'var(--sage)'}}>{fmtUSDT(currentSeason.min)}</strong></span>
                     <span>Max: <strong style={{color:'var(--gold)'}}>{fmtUSDT(currentSeason.max)}</strong></span>
                     <span>Available: <strong style={{color:'var(--ink)'}}>{fmtUSDT(availableBalance)}</strong></span>
@@ -820,7 +901,7 @@ export default function SeasonPage() {
                 )}
               </div>
 
-              {/* Expected return preview — FIX: removed extra % */}
+              {/* Expected return preview */}
               {amountVal && parseFloat(amountVal) >= currentSeason.min && parseFloat(amountVal) <= currentSeason.max && !amountError && (
                 <div style={{marginBottom:16,padding:'12px 14px',background:'rgba(74,103,65,.06)',border:'1px solid rgba(74,103,65,.2)',borderRadius:6}}>
                   <div style={{fontSize:'.67rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--text-sec)',marginBottom:8}}>Projected Return</div>
@@ -829,7 +910,6 @@ export default function SeasonPage() {
                     <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'.9rem'}}>{fmtUSDT(parseFloat(amountVal))}</span>
                   </div>
                   <div style={{display:'flex',justifyContent:'space-between',fontSize:'.78rem',color:'var(--sage)',marginTop:4}}>
-                    {/* FIX: use roi_range as label (already has %) */}
                     <span>Est. Profit ({currentSeason.roi} ROI range)</span>
                     <span style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'.9rem'}}>
                       {currentSeason.roi.includes('–') || currentSeason.roi.includes('-')
@@ -838,9 +918,9 @@ export default function SeasonPage() {
                             const lo = parseFloat(parts[0]) || 0
                             const hi = parseFloat(parts[1]) || 0
                             const base = parseFloat(amountVal)
-                            return `+${fmtUSDT(base * lo / 100)} – +${fmtUSDT(base * hi / 100)}`
+                            return `+${fmtUSDT(Math.round(base * lo / 100))} – +${fmtUSDT(Math.round(base * hi / 100))}`
                           })()
-                        : `+${fmtUSDT(parseFloat(amountVal) * (parseFloat(currentSeason.roi) / 100))}`
+                        : `+${fmtUSDT(Math.round(parseFloat(amountVal) * (parseFloat(currentSeason.roi) / 100)))}`
                       }
                     </span>
                   </div>
@@ -882,7 +962,6 @@ export default function SeasonPage() {
                     <strong style={{color:'var(--sage)'}}>{fmtUSDT(parseFloat(amountVal || '0'))}</strong>
                   </div>
                   <div style={{display:'flex',justifyContent:'space-between'}}>
-                    {/* FIX: roi_range already has % */}
                     <span>Projected ROI</span>
                     <strong style={{color:'var(--gold)'}}>{currentSeason.roi}</strong>
                   </div>
@@ -894,7 +973,6 @@ export default function SeasonPage() {
         </div>
       </div>
 
-      {/* Extra styles */}
       <style>{`
         .sx-fi-err {
           border-color: #9b3a3a !important;

@@ -27,11 +27,12 @@ interface PoolInvestor {
    HELPERS
 ══════════════════════════════ */
 function fmt(n: number) { return Number(n).toLocaleString('en-US') }
+
+// ── FIX 3: No K/M abbreviation — show raw numbers ──
 function fmtUSDT(n: number) {
-  if (n >= 1_000_000) return '$' + (n / 1_000_000).toFixed(1) + 'M';
-  if (n >= 1_000)     return '$' + (n / 1_000).toFixed(0) + 'K';
-  return '$' + fmt(n);
+  return '$' + Number(n).toLocaleString('en-US');
 }
+
 function fmtDate(d: string) {
   if (!d) return '—';
   try { return new Date(d).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }); }
@@ -123,6 +124,54 @@ export default function AdminSeasonPage() {
     toastTimer.current = setTimeout(() => setToast(t => ({ ...t, show: false })), 3200);
   }, []);
 
+  /* ── Cancel auto-close timer ── */
+  const cancelAutoClose = useCallback((id: string) => {
+    if (autoCloseTimers.current[id]) {
+      clearTimeout(autoCloseTimers.current[id]);
+      delete autoCloseTimers.current[id];
+    }
+  }, []);
+
+  /* ── FIX 4: executeAutoClose reads ROI directly from DB — no stale state ── */
+  const executeAutoClose = useCallback(async (id: string) => {
+    const { data: freshSeason } = await supabase
+      .from('seasons')
+      .select('*, name, final_roi, auto_close_enabled')
+      .eq('id', id)
+      .single();
+
+    if (!freshSeason) { showToast('✕ Season not found for auto-close', 'err'); return; }
+
+    // ── FIX 4: Read ROI from DB (saved when auto-close was enabled) ──
+    if (!freshSeason.auto_close_enabled || freshSeason.final_roi == null) {
+      showToast('✕ Auto-close not active for this season', 'err');
+      return;
+    }
+
+    const roi = Number(freshSeason.final_roi);
+
+    const { error } = await supabase
+      .from('seasons')
+      .update({ status: 'closed', final_roi: roi, auto_close_enabled: false })
+      .eq('id', id);
+
+    if (error) { showToast('✕ Auto-close failed', 'err'); return; }
+
+    showToast(`⏰ ${freshSeason.name} auto-closed with +${roi}% ROI`, 'ok');
+    fetchData();
+    cancelAutoClose(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cancelAutoClose, showToast, supabase]);
+
+  /* ── Schedule auto-close timer ── */
+  const scheduleAutoClose = useCallback((s: ActiveSeason) => {
+    cancelAutoClose(s.id);
+    const target = new Date(s.finishDate); target.setHours(23, 59, 59, 999);
+    const msUntil = target.getTime() - Date.now();
+    if (msUntil <= 0) { executeAutoClose(s.id); return; }
+    autoCloseTimers.current[s.id] = setTimeout(() => executeAutoClose(s.id), msUntil);
+  }, [cancelAutoClose, executeAutoClose]);
+
   /* ── Fetch Data ── */
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -135,7 +184,6 @@ export default function AdminSeasonPage() {
     }
 
     if (seasons) {
-      // Fetch investor counts per season
       const { data: investCounts } = await supabase
         .from('investments')
         .select('season_id, id')
@@ -146,14 +194,30 @@ export default function AdminSeasonPage() {
         countMap[inv.season_id] = (countMap[inv.season_id] || 0) + 1;
       });
 
+      // ── FIX 1: Compute pool fill from investments ──
+      const { data: poolData } = await supabase
+        .from('investments')
+        .select('season_id, amount')
+        .in('status', ['active', 'completed']);
+
+      const poolBySeasonId: Record<string, number> = {};
+      (poolData || []).forEach((inv: any) => {
+        poolBySeasonId[inv.season_id] = (poolBySeasonId[inv.season_id] || 0) + Number(inv.amount);
+      });
+
       const activeArr: ActiveSeason[] = [];
       const prevArr: PrevSeason[] = [];
       let totalPoolAll = 0;
       let totalROI = 0;
       let closedCount = 0;
 
-      seasons.forEach(s => {
-        totalPoolAll += Number(s.current_pool || 0);
+      seasons.forEach((s: any) => {
+        // Use accurate pool fill from investments
+        const actualPoolFilled = poolBySeasonId[s.id] !== undefined
+          ? poolBySeasonId[s.id]
+          : Number(s.current_pool) || 0;
+        totalPoolAll += actualPoolFilled;
+
         if (s.status === 'closed') {
           closedCount++;
           totalROI += Number(s.final_roi || 0);
@@ -174,10 +238,13 @@ export default function AdminSeasonPage() {
             min: Number(s.min_entry) || 0,
             max: Number(s.max_entry) || 50000,
             status: s.status as any,
-            poolFilled: Number(s.current_pool) || 0,
+            poolFilled: actualPoolFilled,
             investors: countMap[s.id] || 0,
             dayStart: s.start_date || '',
-            autoClose: null,
+            // ── FIX 4: Restore autoClose from DB on every fetch ──
+            autoClose: (s.auto_close_enabled && s.final_roi != null)
+              ? { finalROI: Number(s.final_roi) }
+              : null,
           });
         }
       });
@@ -188,9 +255,19 @@ export default function AdminSeasonPage() {
         avgROI: `${(closedCount > 0 ? (totalROI / closedCount) : 0).toFixed(1)}%`,
         totalPool: fmtUSDT(totalPoolAll),
       });
+
+      // ── FIX 4: Re-schedule all auto-close timers from DB state ──
+      // Cancel all existing timers first
+      Object.keys(autoCloseTimers.current).forEach(id => cancelAutoClose(id));
+      // Re-schedule for any seasons that have auto_close_enabled in DB
+      activeArr.forEach(s => {
+        if (s.autoClose) {
+          scheduleAutoClose(s);
+        }
+      });
     }
     setLoading(false);
-  }, [supabase, showToast]);
+  }, [supabase, showToast, cancelAutoClose, scheduleAutoClose]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -292,7 +369,7 @@ export default function AdminSeasonPage() {
       for (let i = 0; i < cols; i++) {
         candles.push({ x: i * 28 + 14, open: H * .35 + (Math.random() - .5) * H * .28, close: H * .35 + (Math.random() - .5) * H * .28, high: 0, low: 0, speed: .003 + Math.random() * .004, phase: Math.random() * Math.PI * 2 });
       }
-      candles.forEach(c => { c.high = Math.min(c.open, c.close) - Math.random() * H * .04; c.low = Math.max(c.open, c.close) + Math.random() * H * .04; });
+      candles.forEach((c: any) => { c.high = Math.min(c.open, c.close) - Math.random() * H * .04; c.low = Math.max(c.open, c.close) + Math.random() * H * .04; });
       waves = Array.from({ length: 3 }, (_, i) => ({ amplitude: 40 + i * 20, freq: .005 + i * .002, speed: .0008 + i * .0004, phase: i * Math.PI / 1.5, yBase: H * (.3 + i * .2) }));
     };
     const draw = () => {
@@ -320,53 +397,6 @@ export default function AdminSeasonPage() {
     document.body.style.overflow = (sidebarOpen || smOpen || cmOpen || dmOpen || poolModalOpen) ? 'hidden' : '';
     return () => { document.body.style.overflow = ''; };
   }, [sidebarOpen, smOpen, cmOpen, dmOpen, poolModalOpen]);
-
-  /* ── Auto-close helpers ── */
-  const cancelAutoClose = useCallback((id: string) => {
-    if (autoCloseTimers.current[id]) {
-      clearTimeout(autoCloseTimers.current[id]);
-      delete autoCloseTimers.current[id];
-    }
-  }, []);
-
-  /* FIX: executeAutoClose now fetches fresh data from DB instead of using stale state */
-  const executeAutoClose = useCallback(async (id: string) => {
-    // Fetch fresh season data from DB to avoid stale closure
-    const { data: freshSeason } = await supabase
-      .from('seasons')
-      .select('*, name')
-      .eq('id', id)
-      .single();
-
-    if (!freshSeason) { showToast('✕ Season not found for auto-close', 'err'); return; }
-
-    // Find the autoClose ROI from the active state (it was set when scheduling)
-    const currentActive = active.find(x => x.id === id);
-    const roi = currentActive?.autoClose?.finalROI;
-    if (roi === undefined || roi === null) {
-      showToast('✕ Auto-close ROI not set', 'err');
-      return;
-    }
-
-    const { error } = await supabase
-      .from('seasons')
-      .update({ status: 'closed', final_roi: roi })
-      .eq('id', id);
-
-    if (error) { showToast('✕ Auto-close failed', 'err'); return; }
-
-    showToast(`⏰ ${freshSeason.name} auto-closed with +${roi}% ROI`, 'ok');
-    fetchData();
-    cancelAutoClose(id);
-  }, [active, cancelAutoClose, fetchData, showToast, supabase]);
-
-  const scheduleAutoClose = useCallback((s: ActiveSeason) => {
-    cancelAutoClose(s.id);
-    const target = new Date(s.finishDate); target.setHours(23, 59, 59, 999);
-    const msUntil = target.getTime() - Date.now();
-    if (msUntil <= 0) { executeAutoClose(s.id); return; }
-    autoCloseTimers.current[s.id] = setTimeout(() => executeAutoClose(s.id), msUntil);
-  }, [cancelAutoClose, executeAutoClose]);
 
   /* ── Season modal ── */
   const openSeasonModal = (editId?: string) => {
@@ -405,7 +435,7 @@ export default function AdminSeasonPage() {
     };
     if (!smEditId) {
       seasonData.status = 'open';
-      seasonData.current_pool = 0; // FIX: initialize pool to 0
+      seasonData.current_pool = 0;
     }
 
     if (smEditId) {
@@ -449,6 +479,7 @@ export default function AdminSeasonPage() {
     const s = active.find(x => x.id === id); if (!s) return;
     setCmId(id); setCmName(s.name);
     setCmDates(`${fmtDate(s.entryDate)} → ${fmtDate(s.finishDate)}`);
+    // ── FIX 4: Restore existing auto-close ROI from state (already from DB) ──
     setCmRoi(s.autoClose ? String(s.autoClose.finalROI) : '');
     setCmAuto(!!s.autoClose); setCmActiveRoi(s.autoClose?.finalROI ?? null);
     setCmOpen(true);
@@ -460,6 +491,14 @@ export default function AdminSeasonPage() {
     const s = active.find(x => x.id === cmId); if (!s) return;
 
     if (cmAuto) {
+      // ── FIX 4: Persist auto-close to DB so it survives refresh ──
+      const { error: saveErr } = await supabase
+        .from('seasons')
+        .update({ auto_close_enabled: true, final_roi: roi })
+        .eq('id', cmId);
+
+      if (saveErr) { showToast('✕ Error saving auto-close settings', 'err'); return; }
+
       const updated = { ...s, autoClose: { finalROI: roi } };
       setActive(a => a.map(x => x.id === cmId ? updated : x));
       scheduleAutoClose(updated);
@@ -501,24 +540,43 @@ export default function AdminSeasonPage() {
           }
         }
 
-        const { error } = await supabase.from('seasons').update({ status: 'closed', final_roi: roi }).eq('id', cmId);
+        const { error } = await supabase.from('seasons').update({
+          status: 'closed',
+          final_roi: roi,
+          auto_close_enabled: false  // Clear auto-close flag on actual close
+        }).eq('id', cmId);
         if (error) throw error;
 
+        cancelAutoClose(cmId);
         setCmOpen(false);
         const count = investments?.length || 0;
         showToast(`✓ ${s.name} closed. Payouts processed for ${count} investor${count !== 1 ? 's' : ''}.`, 'ok');
         fetchData();
       } catch (err: any) {
         showToast('✕ Error closing season: ' + (err.message || 'Unknown error'), 'err');
-        setLoading(false); // FIX: always reset loading on error
+        setLoading(false);
       }
     }
   };
 
-  const cancelAutoCloseUI = (id: string) => {
+  /* ── FIX 4: Cancel auto-close clears DB flag too ── */
+  const cancelAutoCloseUI = async (id: string) => {
+    const seasonName = active.find(x => x.id === id)?.name;
+
+    // Clear from DB
+    const { error } = await supabase
+      .from('seasons')
+      .update({ auto_close_enabled: false, final_roi: null })
+      .eq('id', id);
+
+    if (error) {
+      showToast('✕ Error cancelling auto-close', 'err');
+      return;
+    }
+
     cancelAutoClose(id);
     setActive(a => a.map(x => x.id === id ? { ...x, autoClose: null } : x));
-    showToast(`✕ Auto-Close cancelled for ${active.find(x => x.id === id)?.name}`);
+    showToast(`✕ Auto-Close cancelled for ${seasonName}`);
   };
 
   /* ── Pool modal filtered investors ── */
@@ -536,7 +594,6 @@ export default function AdminSeasonPage() {
 
   const periodDisplay = calcPeriodStr(fEntry, fFinish);
 
-  // FIX: helper to get button label for pause/resume
   const getPauseLabel = (s: ActiveSeason) => {
     if (s.status === 'running') return '⏸ Pause Season';
     if (s.status === 'paused') return '▶ Resume Season';
@@ -604,6 +661,7 @@ export default function AdminSeasonPage() {
               </div>
               {fMin && fMax && parseFloat(fMin) > 0 && parseFloat(fMax) > 0 && (
                 <div style={{ padding: '10px 13px', background: 'rgba(184,147,90,.05)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', fontSize: '.74rem', color: 'var(--text-sec)' }}>
+                  {/* FIX 3: No K/M */}
                   💰 Each investor can contribute between&nbsp;
                   <strong style={{ color: 'var(--gold)' }}>{fmtUSDT(parseFloat(fMin))}</strong>
                   &nbsp;and&nbsp;
@@ -665,7 +723,7 @@ export default function AdminSeasonPage() {
                     <div style={{ fontSize: '.66rem', color: 'var(--text-sec)', marginTop: 1 }}>Season will automatically close at 23:59:59 on the Finish Date with the Final ROI set above</div>
                   </div>
                 </div>
-                {cmAuto && <div className="sm-autoclose-info">Season will close automatically at <strong>23:59:59 on the Finish Date</strong>.</div>}
+                {cmAuto && <div className="sm-autoclose-info">Season will close automatically at <strong>23:59:59 on the Finish Date</strong>. This setting is saved and will persist after page refresh.</div>}
                 {!cmAuto && <div className="sm-autoclose-info warn">⚠ This will <strong>immediately close</strong> the season right now. This action cannot be undone.</div>}
               </div>
               <div style={{ display: 'flex', gap: 10, justifyContent: 'flex-end', flexWrap: 'wrap', marginTop: 4 }}>
@@ -820,7 +878,6 @@ export default function AdminSeasonPage() {
                     <div style={{ fontSize: '.68rem', color: 'var(--text-sec)' }}>
                       {new Date(inv.joinedAt).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' })}
                     </div>
-                    {/* FIX: added paused status badge */}
                     <div>
                       <span className={`adm-badge ${
                         inv.status === 'completed' ? 'adm-b-completed'
@@ -890,6 +947,7 @@ export default function AdminSeasonPage() {
                 ['Active Seasons', String(active.length), 'var(--ink)'],
                 ['Total Seasons Run', String(active.length + prev.length), 'var(--ink)'],
                 ['Avg Final ROI', aggStats.avgROI, 'var(--gold)'],
+                // FIX 3: aggStats.totalPool already uses fmtUSDT (no K/M)
                 ['Total Pool (All)', aggStats.totalPool, 'var(--ink)'],
               ].map(([lbl, val, col]) => (
                 <div key={lbl} className="sm-card" style={{ padding: '16px 18px' }}>
@@ -924,7 +982,6 @@ export default function AdminSeasonPage() {
                     const totalDays = calcRunningDays(s.entryDate, s.finishDate);
                     const curDay = Math.min(calcDaysCurrent(s.dayStart), totalDays);
                     const dayPct = totalDays > 0 ? Math.round(curDay / totalDays * 100) : 0;
-                    // FIX: Use actual current_pool from DB for pool percentage
                     const poolPctAdmin = s.pool > 0 ? Math.min(100, Math.round((s.poolFilled / s.pool) * 100)) : 0;
                     const isRunning = s.status === 'running';
                     const isPaused = s.status === 'paused';
@@ -936,13 +993,13 @@ export default function AdminSeasonPage() {
                         <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10 }}>
                           <div style={{ display: 'flex', alignItems: 'center', gap: 10, flexWrap: 'wrap' }}>
                             <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.18rem', fontWeight: 500, color: 'var(--ink)' }}>{s.name}</div>
-                            {/* FIX: paused badge */}
                             <span className={`sm-badge ${
                               isRunning ? 'sm-b-running'
                               : s.status === 'open' ? 'sm-b-pending'
                               : isPaused ? 'sm-b-paused'
                               : 'sm-b-paused'
                             }`}>{s.status.toUpperCase()}</span>
+                            {/* ── FIX 4: Badge shows even after refresh ── */}
                             {hasAuto && <span className="sm-badge sm-b-autoclose">⏰ Auto-Close Set</span>}
                           </div>
                           <div style={{ fontSize: '.68rem', color: 'var(--text-sec)' }}>{fmtDate(s.entryDate)} → {fmtDate(s.finishDate)}</div>
@@ -965,6 +1022,7 @@ export default function AdminSeasonPage() {
                             ['Finish Date', fmtDate(s.finishDate), ''],
                             ['Running Period', `${totalDays} days`, ''],
                             ['Expected ROI', s.roi, 'gold'],
+                            // FIX 3: No K/M
                             ['Min Entry', fmtUSDT(s.min), ''],
                             ['Max Entry', fmtUSDT(s.max), ''],
                           ].map(([lbl, val, cls]) => (
@@ -988,6 +1046,7 @@ export default function AdminSeasonPage() {
                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
                               <span style={{ fontSize: '.6rem', letterSpacing: '.1em', textTransform: 'uppercase', color: 'var(--text-sec)' }}>Pool Filled</span>
                               <span style={{ fontSize: '.6rem', color: 'var(--text-sec)' }}>
+                                {/* FIX 3: No K/M */}
                                 {poolPctAdmin}% · {fmtUSDT(s.poolFilled)} / {fmtUSDT(s.pool)}
                               </span>
                             </div>
@@ -1003,6 +1062,7 @@ export default function AdminSeasonPage() {
                             <svg width="12" height="12" fill="none" stroke="var(--gold)" strokeWidth="2" viewBox="0 0 24 24"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" /></svg>
                             <span style={{ fontSize: '.68rem', color: 'var(--gold)', fontWeight: 500 }}>{s.investors.toLocaleString()} investors</span>
                           </div>
+                          {/* FIX 3: No K/M */}
                           <div style={{ fontSize: '.68rem', color: 'var(--text-sec)' }}>
                             {fmtUSDT(s.poolFilled)} of {fmtUSDT(s.pool)} pool filled
                           </div>
@@ -1010,7 +1070,6 @@ export default function AdminSeasonPage() {
 
                         {/* Actions */}
                         <div className="sm-season-actions">
-                          {/* FIX: pause/resume works for both running and paused */}
                           <button className="sm-btn-sage sm-btn-sm" onClick={() => togglePause(s.id)}>
                             {getPauseLabel(s)}
                           </button>
@@ -1072,6 +1131,7 @@ export default function AdminSeasonPage() {
                               <td>
                                 <span style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.05rem', color: roiColor, fontWeight: 500 }}>+{s.finalROI}%</span>
                               </td>
+                              {/* FIX 3: No K/M in table */}
                               <td style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '.95rem', color: 'var(--ink)' }}>{fmtUSDT(s.pool)}</td>
                               <td style={{ fontSize: '.78rem', color: 'var(--text-sec)' }}>{fmtUSDT(s.min)}</td>
                               <td style={{ fontSize: '.78rem', color: 'var(--text-sec)' }}>{fmtUSDT(s.max)}</td>

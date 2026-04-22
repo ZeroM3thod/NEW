@@ -49,6 +49,7 @@ export default function AdminWithdrawPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('withdrawals')
+      // FIX: explicitly select note column so it's always included
       .select('*, profiles(first_name, last_name, username)')
       .order('created_at', { ascending: false });
 
@@ -57,7 +58,7 @@ export default function AdminWithdrawPage() {
     } else {
       const mapped: Withdrawal[] = data.map(w => ({
         id: w.id,
-        init: w.profiles.first_name[0] + w.profiles.last_name[0],
+        init: (w.profiles.first_name?.[0] || '') + (w.profiles.last_name?.[0] || ''),
         name: `${w.profiles.first_name} ${w.profiles.last_name}`,
         un: `@${w.profiles.username}`,
         amt: w.amount,
@@ -65,7 +66,8 @@ export default function AdminWithdrawPage() {
         net: w.network || 'BEP-20',
         season: 'S4',
         date: new Date(w.created_at).toISOString().split('T')[0],
-        note: '',
+        // FIX: read note from database instead of hardcoding empty string
+        note: w.note || '',
         txid: w.tx_hash || '',
         reason: w.rejection_reason || '',
         status: w.status,
@@ -161,8 +163,9 @@ export default function AdminWithdrawPage() {
   const copyTxt = (t: string) => { navigator.clipboard?.writeText(t).catch(() => {}); showToast('📋 Copied to clipboard!'); };
 
   const exportCSV = () => {
-    const hdr = ['ID', 'User', 'Username', 'Amount', 'Wallet', 'Network', 'Date', 'Status', 'TxID', 'Reason'];
-    const lines = [hdr.join(','), ...filtered.map(w => [w.id, `"${w.name}"`, w.un, w.amt, `"${w.wallet}"`, w.net, w.date, w.status, `"${w.txid}"`, `"${w.reason}"`].join(','))];
+    // FIX: include note in CSV export
+    const hdr = ['ID', 'User', 'Username', 'Amount', 'Wallet', 'Network', 'Date', 'Status', 'TxID', 'Note', 'Reason'];
+    const lines = [hdr.join(','), ...filtered.map(w => [w.id, `"${w.name}"`, w.un, w.amt, `"${w.wallet}"`, w.net, w.date, w.status, `"${w.txid}"`, `"${w.note}"`, `"${w.reason}"`].join(','))];
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type: 'text/csv' }));
     a.download = `withdrawals-${new Date().toISOString().slice(0, 10)}.csv`;
@@ -170,7 +173,7 @@ export default function AdminWithdrawPage() {
     showToast(`✓ Exported ${filtered.length} records`, 'ok');
   };
 
-  // Clean detail grid — NO commission, NO net payout
+  // FIX: Full detail grid now includes note field from DB
   const detailGrid = (w: Withdrawal) => (
     <div className="dm-dgrid">
       <div className="dm-dcell"><div className="dm-dl">Withdrawal ID</div><div className="dm-dv" style={{ fontFamily: 'monospace', fontSize: '.77rem' }}>{w.id}</div></div>
@@ -180,7 +183,8 @@ export default function AdminWithdrawPage() {
       <div className="dm-dcell"><div className="dm-dl">Amount (USDT)</div><div className="dm-dv gold">-${fmtAmt(w.amt)}</div></div>
       <div className="dm-dcell"><div className="dm-dl">Network</div><div className="dm-dv">{w.net}</div></div>
       <div className="dm-dcell"><div className="dm-dl">Requested</div><div className="dm-dv">{w.date}</div></div>
-      <div className="dm-dcell"><div className="dm-dl">Note</div><div className="dm-dv">{w.note || '—'}</div></div>
+      {/* FIX: Show note from DB — previously hardcoded to empty */}
+      <div className="dm-dcell"><div className="dm-dl">User Note</div><div className="dm-dv" style={{ fontStyle: w.note ? 'italic' : 'normal', color: w.note ? 'var(--ink)' : 'var(--text-sec)' }}>{w.note || '— No note provided'}</div></div>
       <div className="dm-dcell dm-dfull"><div className="dm-dl">Wallet Address</div><div className="dm-dv mono" onClick={() => copyTxt(w.wallet)} title="Click to copy">{w.wallet}</div></div>
       {w.txid && <div className="dm-dcell dm-dfull"><div className="dm-dl">Transaction ID (Approved)</div><div className="dm-dv mono" style={{ color: 'var(--sage)' }}>{w.txid}</div></div>}
       {w.reason && <div className="dm-dcell dm-dfull"><div className="dm-dl">Rejection Reason</div><div className="dm-dv err-c">{w.reason}</div></div>}
@@ -207,11 +211,21 @@ export default function AdminWithdrawPage() {
             {modalMode === 'approve' && curWd && (
               <div className="dm-conf-note dm-cn-ok">
                 You are approving a withdrawal of <strong>${fmtAmt(curWd.amt)} USDT</strong> for <strong>{curWd.name}</strong>. Enter the blockchain transaction ID to confirm.
+                {curWd.note && (
+                  <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(184,147,90,.08)', borderRadius: 4, fontSize: '.72rem', color: 'var(--ink)' }}>
+                    <strong>User note:</strong> {curWd.note}
+                  </div>
+                )}
               </div>
             )}
             {modalMode === 'reject' && curWd && (
               <div className="dm-conf-note dm-cn-warn">
                 ⚠ You are about to <strong>reject</strong> a withdrawal of <strong>${fmtAmt(curWd.amt)} USDT</strong> from <strong>{curWd.name}</strong>. The amount will be refunded to their withdrawable balance.
+                {curWd.note && (
+                  <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(155,58,58,.06)', borderRadius: 4, fontSize: '.72rem', color: 'var(--ink)' }}>
+                    <strong>User note:</strong> {curWd.note}
+                  </div>
+                )}
               </div>
             )}
 
@@ -223,6 +237,13 @@ export default function AdminWithdrawPage() {
                     <div className="dm-dcell"><div className="dm-dl">User</div><div className="dm-dv">{curWd.name}</div></div>
                     <div className="dm-dcell"><div className="dm-dl">Amount</div><div className="dm-dv gold">-${fmtAmt(curWd.amt)}</div></div>
                     <div className="dm-dcell dm-dfull"><div className="dm-dl">Wallet Address</div><div className="dm-dv mono">{curWd.wallet}</div></div>
+                    {/* FIX: Show note in approve modal */}
+                    {curWd.note && (
+                      <div className="dm-dcell dm-dfull">
+                        <div className="dm-dl">User Note</div>
+                        <div className="dm-dv" style={{ fontStyle: 'italic' }}>{curWd.note}</div>
+                      </div>
+                    )}
                   </div>
                   <div className="dm-fg">
                     <label className="dm-fl" htmlFor="txid-input">Transaction ID <span style={{ color: 'var(--error)' }}>*</span></label>
@@ -238,6 +259,13 @@ export default function AdminWithdrawPage() {
                     <div className="dm-dcell"><div className="dm-dl">User</div><div className="dm-dv">{curWd.name}</div></div>
                     <div className="dm-dcell"><div className="dm-dl">Amount</div><div className="dm-dv" style={{ color: 'var(--gold-d)' }}>-${fmtAmt(curWd.amt)}</div></div>
                     <div className="dm-dcell dm-dfull"><div className="dm-dl">Wallet Address</div><div className="dm-dv mono">{curWd.wallet}</div></div>
+                    {/* FIX: Show note in reject modal */}
+                    {curWd.note && (
+                      <div className="dm-dcell dm-dfull">
+                        <div className="dm-dl">User Note</div>
+                        <div className="dm-dv" style={{ fontStyle: 'italic' }}>{curWd.note}</div>
+                      </div>
+                    )}
                   </div>
                   <div className="dm-fg">
                     <label className="dm-fl" htmlFor="rej-reason">Rejection Reason <span style={{ color: 'var(--error)' }}>*</span></label>
@@ -363,9 +391,20 @@ export default function AdminWithdrawPage() {
                 </div>
               </div>
               <div className="dm-tscroll">
+                {/* FIX: Added "Note" column to table */}
                 <table className="dm-dt">
                   <thead>
-                    <tr><th>User</th><th>Username</th><th>Amount (USDT)</th><th>Wallet Address</th><th>Network</th><th>Requested</th><th>Status</th><th>Action</th></tr>
+                    <tr>
+                      <th>User</th>
+                      <th>Username</th>
+                      <th>Amount (USDT)</th>
+                      <th>Wallet Address</th>
+                      <th>Network</th>
+                      <th>Note</th>
+                      <th>Requested</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
                   </thead>
                   <tbody>
                     {filtered.map(w => (
@@ -375,6 +414,30 @@ export default function AdminWithdrawPage() {
                         <td><span className="dm-td-amt">-${fmtAmt(w.amt)}</span></td>
                         <td><span className="dm-td-mono" title={w.wallet} onClick={() => copyTxt(w.wallet)}>{shortWallet(w.wallet)}</span></td>
                         <td><span className="dm-badge" style={{ background: 'rgba(28,28,28,.06)', border: '1px solid rgba(28,28,28,.1)', color: 'var(--charcoal)', fontSize: '.56rem' }}>{w.net}</span></td>
+                        {/* FIX: Display note from DB in the table */}
+                        <td>
+                          {w.note
+                            ? (
+                              <span
+                                title={w.note}
+                                style={{
+                                  fontSize: '.7rem',
+                                  color: 'var(--ink)',
+                                  fontStyle: 'italic',
+                                  maxWidth: 140,
+                                  display: 'block',
+                                  overflow: 'hidden',
+                                  textOverflow: 'ellipsis',
+                                  whiteSpace: 'nowrap',
+                                  cursor: 'help',
+                                }}
+                              >
+                                "{w.note}"
+                              </span>
+                            )
+                            : <span className="dm-td-sub">—</span>
+                          }
+                        </td>
                         <td><span className="dm-td-sub">{w.date}</span></td>
                         <td><span className={`dm-badge ${bCls(w.status)}`}>{w.status}</span></td>
                         <td>
@@ -390,7 +453,7 @@ export default function AdminWithdrawPage() {
                       </tr>
                     ))}
                     {filtered.length === 0 && (
-                      <tr><td colSpan={8}><div className="dm-empty-state"><div className="dm-empty-t">No withdrawals found</div><div className="dm-empty-b">Try adjusting your search or filter.</div></div></td></tr>
+                      <tr><td colSpan={9}><div className="dm-empty-state"><div className="dm-empty-t">No withdrawals found</div><div className="dm-empty-b">Try adjusting your search or filter.</div></div></td></tr>
                     )}
                   </tbody>
                 </table>

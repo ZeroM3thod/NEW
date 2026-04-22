@@ -70,6 +70,9 @@ export default function WithdrawPage() {
   const [lockedAmount, setLockedAmount] = useState(0)
   const [lockCountdowns, setLockCountdowns] = useState<Record<string, string>>({})
 
+  // FIX: Track pending withdrawals total separately so we can subtract from available
+  const [pendingWithdrawalsTotal, setPendingWithdrawalsTotal] = useState(0)
+
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const bgRef = useRef<HTMLCanvasElement>(null)
   const lockTimerRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -109,6 +112,16 @@ export default function WithdrawPage() {
       setLockedAmount(0)
     }
 
+    // FIX: Fetch pending withdrawals total so we can subtract from available
+    const { data: pendingWds } = await supabase
+      .from('withdrawals')
+      .select('amount')
+      .eq('user_id', user.id)
+      .eq('status', 'pending')
+
+    const pendingTotal = pendingWds?.reduce((sum: number, w: any) => sum + Number(w.amount), 0) || 0
+    setPendingWithdrawalsTotal(pendingTotal)
+
     const { data: wdHistory } = await supabase
       .from('withdrawals').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
 
@@ -122,7 +135,7 @@ export default function WithdrawPage() {
         network: w.network || 'BEP-20',
         wallet: w.address.length > 20 ? w.address.slice(0, 10) + '...' + w.address.slice(-6) : w.address,
         status: w.status,
-        note: '',
+        note: w.note || '',
         reason: w.rejection_reason
       }))
       setHistory(mapped)
@@ -156,7 +169,6 @@ export default function WithdrawPage() {
         }
       })
 
-      // ── FIX 3: cap locked at the user's current balance ──
       const profileBalance = Number(userProfile?.balance) || 0
       setLockCountdowns(newCountdowns)
       setLockedAmount(Math.min(stillLockedRaw, profileBalance))
@@ -168,10 +180,9 @@ export default function WithdrawPage() {
     tick()
     lockTimerRef.current = setInterval(tick, 1000)
     return () => { if (lockTimerRef.current) clearInterval(lockTimerRef.current) }
-  }, [lockedDeposits, userProfile])   // ← add userProfile dependency
+  }, [lockedDeposits, userProfile])
 
   useEffect(() => {
-    // When all locks have expired, refresh profile so withdrawable_total is recalculated from server
     const allExpired = lockedDeposits.length > 0 &&
       lockedDeposits.every((d: LockedDeposit) => new Date(d.lockedUntil).getTime() <= Date.now())
     if (allExpired) {
@@ -244,13 +255,22 @@ export default function WithdrawPage() {
     return () => document.removeEventListener('keydown', h)
   }, [])
 
-  // ── FIXED: Use `withdrawable_total` (which already excludes pending
-  // withdrawal requests), then subtract any still-locked deposit amounts.
-  const currentBalance        = Number(userProfile?.balance)           || 0
-  const withdrawableTotal     = Number(userProfile?.withdrawable_total) || 0
-  // withdrawable_total already = balance - locked - pending_withdrawals; don't subtract locked again
+  // ── FIX: Correct withdrawable calculation ──────────────────────────────────
+  // RULE: Users can only withdraw profits (season profits + referral earnings).
+  //       Locked deposit principal cannot be withdrawn during the 60-day lock.
+  //       After lock expires, principal is also withdrawable.
+  //
+  // Formula: withdrawable = balance - locked_deposits - pending_withdrawals
+  //
+  // We do NOT use withdrawable_total from the DB because it gets incorrectly
+  // set to full balance when seasons close (including locked deposit principal).
+  // Instead we compute it directly from live data fetched above.
+  // ──────────────────────────────────────────────────────────────────────────
+  const currentBalance        = Number(userProfile?.balance) || 0
   const effectiveLockedAmount = Math.min(lockedAmount, currentBalance)
-  const effectiveWithdrawable = withdrawableTotal   // ← was incorrectly subtracting lockedAmount twice
+
+  // The true withdrawable amount: balance minus still-locked deposits minus pending withdrawal requests
+  const effectiveWithdrawable = Math.max(0, currentBalance - effectiveLockedAmount - pendingWithdrawalsTotal)
 
   const onAmtChange = (v: string) => {
     setWdAmt(v)
@@ -271,7 +291,7 @@ export default function WithdrawPage() {
     if (!amt || amt < 10) { showToast('Please enter a valid amount (min $10)'); return }
     if (amt > effectiveWithdrawable) {
       if (lockedAmount > 0 && amt <= currentBalance) {
-        showToast(`⚠ $${lockedAmount.toLocaleString()} is locked. Effective withdrawable: $${effectiveWithdrawable.toLocaleString()}`)
+        showToast(`⚠ $${effectiveLockedAmount.toLocaleString()} is locked. Only profits are withdrawable: $${effectiveWithdrawable.toLocaleString()}`)
       } else {
         showToast(`Amount exceeds available balance ($${effectiveWithdrawable.toLocaleString()})`)
       }
@@ -288,20 +308,18 @@ export default function WithdrawPage() {
   const submitWithdrawal = async () => {
     if (!confirmDetails || !userProfile) return
     try {
+      // FIX: Include note in the withdrawal insert
       const { error } = await supabase.from('withdrawals').insert({
         user_id: userProfile.id,
         amount:  confirmDetails.amt,
         address: confirmDetails.addr,
         network: 'BEP-20',
+        note:    confirmDetails.note || null,   // ← FIXED: save user's note to DB
         status:  'pending'
       })
       if (error) throw error
 
-      // ── Only deduct withdrawable_total on submission ──────────────────────
-      // `balance` is NOT touched here. It will be deducted by the admin only
-      // when the withdrawal is approved, eliminating the double-deduction bug.
-      // If the admin rejects the request, withdrawable_total is restored by
-      // doReject() in the admin page (no balance change needed there either).
+      // Decrease withdrawable_total so we track pending requests
       const newWithdrawable = Math.max(
         0,
         (Number(userProfile.withdrawable_total) || 0) - confirmDetails.amt
@@ -360,14 +378,21 @@ export default function WithdrawPage() {
             </div>
 
             {/* BALANCE BADGE */}
-            <div className='wd-bal-badge wd-reveal' style={{ marginBottom: lockedAmount > 0 ? 12 : 20, transitionDelay: '.04s' }}>
+            <div className='wd-bal-badge wd-reveal' style={{ marginBottom: effectiveLockedAmount > 0 ? 12 : 20, transitionDelay: '.04s' }}>
               <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, position: 'relative', zIndex: 1 }}>
                 <div>
-                  <div style={{ fontSize: '.68rem', letterSpacing: '.18em', textTransform: 'uppercase', color: 'rgba(246,241,233,0.4)', marginBottom: 6 }}>Available for Withdrawal</div>
+                  <div style={{ fontSize: '.68rem', letterSpacing: '.18em', textTransform: 'uppercase', color: 'rgba(246,241,233,0.4)', marginBottom: 6 }}>
+                    Available for Withdrawal
+                    {pendingWithdrawalsTotal > 0 && (
+                      <span style={{ marginLeft: 8, color: 'rgba(184,147,90,0.6)', fontSize: '.6rem' }}>
+                        (${pendingWithdrawalsTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} pending)
+                      </span>
+                    )}
+                  </div>
                   <div style={{ fontFamily: "'Cormorant Garamond',serif", fontWeight: 300, fontSize: '2.2rem', background: 'linear-gradient(135deg,#f6f1e9,#d4aa72,#f6f1e9)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' }}>
                     ${effectiveWithdrawable.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                   </div>
-                  <div style={{ fontSize: '.75rem', color: 'rgba(246,241,233,0.4)', marginTop: 4 }}>USDT · BNB Smart Chain</div>
+                  <div style={{ fontSize: '.75rem', color: 'rgba(246,241,233,0.4)', marginTop: 4 }}>Profits only · Locked principal excluded</div>
                 </div>
                 <div style={{ textAlign: 'right' }}>
                   {effectiveLockedAmount > 0 ? (
@@ -402,14 +427,23 @@ export default function WithdrawPage() {
                       <rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/>
                     </svg>
                     <div style={{ fontSize: '.8rem', fontWeight: 500, color: 'var(--ink)' }}>
-                      ${effectiveLockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT is security-locked
+                      ${effectiveLockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT deposit is security-locked
                     </div>
                   </div>
-                  <div style={{ fontSize: '.72rem', color: 'var(--txt2)', lineHeight: 1.7 }}>
-                    Your recently deposited funds are locked for 60 days from approval time. You can <strong>invest these funds in seasons</strong> and earn profits. Withdrawal of locked funds will be available after the 60-day period.
+                  {/* FIX: Clear explanation of what IS withdrawable */}
+                  <div style={{ fontSize: '.72rem', color: 'var(--txt2)', lineHeight: 1.7, marginBottom: 10 }}>
+                    Your deposited principal is locked for 60 days from approval. <strong>You can only withdraw your profits</strong> (season returns + referral commissions) during this period. The locked principal becomes available after the 60-day hold.
+                  </div>
+                  <div style={{ padding: '10px 14px', background: 'rgba(74,103,65,.06)', border: '1px solid rgba(74,103,65,.18)', borderRadius: 'var(--r)', marginBottom: 10 }}>
+                    <div style={{ fontSize: '.7rem', color: 'var(--sage)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                      <span>✓ Withdrawable now (profits only):</span>
+                      <strong style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1rem' }}>
+                        ${effectiveWithdrawable.toLocaleString(undefined, { minimumFractionDigits: 2 })} USDT
+                      </strong>
+                    </div>
                   </div>
                   {lockedDeposits.filter(d => new Date(d.lockedUntil).getTime() > Date.now()).length > 0 && (
-                    <div style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
                       {lockedDeposits
                         .filter(d => new Date(d.lockedUntil).getTime() > Date.now())
                         .map(d => (
@@ -465,11 +499,16 @@ export default function WithdrawPage() {
                 <input className='wd-form-input' type='number' placeholder='Enter amount e.g. 300' min='10' value={wdAmt} onChange={e => onAmtChange(e.target.value)} />
                 <div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: 12 }}>
                   <span>Minimum: $10</span>
-                  <span>Available: <strong style={{ color: 'var(--ink)' }}>${effectiveWithdrawable.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></span>
+                  <span>Available (profits): <strong style={{ color: 'var(--sage)' }}>${effectiveWithdrawable.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></span>
                   {effectiveLockedAmount > 0 && (
                     <span style={{ color: 'rgba(155,90,58,.8)', display: 'flex', alignItems: 'center', gap: 3 }}>
                       <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                      ${effectiveLockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} locked (unlocks in {lockCountdowns[soonestLock?.id || ''] || '—'})
+                      ${effectiveLockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} locked principal (not withdrawable yet)
+                    </span>
+                  )}
+                  {pendingWithdrawalsTotal > 0 && (
+                    <span style={{ color: 'var(--gold)', display: 'flex', alignItems: 'center', gap: 3 }}>
+                      ⏳ ${pendingWithdrawalsTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} pending approval
                     </span>
                   )}
                 </div>
@@ -496,7 +535,7 @@ export default function WithdrawPage() {
               </div>
 
               <div style={{ marginBottom: 22 }}>
-                <label className='wd-form-label'>Note <span style={{ fontSize: '.7rem', color: 'var(--txt3)', textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>(optional)</span></label>
+                <label className='wd-form-label'>Note <span style={{ fontSize: '.7rem', color: 'var(--txt3)', textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>(optional — visible to admin)</span></label>
                 <textarea className='wd-form-input' placeholder='Any note for this withdrawal (e.g. reason, reference)' value={wdNote} onChange={e => setWdNote(e.target.value)} />
               </div>
 
@@ -505,18 +544,26 @@ export default function WithdrawPage() {
                 <div className='wd-detail-row'><span className='wd-detail-key'>Transaction Fee</span><span className='wd-detail-val' style={{ color: 'var(--sage)' }}>Free</span></div>
                 <div className='wd-detail-row'><span className='wd-detail-key'>You Receive</span><span className='wd-detail-val' style={{ color: 'var(--sage)', fontWeight: 600 }}>{fsRecv}</span></div>
                 {effectiveLockedAmount > 0 && (
-                  <div className='wd-detail-row' style={{ borderBottom: 'none' }}>
-                    <span className='wd-detail-key'>Locked (unavailable)</span>
+                  <div className='wd-detail-row'>
+                    <span className='wd-detail-key'>Locked principal</span>
                     <span className='wd-detail-val' style={{ color: 'rgba(155,90,58,.8)', display: 'flex', alignItems: 'center', gap: 4, fontSize: '.76rem' }}>
                       <svg width="10" height="10" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0110 0v4"/></svg>
-                      ${effectiveLockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} · available {lockCountdowns[soonestLock?.id || ''] || '—'}
+                      ${effectiveLockedAmount.toLocaleString(undefined, { minimumFractionDigits: 2 })} · unlocks in {lockCountdowns[soonestLock?.id || ''] || '—'}
+                    </span>
+                  </div>
+                )}
+                {pendingWithdrawalsTotal > 0 && (
+                  <div className='wd-detail-row' style={{ borderBottom: 'none' }}>
+                    <span className='wd-detail-key'>Pending withdrawals</span>
+                    <span className='wd-detail-val' style={{ color: 'var(--gold)', fontSize: '.76rem' }}>
+                      ${pendingWithdrawalsTotal.toLocaleString(undefined, { minimumFractionDigits: 2 })} awaiting approval
                     </span>
                   </div>
                 )}
               </div>
 
               <div className='wd-warn-box' style={{ marginBottom: 20 }}>
-                ⚠ Please double-check your wallet address. Withdrawals sent to wrong addresses cannot be recovered. Processing time is 1–24 hours after approval.
+                ⚠ Only your profits (season returns + referral commissions) are withdrawable. Locked deposit principal cannot be withdrawn during the 60-day security hold. Please double-check your wallet address before submitting.
               </div>
 
               <button
@@ -528,9 +575,14 @@ export default function WithdrawPage() {
                 <span>Request Withdrawal →</span>
               </button>
 
-              {effectiveWithdrawable < 10 && effectiveLockedAmount > 0 && (
+              {effectiveWithdrawable < 10 && effectiveLockedAmount > 0 && currentBalance > effectiveLockedAmount && (
+                <div style={{ textAlign: 'center', marginTop: 10, fontSize: '.72rem', color: 'rgba(74,103,65,.8)' }}>
+                  No profits to withdraw yet · Invest locked funds to earn returns
+                </div>
+              )}
+              {effectiveWithdrawable < 10 && effectiveLockedAmount > 0 && currentBalance <= effectiveLockedAmount && (
                 <div style={{ textAlign: 'center', marginTop: 10, fontSize: '.72rem', color: 'rgba(155,90,58,.8)' }}>
-                  Funds locked for 60 days · Available in {lockCountdowns[soonestLock?.id || ''] || '—'}
+                  Deposit locked for 60 days · Principal available in {lockCountdowns[soonestLock?.id || ''] || '—'}
                 </div>
               )}
             </div>
@@ -556,7 +608,10 @@ export default function WithdrawPage() {
                         <div style={{ fontSize: '.82rem', fontWeight: 500, color: 'var(--ink)', display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           {d.id} <span className={`wd-tag wd-tag-${d.status}`}>{d.status}</span>
                         </div>
-                        <div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 2 }}>{d.date} · {d.wallet}</div>
+                        <div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 2 }}>
+                          {d.date} · {d.wallet}
+                          {d.note && <span style={{ marginLeft: 6, color: 'var(--gold)', fontStyle: 'italic' }}>· "{d.note}"</span>}
+                        </div>
                       </div>
                     </div>
                     <div style={{ textAlign: 'right', flexShrink: 0 }}>
@@ -627,10 +682,17 @@ export default function WithdrawPage() {
                 <div className='wd-detail-row'><span className='wd-detail-key'>Transaction Fee</span><span className='wd-detail-val' style={{ color: 'var(--sage)' }}>Free</span></div>
                 <div className='wd-detail-row'><span className='wd-detail-key'>Amount to Receive</span><span className='wd-detail-val' style={{ color: 'var(--sage)' }}>{modalEntry.amount} USDT</span></div>
                 <div className='wd-detail-row'><span className='wd-detail-key'>Network</span><span className='wd-detail-val'>{modalEntry.network}</span></div>
-                <div className='wd-detail-row' style={{ borderBottom: 'none' }}>
+                <div className='wd-detail-row' style={modalEntry.note ? {} : { borderBottom: 'none' }}>
                   <span className='wd-detail-key'>Wallet</span>
                   <span className='wd-detail-val' style={{ fontSize: '.76rem', wordBreak: 'break-all', maxWidth: 180, textAlign: 'right' }}>{modalEntry.wallet}</span>
                 </div>
+                {/* FIX: Display note in user's detail modal */}
+                {modalEntry.note && (
+                  <div className='wd-detail-row' style={{ borderBottom: 'none' }}>
+                    <span className='wd-detail-key'>Note</span>
+                    <span className='wd-detail-val' style={{ fontSize: '.78rem', maxWidth: 200, textAlign: 'right', fontStyle: 'italic' }}>{modalEntry.note}</span>
+                  </div>
+                )}
               </div>
               {modalEntry.status === 'rejected' && modalEntry.reason && (
                 <div style={{ padding: '14px 16px', background: 'rgba(180,50,50,0.05)', border: '1px solid rgba(180,50,50,0.2)', borderRadius: 'var(--r)' }}>

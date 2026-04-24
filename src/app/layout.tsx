@@ -5,20 +5,23 @@ import './logo-vx-override.css';   // ← ADD THIS: applies Compact·Light VX lo
 import StyledJsxRegistry from '@/components/StyledJsxRegistry';
 
 export const metadata: Metadata = {
-  title: 'VaultX — Premium Investment Platform',
+  title: 'VaultX — Investment Platform',
   description:
     'VaultX runs structured investment seasons with defined entry periods, transparent ROI targets, and no hidden fees.',
 
-  // ── Favicon / Icon Mark ──────────────────────────────────────────────────
+  verification: {
+    google: "google3a0401f11912ee2b",
+  },
+
   icons: {
     icon: [
       {
-        url: '/favicon.svg',         // SVG favicon → shows VX mark in browser tab
+        url: '/favicon.svg',
         type: 'image/svg+xml',
       },
     ],
     shortcut: '/favicon.svg',
-    apple: '/favicon.svg',           // iOS home-screen icon (use a 180×180 PNG for best results)
+    apple: '/favicon.svg',
   },
 };
 

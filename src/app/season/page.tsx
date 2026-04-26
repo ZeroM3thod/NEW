@@ -495,6 +495,8 @@ export default function SeasonPage() {
   const myProfits       = Number(userProfile?.profits_total)  || 0
   const availableBalance = Number(userProfile?.balance) || 0
 
+  const isPending = (userProfile?.status || 'active').toLowerCase() === 'pending'
+
   const modalPoolPct = currentSeason && currentSeason.pool > 0
     ? Math.min(100, (currentSeason.poolFilled / currentSeason.pool) * 100)
     : 0
@@ -647,9 +649,15 @@ export default function SeasonPage() {
                           ⏸ Season Paused · Entries Suspended
                         </div>
                       ) : isOpen && !isFull ? (
-                        <button className='sx-btn-sage' style={{width:'100%',textAlign:'center'}} onClick={() => openInvest(s.id)}>
-                          Invest Now →
-                        </button>
+                        isPending ? (
+                          <div style={{textAlign:'center',fontSize:'.75rem',color:'var(--gold)',fontWeight:500,padding:'4px 0'}}>
+                            ⏳ Account Pending · Investment Disabled
+                          </div>
+                        ) : (
+                          <button className='sx-btn-sage' style={{width:'100%',textAlign:'center'}} onClick={() => openInvest(s.id)}>
+                            Invest Now →
+                          </button>
+                        )
                       ) : isOpen && isFull ? (
                         <div style={{textAlign:'center',fontSize:'.75rem',color:'#9b3a3a',fontWeight:500,padding:'4px 0'}}>Pool Full</div>
                       ) : isRunning ? (
@@ -719,9 +727,13 @@ export default function SeasonPage() {
                       </td>
                       <td>
                         {r.dbStatus==='open' && !r.mySeasonId && !r.isEntryExpired ? (
-                          <button className='sx-btn-sage' style={{fontSize:'.7rem',padding:'7px 14px',whiteSpace:'nowrap'}} onClick={() => openInvest(r.id)}>
-                            Invest Now
-                          </button>
+                          isPending ? (
+                            <span style={{fontSize:'.72rem',color:'var(--gold)'}}>Account Pending</span>
+                          ) : (
+                            <button className='sx-btn-sage' style={{fontSize:'.7rem',padding:'7px 14px',whiteSpace:'nowrap'}} onClick={() => openInvest(r.id)}>
+                              Invest Now
+                            </button>
+                          )
                         ) : r.dbStatus==='running' || (r.dbStatus==='open' && r.isEntryExpired) ? (
                           <span style={{fontSize:'.72rem',color:'var(--gold)'}}>Entry Closed</span>
                         ) : r.dbStatus==='paused' ? (
@@ -780,9 +792,15 @@ export default function SeasonPage() {
                   </div>
                   {r.dbStatus==='open' && !r.mySeasonId && !r.isEntryExpired && (
                     <div style={{paddingTop:12,borderTop:'1px solid var(--border)'}}>
-                      <button className='sx-btn-sage' style={{width:'100%',textAlign:'center',fontSize:'.72rem',padding:'10px'}} onClick={() => openInvest(r.id)}>
-                        Invest Now →
-                      </button>
+                      {isPending ? (
+                        <div style={{textAlign:'center',fontSize:'.72rem',color:'var(--gold)',padding:'6px 0',fontWeight:500}}>
+                          ⏳ Account Pending · Investment Disabled
+                        </div>
+                      ) : (
+                        <button className='sx-btn-sage' style={{width:'100%',textAlign:'center',fontSize:'.72rem',padding:'10px'}} onClick={() => openInvest(r.id)}>
+                          Invest Now →
+                        </button>
+                      )}
                     </div>
                   )}
                 </div>
@@ -805,6 +823,12 @@ export default function SeasonPage() {
 
           {modalState === 'form' && currentSeason && (
             <>
+              {isPending && (
+                <div style={{marginBottom:16,padding:'12px 14px',background:'rgba(184,147,90,.06)',border:'1px solid rgba(184,147,90,.25)',borderRadius:6,fontSize:'.75rem',color:'var(--gold)',lineHeight:1.7}}>
+                  ⏳ Your account is pending review. You cannot invest until an admin activates your account.
+                </div>
+              )}
+
               {/* Season badge */}
               <div className='sx-modal-season-badge'>
                 <div>
@@ -915,9 +939,9 @@ export default function SeasonPage() {
               <div style={{display:'flex',gap:10,flexWrap:'wrap'}}>
                 <button
                   className='sx-btn-ink'
-                  style={{flex:1,minWidth:130,textAlign:'center',opacity: (amountError || !amountVal || submitting) ? 0.55 : 1}}
+                  style={{flex:1,minWidth:130,textAlign:'center',opacity: (amountError || !amountVal || submitting || isPending) ? 0.55 : 1}}
                   onClick={confirmInvest}
-                  disabled={!!amountError || !amountVal || submitting}
+                  disabled={!!amountError || !amountVal || submitting || isPending}
                 >
                   {submitting ? 'Processing…' : 'Confirm Investment'}
                 </button>

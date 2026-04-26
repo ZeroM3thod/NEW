@@ -272,6 +272,8 @@ export default function WithdrawPage() {
   // The true withdrawable amount: balance minus still-locked deposits minus pending withdrawal requests
   const effectiveWithdrawable = Math.max(0, currentBalance - effectiveLockedAmount - pendingWithdrawalsTotal)
 
+  const isPending = (userProfile?.status || 'active').toLowerCase() === 'pending'
+
   const onAmtChange = (v: string) => {
     setWdAmt(v)
     const amt = parseFloat(v) || 0
@@ -376,6 +378,29 @@ export default function WithdrawPage() {
                 Request a <em style={{ fontStyle: 'italic', color: 'var(--gold)' }}>Withdrawal</em>
               </h1>
             </div>
+
+            {/* PENDING STATUS BANNER */}
+            {isPending && (
+              <div className='wd-reveal' style={{ marginBottom: 16 }}>
+                <div style={{
+                  background: 'rgba(184,147,90,.08)', border: '1px solid rgba(184,147,90,.3)',
+                  borderRadius: 'var(--r-lg)', padding: '14px 18px',
+                  display: 'flex', alignItems: 'center', gap: 10,
+                }}>
+                  <svg width="16" height="16" fill="none" stroke="var(--gold)" strokeWidth="2" viewBox="0 0 24 24" style={{ flexShrink: 0 }}>
+                    <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                  </svg>
+                  <div>
+                    <div style={{ fontSize: '.8rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 2 }}>
+                      Account Pending — Withdrawals Restricted
+                    </div>
+                    <div style={{ fontSize: '.7rem', color: 'var(--txt2)' }}>
+                      Your account is under review. Withdrawals are disabled until an admin activates your account. Please contact support.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* BALANCE BADGE */}
             <div className='wd-bal-badge wd-reveal' style={{ marginBottom: effectiveLockedAmount > 0 ? 12 : 20, transitionDelay: '.04s' }}>
@@ -568,11 +593,11 @@ export default function WithdrawPage() {
 
               <button
                 className='wd-btn wd-btn-dark'
-                style={{ width: '100%', opacity: effectiveWithdrawable < 10 ? 0.55 : 1 }}
+                style={{ width: '100%', opacity: (effectiveWithdrawable < 10 || isPending) ? 0.55 : 1 }}
                 onClick={openConfirm}
-                disabled={effectiveWithdrawable < 10}
+                disabled={effectiveWithdrawable < 10 || isPending}
               >
-                <span>Request Withdrawal →</span>
+                <span>{isPending ? 'Account Pending — Withdrawals Disabled' : 'Request Withdrawal →'}</span>
               </button>
 
               {effectiveWithdrawable < 10 && effectiveLockedAmount > 0 && currentBalance > effectiveLockedAmount && (

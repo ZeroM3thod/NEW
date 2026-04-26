@@ -1,0 +1,1145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>ValutX — Partner Program</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+
+<style>
+/* ═══════════════════════════════════
+   ROOT — Quiet Luxury Palette
+═══════════════════════════════════ */
+:root {
+  --ink:       #1c1c1c;
+  --cream:     #f6f1e9;
+  --parchment: #ede7da;
+  --gold:      #b8935a;
+  --gold-l:    #d4aa72;
+  --gold-d:    #9a7a47;
+  --sage:      #4a6741;
+  --sage-l:    #6a8c60;
+  --charcoal:  #2e2e2e;
+  --surface:   #faf7f2;
+  --border:    rgba(184,147,90,0.18);
+  --border-h:  rgba(184,147,90,0.35);
+  --text-sec:  #6b6459;
+  --error:     #9b3a3a;
+  --radius:    6px;
+}
+
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth;height:100%}
+body{
+  font-family:'DM Sans',sans-serif;
+  background:var(--cream);
+  color:var(--ink);
+  min-height:100vh;
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:4px;height:4px}
+::-webkit-scrollbar-track{background:var(--parchment)}
+::-webkit-scrollbar-thumb{background:var(--gold);border-radius:10px}
+
+/* Grain */
+body::before{
+  content:'';position:fixed;inset:0;z-index:1;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.018'/%3E%3C/svg%3E");
+  opacity:.35;
+}
+
+/* BG Canvas */
+#bg-canvas{
+  position:fixed;inset:0;width:100%;height:100%;
+  pointer-events:none;z-index:0;opacity:.04;
+}
+
+/* ═══════════════════════════════════
+   LAYOUT
+═══════════════════════════════════ */
+.page-wrap{
+  min-height:100vh;
+  position:relative;z-index:2;
+  display:flex;flex-direction:column;
+}
+
+/* ═══════════════════════════════════
+   TOP STRIP (back button only)
+═══════════════════════════════════ */
+.top-strip{
+  position:sticky;top:0;z-index:300;
+  background:rgba(246,241,233,0.95);
+  backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);
+  border-bottom:1px solid var(--border);
+  padding:0 20px;height:54px;
+  display:flex;align-items:center;gap:12px;
+  flex-shrink:0;
+}
+.back-pill{
+  display:flex;align-items:center;gap:6px;
+  background:rgba(184,147,90,.08);
+  border:1px solid var(--border);border-radius:100px;
+  padding:6px 14px 6px 10px;
+  font-size:.7rem;letter-spacing:.08em;text-transform:uppercase;
+  color:var(--charcoal);cursor:pointer;text-decoration:none;
+  transition:all .22s;white-space:nowrap;flex-shrink:0;
+}
+.back-pill svg{width:13px;height:13px;stroke:var(--gold);stroke-width:2;fill:none}
+.back-pill:hover{border-color:var(--gold);color:var(--gold)}
+
+/* Logo in strip */
+.strip-logo{
+  display:flex;align-items:center;gap:8px;margin-left:auto;
+}
+.strip-logo-mark{
+  width:26px;height:26px;background:var(--ink);
+  border-radius:var(--radius);
+  display:flex;align-items:center;justify-content:center;
+  position:relative;overflow:hidden;flex-shrink:0;
+}
+.strip-logo-mark::after{
+  content:'';position:absolute;bottom:4px;left:50%;
+  transform:translateX(-50%);width:11px;height:1.5px;
+  background:var(--gold);border-radius:2px;
+  box-shadow:0 -3px 0 var(--gold-l),0 -6px 0 var(--cream);
+}
+.strip-logo-text{
+  font-family:'Cormorant Garamond',serif;
+  font-size:1.05rem;font-weight:600;
+  color:var(--ink);letter-spacing:.04em;
+}
+.strip-logo-text span{color:var(--gold)}
+
+/* ═══════════════════════════════════
+   CONTENT
+═══════════════════════════════════ */
+.content{
+  flex:1;
+  padding:28px 20px 56px;
+  max-width:1280px;
+  width:100%;
+  margin:0 auto;
+}
+@media(min-width:640px){.content{padding:32px 28px 64px}}
+@media(min-width:1024px){.content{padding:36px 40px 72px}}
+
+/* ═══════════════════════════════════
+   SECTION LABELS & TITLES
+═══════════════════════════════════ */
+.sec-label{
+  font-size:.67rem;letter-spacing:.2em;text-transform:uppercase;
+  color:var(--gold);display:block;margin-bottom:6px;
+}
+.sec-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:clamp(1.5rem,4vw,2.2rem);font-weight:400;line-height:1.15;color:var(--ink);
+}
+.sec-sub{font-size:.8rem;color:var(--text-sec);font-weight:300;margin-top:4px}
+
+/* ═══════════════════════════════════
+   REFERRAL LINK CARD
+═══════════════════════════════════ */
+.ref-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:12px;padding:24px 22px;
+  position:relative;overflow:hidden;
+  margin-bottom:20px;
+}
+.ref-card::before{
+  content:'';position:absolute;
+  inset:0;background:linear-gradient(135deg,rgba(184,147,90,.04) 0%,transparent 60%);
+  pointer-events:none;
+}
+.ref-card::after{
+  content:'';position:absolute;
+  width:220px;height:220px;border-radius:50%;
+  background:radial-gradient(circle,rgba(184,147,90,.06) 0%,transparent 70%);
+  top:-60px;right:-40px;pointer-events:none;
+}
+
+.ref-grid{
+  display:grid;gap:16px;
+  grid-template-columns:1fr;
+}
+@media(min-width:760px){
+  .ref-grid{grid-template-columns:1fr 1fr}
+}
+
+.ref-field-label{
+  font-size:.62rem;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--text-sec);margin-bottom:7px;
+}
+.ref-field-box{
+  display:flex;align-items:center;gap:0;
+  background:var(--cream);border:1px solid var(--border);
+  border-radius:var(--radius);overflow:hidden;
+}
+.ref-field-val{
+  flex:1;padding:10px 14px;
+  font-family:'DM Sans',sans-serif;font-size:.82rem;
+  color:var(--ink);background:transparent;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  user-select:all;cursor:text;letter-spacing:.02em;
+}
+.ref-field-val.mono{
+  font-family:'Courier New',monospace;font-size:.88rem;
+  color:var(--gold-d);font-weight:600;letter-spacing:.06em;
+}
+.btn-copy{
+  flex-shrink:0;
+  padding:10px 16px;
+  background:var(--ink);color:var(--cream);
+  font-family:'DM Sans',sans-serif;font-size:.67rem;
+  letter-spacing:.1em;text-transform:uppercase;
+  border:none;cursor:pointer;
+  transition:all .22s;white-space:nowrap;
+}
+.btn-copy:hover{background:var(--gold)}
+.btn-copy.copied{background:var(--sage);color:#fff}
+
+/* QR placeholder */
+.qr-box{
+  width:90px;height:90px;flex-shrink:0;
+  border:1px solid var(--border);border-radius:8px;
+  background:var(--cream);
+  display:flex;align-items:center;justify-content:center;
+  padding:10px;
+}
+.qr-inner{
+  width:100%;height:100%;
+  background:
+    repeating-linear-gradient(0deg,var(--ink) 0,var(--ink) 2px,transparent 2px,transparent 4px),
+    repeating-linear-gradient(90deg,var(--ink) 0,var(--ink) 2px,transparent 2px,transparent 4px);
+  opacity:.18;border-radius:3px;
+}
+
+/* Commission rate badge */
+.commission-badge{
+  display:inline-flex;align-items:center;gap:7px;
+  background:rgba(184,147,90,.1);
+  border:1px solid rgba(184,147,90,.25);
+  border-radius:100px;padding:6px 14px;
+  font-size:.72rem;letter-spacing:.06em;
+  color:var(--gold-d);margin-top:14px;
+}
+.commission-badge .dot{
+  width:7px;height:7px;border-radius:50%;
+  background:var(--gold);animation:blink 1.8s ease-in-out infinite;
+}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+
+/* ═══════════════════════════════════
+   STAT CARDS
+═══════════════════════════════════ */
+.stats-grid{
+  display:grid;gap:12px;
+  grid-template-columns:repeat(2,1fr);
+  margin-bottom:20px;
+}
+@media(min-width:900px){.stats-grid{grid-template-columns:repeat(4,1fr)}}
+
+.stat-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:18px 16px;
+  position:relative;overflow:hidden;
+  transition:all .3s;
+}
+.stat-card::before{
+  content:'';position:absolute;top:0;left:0;
+  width:2px;height:0;background:var(--gold);transition:height .4s;
+}
+.stat-card:hover{
+  border-color:rgba(184,147,90,.3);
+  box-shadow:0 6px 24px rgba(184,147,90,.07);
+  transform:translateY(-1px);
+}
+.stat-card:hover::before{height:100%}
+.stat-card::after{
+  content:'';position:absolute;
+  width:100px;height:100px;border-radius:50%;
+  background:radial-gradient(circle,rgba(184,147,90,.05) 0%,transparent 70%);
+  top:-30px;right:-20px;pointer-events:none;
+}
+.stat-icon{
+  width:32px;height:32px;border-radius:8px;
+  display:flex;align-items:center;justify-content:center;
+  margin-bottom:12px;flex-shrink:0;
+}
+.stat-icon svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.8}
+.stat-val{
+  font-family:'Cormorant Garamond',serif;
+  font-size:1.6rem;font-weight:400;color:var(--ink);line-height:1;margin-bottom:5px;
+}
+.stat-lbl{font-size:.62rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-sec)}
+.stat-change{
+  font-size:.68rem;margin-top:6px;
+  display:flex;align-items:center;gap:3px;
+}
+.ch-up{color:var(--sage)}
+.ch-dn{color:#9b3a3a}
+.ch-neu{color:var(--text-sec)}
+
+/* ═══════════════════════════════════
+   TABLE CARD
+═══════════════════════════════════ */
+.table-card{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;overflow:hidden;
+}
+.table-head{
+  padding:18px 20px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  flex-wrap:wrap;gap:10px;
+}
+.table-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:1.1rem;font-weight:400;color:var(--ink);
+}
+.table-sub{font-size:.7rem;color:var(--text-sec);margin-top:2px}
+
+.tbl-wrap{overflow-x:auto}
+.tbl-wrap::-webkit-scrollbar{height:3px}
+.tbl-wrap::-webkit-scrollbar-thumb{background:var(--gold)}
+
+table.dtbl{width:100%;border-collapse:collapse;font-size:.78rem;min-width:900px}
+.dtbl thead{position:sticky;top:0;z-index:1}
+.dtbl th{
+  padding:10px 14px;background:var(--parchment);
+  color:var(--text-sec);font-size:.6rem;letter-spacing:.12em;
+  text-transform:uppercase;font-weight:400;
+  border-bottom:1px solid var(--border);text-align:left;white-space:nowrap;
+}
+.dtbl td{
+  padding:12px 14px;border-bottom:1px solid rgba(184,147,90,.07);
+  color:var(--ink);vertical-align:middle;
+}
+.dtbl tbody tr:last-child td{border-bottom:none}
+.dtbl tbody tr:hover td{background:rgba(184,147,90,.025);cursor:pointer}
+.dtbl tbody tr.filtered-hidden{display:none}
+
+.td-user{display:flex;align-items:center;gap:9px}
+.td-av{
+  width:28px;height:28px;border-radius:50%;
+  background:var(--parchment);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  font-family:'Cormorant Garamond',serif;
+  font-size:.7rem;font-weight:600;color:var(--gold);flex-shrink:0;
+}
+.td-name{font-weight:500;color:var(--ink);font-size:.8rem}
+.td-sub{font-size:.66rem;color:var(--text-sec)}
+
+.badge{
+  display:inline-block;padding:3px 9px;border-radius:100px;
+  font-size:.58rem;letter-spacing:.08em;text-transform:uppercase;
+  white-space:nowrap;
+}
+.b-active  {background:rgba(74,103,65,.1); color:var(--sage);   border:1px solid rgba(74,103,65,.2)}
+.b-pending {background:rgba(184,147,90,.1);color:var(--gold);   border:1px solid var(--border)}
+.b-suspended{background:rgba(155,58,58,.08);color:#9b3a3a;      border:1px solid rgba(155,58,58,.18)}
+.b-verified{background:rgba(74,103,65,.1); color:var(--sage);   border:1px solid rgba(74,103,65,.2)}
+.b-unverified{background:rgba(184,147,90,.08);color:var(--gold-d);border:1px solid var(--border)}
+
+/* ═══════════════════════════════════
+   SEARCH & FILTER TOOLBAR
+═══════════════════════════════════ */
+.toolbar{
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  padding:14px 20px;border-bottom:1px solid var(--border);
+}
+.search-wrap{
+  flex:1;min-width:160px;max-width:300px;position:relative;
+}
+.search-input{
+  width:100%;padding:8px 12px 8px 32px;
+  background:var(--cream);border:1px solid var(--border);
+  border-radius:100px;
+  font-family:'DM Sans',sans-serif;font-size:.8rem;color:var(--ink);
+  outline:none;transition:border-color .2s;
+}
+.search-input:focus{border-color:var(--gold)}
+.search-input::placeholder{color:#c0b8ae}
+.search-icon{
+  position:absolute;left:10px;top:50%;transform:translateY(-50%);
+  pointer-events:none;
+}
+.search-icon svg{width:13px;height:13px;stroke:var(--text-sec);fill:none;stroke-width:1.8}
+
+.filter-btns{display:flex;gap:0;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden;flex-wrap:nowrap}
+.filter-btn{
+  padding:7px 12px;background:var(--cream);color:var(--text-sec);
+  font-family:'DM Sans',sans-serif;font-size:.67rem;letter-spacing:.07em;text-transform:uppercase;
+  cursor:pointer;transition:all .2s;border:none;border-right:1px solid var(--border);
+  white-space:nowrap;
+}
+.filter-btn:last-child{border-right:none}
+.filter-btn:hover{color:var(--gold)}
+.filter-btn.active{background:var(--ink);color:var(--cream)}
+
+.tbl-count{
+  font-size:.68rem;color:var(--text-sec);
+  margin-left:auto;white-space:nowrap;
+}
+
+/* ═══════════════════════════════════
+   TOAST
+═══════════════════════════════════ */
+#toast{
+  position:fixed;top:20px;left:50%;
+  transform:translateX(-50%) translateY(-90px);
+  background:rgba(28,28,28,.97);
+  border:1px solid rgba(184,147,90,.3);border-radius:10px;
+  padding:11px 24px;z-index:9000;color:var(--gold);
+  font-size:.75rem;letter-spacing:.06em;
+  box-shadow:0 8px 28px rgba(0,0,0,.15);
+  transition:transform .4s cubic-bezier(.16,1,.3,1);
+  white-space:nowrap;pointer-events:none;
+}
+#toast.show{transform:translateX(-50%) translateY(0)}
+#toast.ok {border-color:rgba(74,103,65,.4);color:var(--sage-l)}
+#toast.err{border-color:rgba(155,58,58,.4);color:#c97070}
+
+/* ═══════════════════════════════════
+   MODAL
+═══════════════════════════════════ */
+.modal-overlay{
+  display:none;position:fixed;inset:0;z-index:8000;
+  background:rgba(28,28,28,.5);
+  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+  padding:20px;
+  align-items:center;justify-content:center;
+}
+.modal-overlay.open{display:flex}
+.modal-box{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:14px;
+  width:100%;max-width:680px;max-height:90vh;
+  overflow-y:auto;
+  position:relative;
+  animation:modalIn .3s cubic-bezier(.16,1,.3,1);
+}
+@keyframes modalIn{from{opacity:0;transform:scale(.96) translateY(10px)}to{opacity:1;transform:none}}
+.modal-header{
+  padding:20px 22px;border-bottom:1px solid var(--border);
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;position:sticky;top:0;background:var(--surface);z-index:2;
+}
+.modal-title{
+  font-family:'Cormorant Garamond',serif;
+  font-size:1.25rem;font-weight:400;color:var(--ink);
+}
+.modal-close{
+  width:32px;height:32px;border-radius:50%;
+  background:rgba(184,147,90,.08);border:1px solid var(--border);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;flex-shrink:0;transition:all .2s;
+}
+.modal-close:hover{background:rgba(155,58,58,.1);border-color:rgba(155,58,58,.2)}
+.modal-close svg{width:14px;height:14px;stroke:var(--charcoal);fill:none;stroke-width:2}
+.modal-body{padding:20px 22px}
+
+.info-grid{
+  display:grid;gap:12px;
+  grid-template-columns:repeat(2,1fr);
+  margin-bottom:20px;
+}
+@media(min-width:480px){.info-grid{grid-template-columns:repeat(3,1fr)}}
+
+.info-cell{
+  background:var(--cream);border:1px solid var(--border);
+  border-radius:8px;padding:12px 14px;
+}
+.info-lbl{font-size:.6rem;letter-spacing:.12em;text-transform:uppercase;color:var(--text-sec);margin-bottom:4px}
+.info-val{font-size:.85rem;font-weight:500;color:var(--ink);line-height:1.3}
+
+.seasons-list{display:flex;flex-direction:column;gap:8px}
+.season-row{
+  background:var(--cream);border:1px solid var(--border);
+  border-radius:8px;padding:13px 15px;
+  display:flex;align-items:center;justify-content:space-between;
+  gap:10px;flex-wrap:wrap;
+  transition:border-color .2s;
+}
+.season-row:hover{border-color:rgba(184,147,90,.3)}
+.season-name{
+  font-family:'Cormorant Garamond',serif;
+  font-size:1rem;font-weight:500;color:var(--ink);
+}
+.season-period{font-size:.66rem;color:var(--text-sec);margin-top:2px}
+.season-deposit{
+  font-family:'Cormorant Garamond',serif;
+  font-size:1rem;color:var(--ink);text-align:right;
+}
+.season-pnl{font-size:.7rem;font-weight:500;margin-top:2px;text-align:right}
+.season-pnl.profit{color:var(--sage)}
+.season-pnl.loss{color:#9b3a3a}
+
+/* ═══════════════════════════════════
+   REVEAL ANIM
+═══════════════════════════════════ */
+.reveal{opacity:0;transform:translateY(16px);transition:opacity .5s ease,transform .5s ease}
+.reveal.vis{opacity:1;transform:none}
+
+/* Divider */
+.divider{height:1px;background:var(--border);margin:24px 0}
+
+/* Live dot */
+.live-dot{
+  width:7px;height:7px;border-radius:50%;background:var(--sage);
+  display:inline-block;margin-right:4px;
+  animation:blink 1.8s ease-in-out infinite;
+}
+
+/* Empty state */
+.empty-state{
+  text-align:center;padding:48px 20px;
+  color:var(--text-sec);font-size:.82rem;
+}
+.empty-icon{
+  width:40px;height:40px;margin:0 auto 12px;
+  opacity:.3;
+}
+</style>
+</head>
+<body>
+
+<!-- BG Canvas -->
+<canvas id="bg-canvas"></canvas>
+<!-- Toast -->
+<div id="toast"></div>
+
+<!-- ═════════════════════════
+     PAGE WRAP
+═════════════════════════ -->
+<div class="page-wrap">
+
+  <!-- TOP STRIP (back only) -->
+  <div class="top-strip">
+    <a class="back-pill" href="javascript:history.back()">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </a>
+    <div class="strip-logo">
+      <div class="strip-logo-mark"></div>
+      <div class="strip-logo-text">Valut<span>X</span></div>
+    </div>
+  </div>
+
+  <!-- CONTENT -->
+  <div class="content">
+
+    <!-- ── PAGE HEADER ── -->
+    <div class="reveal" style="margin-bottom:26px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px">
+      <div>
+        <span class="sec-label">Partner Program · SeasonRise Platform</span>
+        <h1 class="sec-title">Referral Dashboard</h1>
+        <p class="sec-sub"><span class="live-dot"></span>Your referral network is active · Earning 8% commission</p>
+      </div>
+      <div style="align-self:flex-end">
+        <div class="commission-badge">
+          <span class="dot"></span>
+          8% Commission Rate — Active
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ── REFERRAL LINK CARD ── -->
+    <div class="ref-card reveal" style="transition-delay:.04s;margin-bottom:20px">
+
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:18px">
+        <div>
+          <div class="sec-label" style="margin-bottom:2px">Your Partner Links</div>
+          <div style="font-family:'Cormorant Garamond',serif;font-size:1.1rem;font-weight:400;color:var(--ink)">Share & Earn</div>
+          <div style="font-size:.75rem;color:var(--text-sec);margin-top:3px">Every user who joins through your link earns you 8% of their total deposits.</div>
+        </div>
+        <div class="qr-box">
+          <div class="qr-inner"></div>
+        </div>
+      </div>
+
+      <div class="ref-grid">
+        <!-- Referral Code -->
+        <div>
+          <div class="ref-field-label">Referral Code</div>
+          <div class="ref-field-box">
+            <div class="ref-field-val mono" id="ref-code-val">VLX-A7K2-PRO</div>
+            <button class="btn-copy" id="btn-copy-code" onclick="copyText('ref-code-val','btn-copy-code','Referral code copied!')">Copy Code</button>
+          </div>
+        </div>
+        <!-- Referral Link -->
+        <div>
+          <div class="ref-field-label">Referral Link</div>
+          <div class="ref-field-box">
+            <div class="ref-field-val" id="ref-link-val" style="font-size:.72rem;color:var(--text-sec)">https://valutx.io/join?ref=VLX-A7K2-PRO</div>
+            <button class="btn-copy" id="btn-copy-link" onclick="copyText('ref-link-val','btn-copy-link','Referral link copied!')">Copy Link</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Share tips -->
+      <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap">
+        <span style="font-size:.67rem;color:var(--text-sec);letter-spacing:.04em">Share via:</span>
+        <button class="btn-share" onclick="shareLink('whatsapp')" style="font-size:.67rem;color:var(--gold);background:none;border:none;cursor:pointer;letter-spacing:.04em;padding:0;text-decoration:underline;text-underline-offset:2px">WhatsApp</button>
+        <button class="btn-share" onclick="shareLink('telegram')" style="font-size:.67rem;color:var(--gold);background:none;border:none;cursor:pointer;letter-spacing:.04em;padding:0;text-decoration:underline;text-underline-offset:2px">Telegram</button>
+        <button class="btn-share" onclick="shareLink('email')" style="font-size:.67rem;color:var(--gold);background:none;border:none;cursor:pointer;letter-spacing:.04em;padding:0;text-decoration:underline;text-underline-offset:2px">Email</button>
+        <button class="btn-share" onclick="shareLink('twitter')" style="font-size:.67rem;color:var(--gold);background:none;border:none;cursor:pointer;letter-spacing:.04em;padding:0;text-decoration:underline;text-underline-offset:2px">X / Twitter</button>
+      </div>
+
+    </div>
+
+
+    <!-- ── PERFORMANCE OVERVIEW CARDS ── -->
+    <div class="stats-grid reveal" style="transition-delay:.08s">
+
+      <!-- Total Turnover -->
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(184,147,90,.08)">
+          <svg viewBox="0 0 24 24" style="stroke:var(--gold)"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+        </div>
+        <div class="stat-val" id="stat-turnover">$0</div>
+        <div class="stat-lbl">Total Turnover</div>
+        <div class="stat-change ch-neu">Sum of all referred deposits</div>
+      </div>
+
+      <!-- Total Commission -->
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(74,103,65,.08)">
+          <svg viewBox="0 0 24 24" style="stroke:var(--sage)"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+        </div>
+        <div class="stat-val" id="stat-commission" style="color:var(--sage)">$0</div>
+        <div class="stat-lbl">Total Commission (8%)</div>
+        <div class="stat-change ch-up">↑ Lifetime earnings</div>
+      </div>
+
+      <!-- Total Referred -->
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(28,28,28,.06)">
+          <svg viewBox="0 0 24 24" style="stroke:var(--charcoal)"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+        </div>
+        <div class="stat-val" id="stat-total-users">0</div>
+        <div class="stat-lbl">Total Referred Users</div>
+        <div class="stat-change ch-neu">All time referrals</div>
+      </div>
+
+      <!-- Active Referred -->
+      <div class="stat-card">
+        <div class="stat-icon" style="background:rgba(74,103,65,.08)">
+          <svg viewBox="0 0 24 24" style="stroke:var(--sage)"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </div>
+        <div class="stat-val" id="stat-active-users">0</div>
+        <div class="stat-lbl">Active Referred Users</div>
+        <div class="stat-change ch-up">Currently investing</div>
+      </div>
+
+    </div>
+
+
+    <!-- ── REFERRED USERS TABLE ── -->
+    <div class="table-card reveal" style="transition-delay:.12s">
+
+      <div class="table-head">
+        <div>
+          <div class="table-title">Referred Users</div>
+          <div class="table-sub" id="tbl-sub-label">Loading…</div>
+        </div>
+      </div>
+
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <div class="search-wrap">
+          <div class="search-icon">
+            <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </div>
+          <input class="search-input" type="text" id="search-input"
+            placeholder="Search users…" oninput="applyFilters()">
+        </div>
+        <div class="filter-btns" id="filter-btns">
+          <button class="filter-btn active" data-filter="all" onclick="setFilter(this)">All</button>
+          <button class="filter-btn" data-filter="active" onclick="setFilter(this)">Active</button>
+          <button class="filter-btn" data-filter="suspended" onclick="setFilter(this)">Suspended</button>
+          <button class="filter-btn" data-filter="verified" onclick="setFilter(this)">Verified</button>
+          <button class="filter-btn" data-filter="unverified" onclick="setFilter(this)">Unverified</button>
+        </div>
+        <div class="tbl-count" id="tbl-count"></div>
+      </div>
+
+      <!-- Table -->
+      <div class="tbl-wrap">
+        <table class="dtbl">
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Username</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>KYC</th>
+              <th>Status</th>
+              <th>Total Deposit</th>
+              <th>Commission (8%)</th>
+              <th>Joined</th>
+              <th>Activities</th>
+            </tr>
+          </thead>
+          <tbody id="ref-tbody"></tbody>
+        </table>
+        <div class="empty-state" id="empty-state" style="display:none">
+          <svg class="empty-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>
+          <div>No referred users match your search or filter.</div>
+        </div>
+      </div>
+
+    </div>
+
+  </div><!-- /content -->
+</div><!-- /page-wrap -->
+
+
+<!-- ═══════════════════════════════
+     DETAIL MODAL
+═══════════════════════════════ -->
+<div class="modal-overlay" id="modal-overlay" onclick="closeModalOnOverlay(event)">
+  <div class="modal-box" id="modal-box">
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="modal-user-name">User Details</div>
+        <div style="font-size:.7rem;color:var(--text-sec);margin-top:2px" id="modal-user-sub"></div>
+      </div>
+      <div class="modal-close" onclick="closeModal()">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </div>
+    </div>
+    <div class="modal-body" id="modal-body"></div>
+  </div>
+</div>
+
+
+<script>
+/* ─── BACKGROUND CANVAS ────────────────────────────── */
+(function(){
+  const c = document.getElementById('bg-canvas');
+  const ctx = c.getContext('2d');
+  function resize(){c.width=window.innerWidth;c.height=window.innerHeight}
+  resize();
+  window.addEventListener('resize',resize);
+  const pts = Array.from({length:28},()=>({
+    x:Math.random()*window.innerWidth,
+    y:Math.random()*window.innerHeight,
+    r:Math.random()*140+40,
+    a:Math.random()*Math.PI*2,
+    s:Math.random()*.0003+.0001
+  }));
+  function draw(){
+    ctx.clearRect(0,0,c.width,c.height);
+    pts.forEach(p=>{
+      p.a+=p.s;
+      const grd=ctx.createRadialGradient(p.x,p.y,0,p.x,p.y,p.r);
+      grd.addColorStop(0,'rgba(184,147,90,.55)');
+      grd.addColorStop(1,'rgba(184,147,90,0)');
+      ctx.beginPath();ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+      ctx.fillStyle=grd;ctx.fill();
+    });
+    requestAnimationFrame(draw);
+  }
+  draw();
+})();
+
+/* ─── TOAST ─────────────────────────────────────────── */
+let toastTimer;
+function showToast(msg,type=''){
+  const t=document.getElementById('toast');
+  t.textContent=msg;
+  t.className='show '+(type||'');
+  clearTimeout(toastTimer);
+  toastTimer=setTimeout(()=>{t.className=''},2800);
+}
+
+/* ─── COPY UTILITY ──────────────────────────────────── */
+function copyText(valId, btnId, msg){
+  const val = document.getElementById(valId).textContent.trim();
+  navigator.clipboard.writeText(val).then(()=>{
+    const btn = document.getElementById(btnId);
+    const orig = btn.textContent;
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    showToast('✓ '+msg,'ok');
+    setTimeout(()=>{btn.textContent=orig;btn.classList.remove('copied');},2200);
+  }).catch(()=>{
+    // fallback
+    const ta=document.createElement('textarea');
+    ta.value=val;ta.style.position='fixed';ta.style.opacity='0';
+    document.body.appendChild(ta);ta.select();
+    document.execCommand('copy');document.body.removeChild(ta);
+    showToast('✓ '+msg,'ok');
+  });
+}
+
+function shareLink(platform){
+  const link = document.getElementById('ref-link-val').textContent.trim();
+  const msgs = {
+    whatsapp: `Join me on ValutX and start earning!\n${link}`,
+    telegram: `Join ValutX — the premium investment platform.\n${link}`,
+    email: `mailto:?subject=Join%20ValutX&body=Join%20me%20on%20ValutX%3A%20${encodeURIComponent(link)}`,
+    twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent('Earning on ValutX — join via my link: '+link)}`
+  };
+  if(platform==='email'||platform==='twitter'){
+    window.open(platform==='email'?msgs.email:msgs.twitter,'_blank');
+  } else {
+    showToast('✓ Link ready to share via '+platform+'!','ok');
+  }
+}
+
+/* ─── DATA ──────────────────────────────────────────── */
+const referredUsers = [
+  {
+    id:1,
+    name:'Sophia Hartmann',
+    username:'sophiah',
+    email:'sophia.h@email.com',
+    phone:'+1 (555) 210-4432',
+    kyc:'verified',
+    status:'active',
+    totalDeposit:12500,
+    joined:'12 Jan 2025',
+    initials:'SH',
+    seasons:[
+      {name:'Season 5',period:'Sep–Nov 2024',deposit:3000,pnl:+690,pnlPct:'+23%'},
+      {name:'Season 6',period:'Nov 2024–Jan 2025',deposit:4500,pnl:+1080,pnlPct:'+24%'},
+      {name:'Season 7',period:'Jan–Mar 2025',deposit:5000,pnl:+1350,pnlPct:'+27%'},
+    ]
+  },
+  {
+    id:2,
+    name:'Marcus Obinna',
+    username:'marcobi',
+    email:'marcus.ob@gmail.com',
+    phone:'+44 7700 112233',
+    kyc:'verified',
+    status:'active',
+    totalDeposit:8800,
+    joined:'02 Feb 2025',
+    initials:'MO',
+    seasons:[
+      {name:'Season 6',period:'Nov 2024–Jan 2025',deposit:3800,pnl:+912,pnlPct:'+24%'},
+      {name:'Season 7',period:'Jan–Mar 2025',deposit:5000,pnl:+1350,pnlPct:'+27%'},
+    ]
+  },
+  {
+    id:3,
+    name:'Priya Nair',
+    username:'priyanair',
+    email:'priya.nair@proton.me',
+    phone:'+91 98765 43210',
+    kyc:'not verified',
+    status:'pending',
+    totalDeposit:2000,
+    joined:'18 Feb 2025',
+    initials:'PN',
+    seasons:[
+      {name:'Season 7',period:'Jan–Mar 2025',deposit:2000,pnl:+540,pnlPct:'+27%'},
+    ]
+  },
+  {
+    id:4,
+    name:'Ethan Kowalski',
+    username:'ethanK',
+    email:'ethan.k@outlook.com',
+    phone:'+48 600 123 456',
+    kyc:'verified',
+    status:'suspended',
+    totalDeposit:5200,
+    joined:'25 Jan 2025',
+    initials:'EK',
+    seasons:[
+      {name:'Season 5',period:'Sep–Nov 2024',deposit:2200,pnl:+506,pnlPct:'+23%'},
+      {name:'Season 6',period:'Nov 2024–Jan 2025',deposit:3000,pnl:-420,pnlPct:'-14%'},
+    ]
+  },
+  {
+    id:5,
+    name:'Lena Fischer',
+    username:'lena_f',
+    email:'lena.f@web.de',
+    phone:'+49 170 9988776',
+    kyc:'verified',
+    status:'active',
+    totalDeposit:15000,
+    joined:'08 Jan 2025',
+    initials:'LF',
+    seasons:[
+      {name:'Season 5',period:'Sep–Nov 2024',deposit:5000,pnl:+1150,pnlPct:'+23%'},
+      {name:'Season 6',period:'Nov 2024–Jan 2025',deposit:5000,pnl:+1200,pnlPct:'+24%'},
+      {name:'Season 7',period:'Jan–Mar 2025',deposit:5000,pnl:+1350,pnlPct:'+27%'},
+    ]
+  },
+  {
+    id:6,
+    name:'James Waweru',
+    username:'jwaweru',
+    email:'james.w@safaricom.ke',
+    phone:'+254 712 345 678',
+    kyc:'not verified',
+    status:'active',
+    totalDeposit:3200,
+    joined:'14 Mar 2025',
+    initials:'JW',
+    seasons:[
+      {name:'Season 7',period:'Jan–Mar 2025',deposit:3200,pnl:+864,pnlPct:'+27%'},
+    ]
+  },
+  {
+    id:7,
+    name:'Aisha Al-Farsi',
+    username:'aishaf',
+    email:'aisha.alfarsi@gmail.com',
+    phone:'+971 50 123 4567',
+    kyc:'verified',
+    status:'active',
+    totalDeposit:22000,
+    joined:'30 Dec 2024',
+    initials:'AA',
+    seasons:[
+      {name:'Season 5',period:'Sep–Nov 2024',deposit:7000,pnl:+1610,pnlPct:'+23%'},
+      {name:'Season 6',period:'Nov 2024–Jan 2025',deposit:8000,pnl:+1920,pnlPct:'+24%'},
+      {name:'Season 7',period:'Jan–Mar 2025',deposit:7000,pnl:+1890,pnlPct:'+27%'},
+    ]
+  },
+  {
+    id:8,
+    name:'Dmitri Volkov',
+    username:'dvolkov',
+    email:'d.volkov@yandex.ru',
+    phone:'+7 916 555 0101',
+    kyc:'not verified',
+    status:'pending',
+    totalDeposit:0,
+    joined:'19 Mar 2025',
+    initials:'DV',
+    seasons:[]
+  },
+  {
+    id:9,
+    name:'Camille Dupont',
+    username:'camille_d',
+    email:'camille.d@orange.fr',
+    phone:'+33 6 12 34 56 78',
+    kyc:'verified',
+    status:'active',
+    totalDeposit:9700,
+    joined:'05 Feb 2025',
+    initials:'CD',
+    seasons:[
+      {name:'Season 6',period:'Nov 2024–Jan 2025',deposit:4700,pnl:+1128,pnlPct:'+24%'},
+      {name:'Season 7',period:'Jan–Mar 2025',deposit:5000,pnl:+1350,pnlPct:'+27%'},
+    ]
+  },
+  {
+    id:10,
+    name:'Ravi Sharma',
+    username:'ravisharma',
+    email:'ravi.sharma@indiamail.in',
+    phone:'+91 70005 67890',
+    kyc:'verified',
+    status:'active',
+    totalDeposit:6000,
+    joined:'22 Feb 2025',
+    initials:'RS',
+    seasons:[
+      {name:'Season 7',period:'Jan–Mar 2025',deposit:6000,pnl:+1620,pnlPct:'+27%'},
+    ]
+  },
+];
+
+/* ─── COMPUTE TOTALS ────────────────────────────────── */
+function computeTotals(){
+  const turnover = referredUsers.reduce((s,u)=>s+u.totalDeposit,0);
+  const commission = turnover * 0.08;
+  const total = referredUsers.length;
+  const active = referredUsers.filter(u=>u.status==='active').length;
+
+  document.getElementById('stat-turnover').textContent = formatUSDT(turnover);
+  document.getElementById('stat-commission').textContent = formatUSDT(commission);
+  document.getElementById('stat-total-users').textContent = total;
+  document.getElementById('stat-active-users').textContent = active;
+  document.getElementById('tbl-sub-label').textContent = `Showing all ${total} referred users`;
+}
+
+function formatUSDT(n){
+  if(n>=1000000) return '$'+(n/1000000).toFixed(2)+'M';
+  if(n>=1000) return '$'+(n/1000).toFixed(1)+'K';
+  return '$'+n.toFixed(2);
+}
+function formatUSDTFull(n){
+  return '$'+n.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+}
+
+/* ─── RENDER TABLE ──────────────────────────────────── */
+function renderTable(users){
+  const tbody = document.getElementById('ref-tbody');
+  tbody.innerHTML = users.map(u => {
+    const comm = (u.totalDeposit*0.08);
+    const statusClass = u.status==='active'?'b-active':u.status==='suspended'?'b-suspended':'b-pending';
+    const kycClass = u.kyc==='verified'?'b-verified':'b-unverified';
+    const seasonCount = u.seasons.length;
+    return `
+      <tr onclick="openModal(${u.id})" data-status="${u.status}" data-kyc="${u.kyc}">
+        <td>
+          <div class="td-user">
+            <div class="td-av">${u.initials}</div>
+            <div>
+              <div class="td-name">${u.name}</div>
+            </div>
+          </div>
+        </td>
+        <td><span class="td-sub">@${u.username}</span></td>
+        <td><span class="td-sub">${u.email}</span></td>
+        <td><span class="td-sub">${u.phone}</span></td>
+        <td><span class="badge ${kycClass}">${u.kyc==='verified'?'✓ Verified':'Unverified'}</span></td>
+        <td><span class="badge ${statusClass}">${u.status}</span></td>
+        <td style="font-family:'Cormorant Garamond',serif;font-size:1rem;font-weight:500;color:var(--ink)">${formatUSDTFull(u.totalDeposit)}</td>
+        <td style="font-family:'Cormorant Garamond',serif;font-size:1rem;color:var(--sage);font-weight:500">${formatUSDTFull(comm)}</td>
+        <td><span class="td-sub">${u.joined}</span></td>
+        <td>
+          <span class="badge b-pending" style="font-size:.56rem">${seasonCount} Season${seasonCount!==1?'s':''}</span>
+        </td>
+      </tr>`;
+  }).join('');
+
+  const empty = document.getElementById('empty-state');
+  document.getElementById('tbl-count').textContent = users.length + ' user' + (users.length!==1?'s':'');
+  empty.style.display = users.length===0?'block':'none';
+}
+
+/* ─── SEARCH & FILTER ───────────────────────────────── */
+let currentFilter = 'all';
+
+function setFilter(btn){
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  currentFilter = btn.dataset.filter;
+  applyFilters();
+}
+
+function applyFilters(){
+  const q = document.getElementById('search-input').value.toLowerCase().trim();
+  const filtered = referredUsers.filter(u=>{
+    // status filter
+    if(currentFilter==='active' && u.status!=='active') return false;
+    if(currentFilter==='suspended' && u.status!=='suspended') return false;
+    if(currentFilter==='verified' && u.kyc!=='verified') return false;
+    if(currentFilter==='unverified' && u.kyc!=='not verified') return false;
+    // search
+    if(q){
+      const hay = [u.name,u.username,u.email,u.phone,u.status,u.kyc].join(' ').toLowerCase();
+      if(!hay.includes(q)) return false;
+    }
+    return true;
+  });
+  renderTable(filtered);
+  document.getElementById('tbl-sub-label').textContent = `Showing ${filtered.length} of ${referredUsers.length} referred users`;
+}
+
+/* ─── MODAL ─────────────────────────────────────────── */
+function openModal(userId){
+  const u = referredUsers.find(x=>x.id===userId);
+  if(!u) return;
+
+  document.getElementById('modal-user-name').textContent = u.name;
+  document.getElementById('modal-user-sub').textContent = `@${u.username} · Joined ${u.joined}`;
+
+  const kycClass = u.kyc==='verified'?'b-verified':'b-unverified';
+  const statusClass = u.status==='active'?'b-active':u.status==='suspended'?'b-suspended':'b-pending';
+  const totalComm = (u.totalDeposit*0.08);
+  const totalPnl = u.seasons.reduce((s,ss)=>s+ss.pnl,0);
+
+  const seasonRows = u.seasons.length > 0
+    ? u.seasons.map(s=>`
+      <div class="season-row">
+        <div>
+          <div class="season-name">${s.name}</div>
+          <div class="season-period">${s.period}</div>
+        </div>
+        <div>
+          <div class="season-deposit" style="font-size:.85rem;color:var(--text-sec)">Deposited</div>
+          <div class="season-deposit">${formatUSDTFull(s.deposit)}</div>
+        </div>
+        <div>
+          <div style="font-size:.6rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-sec);text-align:right">P&amp;L</div>
+          <div class="season-pnl ${s.pnl>=0?'profit':'loss'}">${s.pnl>=0?'+':''}${formatUSDTFull(s.pnl)} (${s.pnlPct})</div>
+        </div>
+      </div>`).join('')
+    : `<div style="text-align:center;padding:24px 0;font-size:.82rem;color:var(--text-sec)">No season activity yet.</div>`;
+
+  document.getElementById('modal-body').innerHTML = `
+    <div class="info-grid">
+      <div class="info-cell">
+        <div class="info-lbl">Email</div>
+        <div class="info-val">${u.email}</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-lbl">Phone</div>
+        <div class="info-val">${u.phone}</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-lbl">KYC Status</div>
+        <div class="info-val" style="margin-top:3px"><span class="badge ${kycClass}">${u.kyc==='verified'?'✓ Verified':'Not Verified'}</span></div>
+      </div>
+      <div class="info-cell">
+        <div class="info-lbl">Account Status</div>
+        <div class="info-val" style="margin-top:3px"><span class="badge ${statusClass}">${u.status}</span></div>
+      </div>
+      <div class="info-cell">
+        <div class="info-lbl">Total Deposit</div>
+        <div class="info-val" style="font-family:'Cormorant Garamond',serif;font-size:1.1rem">${formatUSDTFull(u.totalDeposit)}</div>
+      </div>
+      <div class="info-cell">
+        <div class="info-lbl">Commission Earned (8%)</div>
+        <div class="info-val" style="font-family:'Cormorant Garamond',serif;font-size:1.1rem;color:var(--sage)">${formatUSDTFull(totalComm)}</div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:12px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+      <div style="font-family:'Cormorant Garamond',serif;font-size:1.05rem;color:var(--ink)">Season Activity</div>
+      <div style="display:flex;align-items:center;gap:10px">
+        <span class="badge b-pending" style="font-size:.58rem">${u.seasons.length} Season${u.seasons.length!==1?'s':''}</span>
+        ${totalPnl!==0?`<span style="font-size:.75rem;font-weight:500;color:${totalPnl>=0?'var(--sage)':'#9b3a3a'}">${totalPnl>=0?'+':''}${formatUSDTFull(totalPnl)} Total P&L</span>`:''}
+      </div>
+    </div>
+    <div class="seasons-list">${seasonRows}</div>
+  `;
+
+  document.getElementById('modal-overlay').classList.add('open');
+  document.body.style.overflow='hidden';
+}
+
+function closeModal(){
+  document.getElementById('modal-overlay').classList.remove('open');
+  document.body.style.overflow='';
+}
+
+function closeModalOnOverlay(e){
+  if(e.target===document.getElementById('modal-overlay')) closeModal();
+}
+
+document.addEventListener('keydown', e=>{
+  if(e.key==='Escape') closeModal();
+});
+
+/* ─── SCROLL REVEAL ─────────────────────────────────── */
+const obs = new IntersectionObserver((entries)=>{
+  entries.forEach(el=>{
+    if(el.isIntersecting){el.target.classList.add('vis');obs.unobserve(el.target)}
+  });
+},{threshold:.06});
+document.querySelectorAll('.reveal').forEach(el=>obs.observe(el));
+
+/* ─── INIT ──────────────────────────────────────────── */
+computeTotals();
+renderTable(referredUsers);
+</script>
+</body>
+</html>

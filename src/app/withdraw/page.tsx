@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
-import VaultXLoader from '@/components/VaultXLoader'
+import ValutXLoader from '@/components/ValutXLoader'
 import { createClient } from '@/utils/supabase/client'
 
 interface WdHistory {
@@ -350,7 +350,7 @@ export default function WithdrawPage() {
 
   return (
     <>
-      {loading && <VaultXLoader pageName="Withdraw" />}
+      {loading && <ValutXLoader pageName="Withdraw" />}
       <canvas ref={bgRef} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', opacity: 0.055, width: '100%', height: '100%' }} />
       <div className={`wd-toast${toastShow ? ' show' : ''}`}>{toastMsg}</div>
       <UserSidebar open={sidebarOpen} onClose={() => { setSidebarOpen(false); setHamburgerOpen(false) }} />
@@ -363,7 +363,7 @@ export default function WithdrawPage() {
           </button>
           <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <div className='wd-logo-mark' style={{ width: 26, height: 26 }} />
-            <span className='wd-logo-text' style={{ fontSize: '1.15rem' }}>Vault<span>X</span></span>
+            <span className='wd-logo-text' style={{ fontSize: '1.15rem' }}>Valut<span>X</span></span>
           </div>
           <div className='wd-avatar' style={{ width: 32, height: 32, fontSize: '.8rem', cursor: 'pointer' }} onClick={() => router.push('/profile')}>
             {userProfile?.first_name?.[0]}{userProfile?.last_name?.[0]}

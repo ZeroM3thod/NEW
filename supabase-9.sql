@@ -1,5 +1,5 @@
 -- ================================================================
--- VaultX: Fix Duplicate Signup — DB-Level Constraints
+-- ValutX: Fix Duplicate Signup — DB-Level Constraints
 -- Run this in your Supabase SQL editor
 -- ================================================================
 

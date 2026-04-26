@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
-import VaultXLoader from '@/components/VaultXLoader'
+import ValutXLoader from '@/components/ValutXLoader'
 import { createClient } from '@/utils/supabase/client'
 
 const PER_PAGE = 10
@@ -165,14 +165,14 @@ export default function ReferralPage() {
 
   const shareVia = (platform: string) => {
     if (!profile) return
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://vaultx.vercel.app'
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://Valutx.vercel.app'
     const link = `${baseUrl}/auth/signup?ref=${profile.referral_code}`
-    const msg = `Join VaultX and invest with me! ${link}`
+    const msg = `Join ValutX and invest with me! ${link}`
     const urls: Record<string, string> = {
       WhatsApp: `https://wa.me/?text=${encodeURIComponent(msg)}`,
-      Telegram: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join VaultX!')}`,
+      Telegram: `https://t.me/share/url?url=${encodeURIComponent(link)}&text=${encodeURIComponent('Join ValutX!')}`,
       Twitter: `https://twitter.com/intent/tweet?text=${encodeURIComponent(msg)}`,
-      Email: `mailto:?subject=Join%20VaultX&body=${encodeURIComponent(msg)}`,
+      Email: `mailto:?subject=Join%20ValutX&body=${encodeURIComponent(msg)}`,
     }
     if (urls[platform]) window.open(urls[platform], '_blank')
     showToast(`📤 Opening ${platform}…`)
@@ -202,7 +202,7 @@ export default function ReferralPage() {
 
   return (
     <>
-      {loading && <VaultXLoader pageName="Referral" />}
+      {loading && <ValutXLoader pageName="Referral" />}
       <div className={`rf-toast${toastShow ? ' show' : ''}${toastCls ? ' ' + toastCls : ''}`}>{toastMsg}</div>
 
       <UserSidebar open={sidebarOpen} onClose={() => { setSidebarOpen(false); setHamOpen(false) }} />
@@ -220,7 +220,7 @@ export default function ReferralPage() {
             onClick={() => router.push('/')}
           >
             <div className='rf-logo-mark' style={{ width: 26, height: 26 }} />
-            <span className='rf-logo-text' style={{ fontSize: '1.15rem' }}>Vault<span>X</span></span>
+            <span className='rf-logo-text' style={{ fontSize: '1.15rem' }}>Valut<span>X</span></span>
           </div>
           <div className='rf-topbar-avatar' onClick={() => router.push('/profile')}>
             {profile?.first_name?.[0]}{profile?.last_name?.[0]}

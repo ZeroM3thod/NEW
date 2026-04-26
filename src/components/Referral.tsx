@@ -18,7 +18,7 @@ export default function Referral() {
             <h2 className="section-title">Earn while<br/>others grow</h2>
             <p className="section-sub">Every time someone you referred makes a profit, you earn 7% of that amount — automatically, with no limits.</p>
             <br/>
-            <p style={{fontSize:'.82rem',color:'var(--text-secondary)',lineHeight:1.8}}>Share your unique referral code. When your referee make profits, 7% is credited to your VaultX wallet instantly. Stack referrals with no cap.</p>
+            <p style={{fontSize:'.82rem',color:'var(--text-secondary)',lineHeight:1.8}}>Share your unique referral code. When your referee make profits, 7% is credited to your ValutX wallet instantly. Stack referrals with no cap.</p>
             <br/>
             <button className="btn-lg" style={{marginTop:'8px'}} onClick={() => router.push('/signup')}>Get My Referral Code</button>
           </div>
@@ -32,7 +32,7 @@ export default function Referral() {
             ))}
             <div className="commission-box">
               <div className="commission-num">7%</div>
-              <div className="commission-text"><strong>Commission Per Referral</strong><span>No cap. No delays. Paid automatically<br/>to your VaultX wallet.</span></div>
+              <div className="commission-text"><strong>Commission Per Referral</strong><span>No cap. No delays. Paid automatically<br/>to your ValutX wallet.</span></div>
             </div>
           </div>
         </div>

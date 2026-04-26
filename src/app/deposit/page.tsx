@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
-import VaultXLoader from '@/components/VaultXLoader'
+import ValutXLoader from '@/components/ValutXLoader'
 import { createClient } from '@/utils/supabase/client'
 import React from 'react'
 
@@ -375,7 +375,7 @@ export default function DepositPage() {
 
   return (
     <>
-      {loading && <VaultXLoader pageName="Deposit" />}
+      {loading && <ValutXLoader pageName="Deposit" />}
       <canvas ref={bgRef} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', opacity: 0.055, width: '100%', height: '100%' }} />
       <div className={`dp-toast${toastShow ? ' show' : ''}`}>{toastMsg}</div>
       <UserSidebar open={sidebarOpen} onClose={() => { setSidebarOpen(false); setHamburgerOpen(false) }} />
@@ -404,7 +404,7 @@ export default function DepositPage() {
           </button>
           <div style={{ position: 'absolute', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 6 }}>
             <div className='dp-logo-mark' style={{ width: 26, height: 26 }} />
-            <span className='dp-logo-text' style={{ fontSize: '1.15rem' }}>Vault<span>X</span></span>
+            <span className='dp-logo-text' style={{ fontSize: '1.15rem' }}>Valut<span>X</span></span>
           </div>
           <div className='dp-avatar' style={{ width: 32, height: 32, fontSize: '.8rem', cursor: 'pointer' }} onClick={() => router.push('/profile')}>
             {userProfile ? `${userProfile.first_name?.[0]}${userProfile.last_name?.[0]}` : '...'}

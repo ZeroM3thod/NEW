@@ -1,5 +1,5 @@
 -- ================================================================
--- VaultX Migration 7: Schema Alignment & Security Fixes
+-- ValutX Migration 7: Schema Alignment & Security Fixes
 -- ================================================================
 
 -- 1. Add missing columns to profiles

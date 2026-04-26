@@ -470,7 +470,7 @@ export default function SuspendedPage() {
           {/* Logo */}
           <div className="sp-logo-row">
             <div className="sp-logo-mark" />
-            <span className="sp-logo-text">Vault<span>X</span></span>
+            <span className="sp-logo-text">Valut<span>X</span></span>
           </div>
 
           {/* Icon */}
@@ -508,17 +508,17 @@ export default function SuspendedPage() {
           {/* Notice */}
           <div className="sp-notice">
             If you believe this is a mistake or would like to appeal, please contact our support team at{' '}
-            <a href="mailto:support@vaultx.finance">support@vaultx.finance</a>
+            <a href="mailto:support@Valutx.finance">support@Valutx.finance</a>
             {' '}or reach us on{' '}
-            <a href="https://t.me/VaultXOfficial" target="_blank" rel="noreferrer">
-              Telegram @VaultXOfficial
+            <a href="https://t.me/ValutXOfficial" target="_blank" rel="noreferrer">
+              Telegram @ValutXOfficial
             </a>.
             Include your username and a brief explanation. Our team typically responds within 24 hours.
           </div>
 
           {/* Actions */}
           <div className="sp-actions">
-            <a href="mailto:support@vaultx.finance" className="sp-btn-primary">
+            <a href="mailto:support@Valutx.finance" className="sp-btn-primary">
               <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                 <polyline points="22,6 12,13 2,6"/>
@@ -535,7 +535,7 @@ export default function SuspendedPage() {
 
           {/* Footer */}
           <div className="sp-footer">
-            © {new Date().getFullYear()} VaultX · <a href="/">Back to Home</a>
+            © {new Date().getFullYear()} ValutX · <a href="/">Back to Home</a>
           </div>
         </div>
       </div>

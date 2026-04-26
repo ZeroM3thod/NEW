@@ -197,7 +197,7 @@ export default function SignInPage() {
           <div className="auth-card" style={{animation:'fadeView .35s ease both'}}>
             <div className="card-logo">
               <div className="logo-icon"/>
-              <div className="logo-name">Vault<span>X</span></div>
+              <div className="logo-name">Valut<span>X</span></div>
             </div>
             <h1 className="card-heading">Welcome back</h1>
             <p className="card-sub">Sign in to your investment account</p>
@@ -247,7 +247,7 @@ export default function SignInPage() {
           <div className="auth-card" style={{animation:'fadeView .35s ease both'}}>
             <div className="card-logo">
               <div className="logo-icon"/>
-              <div className="logo-name">Vault<span>X</span></div>
+              <div className="logo-name">Valut<span>X</span></div>
             </div>
             {!fSuccess?(
               <>
@@ -298,7 +298,7 @@ export default function SignInPage() {
         )}
       </div>
 
-      <div className="page-caption">© 2024 VaultX · All rights reserved</div>
+      <div className="page-caption">© 2024 ValutX · All rights reserved</div>
 
       <style>{`
         @keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }

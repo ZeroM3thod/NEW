@@ -23,10 +23,10 @@ export async function POST(req: NextRequest) {
     });
 
     const mailOptions = {
-      from: `"VaultX Contact Form" <${process.env.GMAIL_USER}>`,
+      from: `"ValutX Contact Form" <${process.env.GMAIL_USER}>`,
       to: process.env.GMAIL_TO || 'hassrb4@gmail.com',
       replyTo: email,
-      subject: `[VaultX Contact] ${subject || 'New Message'}`,
+      subject: `[ValutX Contact] ${subject || 'New Message'}`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -49,7 +49,7 @@ export async function POST(req: NextRequest) {
         <body>
           <div class="wrapper">
             <div class="header">
-              <h1>VaultX — New Contact Message</h1>
+              <h1>ValutX — New Contact Message</h1>
               <p>Received from your website contact form</p>
             </div>
             <div class="body">
@@ -75,7 +75,7 @@ export async function POST(req: NextRequest) {
               </div>
             </div>
             <div class="footer">
-              <p>© ${new Date().getFullYear()} VaultX · This email was sent from your website contact form.</p>
+              <p>© ${new Date().getFullYear()} ValutX · This email was sent from your website contact form.</p>
             </div>
           </div>
         </body>

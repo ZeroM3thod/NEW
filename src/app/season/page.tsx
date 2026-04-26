@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
-import VaultXLoader from '@/components/VaultXLoader'
+import ValutXLoader from '@/components/ValutXLoader'
 import { createClient } from '@/utils/supabase/client'
 
 // ─── P&L helpers ────────────────────────────────────────────────────────────
@@ -504,7 +504,7 @@ export default function SeasonPage() {
 
   return (
     <>
-      {loading && <VaultXLoader pageName="Seasons" />}
+      {loading && <ValutXLoader pageName="Seasons" />}
       <canvas ref={bgRef} style={{position:'fixed',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:0,opacity:.055}}/>
       <div className={`sx-toast${toastShow?' show':''}${toastCls?' '+toastCls:''}`}>{toastMsg}</div>
       <UserSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
@@ -514,7 +514,7 @@ export default function SeasonPage() {
           <button className='sx-hamburger' onClick={() => setSidebarOpen(true)}><span/><span/><span/></button>
           <div style={{display:'flex',alignItems:'center',gap:6}}>
             <div className='sx-logo-mark' style={{width:26,height:26}}/>
-            <span className='sx-logo-text' style={{fontSize:'1.15rem'}}>Vault<span>X</span></span>
+            <span className='sx-logo-text' style={{fontSize:'1.15rem'}}>Valut<span>X</span></span>
           </div>
           <div className='sx-avatar' style={{width:32,height:32,fontSize:'.8rem',cursor:'pointer'}} onClick={() => router.push('/profile')}>
             {userProfile?.first_name?.[0]}{userProfile?.last_name?.[0]}

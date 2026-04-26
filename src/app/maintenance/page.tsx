@@ -170,7 +170,7 @@ export default function MaintenancePage() {
               <div style={{position:'absolute',bottom:8,left:'50%',transform:'translateX(-50%)',width:18,height:1.5,background:'var(--gold)',borderRadius:2,boxShadow:'0 -6px 0 var(--gold-l),0 -12px 0 var(--cream)'}}/>
             </div>
             <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'1.5rem',fontWeight:600,color:'var(--ink)',letterSpacing:'.04em'}}>
-              Vault<span style={{color:'var(--gold)'}}>X</span>
+              Valut<span style={{color:'var(--gold)'}}>X</span>
             </div>
           </div>
 
@@ -204,7 +204,7 @@ export default function MaintenancePage() {
             We'll be back<br/><em style={{fontStyle:'italic',color:'var(--gold)'}}>shortly.</em>
           </h1>
           <p style={{fontSize:'.86rem',color:'var(--text-sec)',fontWeight:300,lineHeight:1.75,maxWidth:400,margin:'0 auto 32px',animation:'fadeUp .7s .26s cubic-bezier(.16,1,.3,1) both'}}>
-            VaultX is currently undergoing scheduled maintenance to improve your experience. We apologise for the inconvenience and appreciate your patience.
+            ValutX is currently undergoing scheduled maintenance to improve your experience. We apologise for the inconvenience and appreciate your patience.
           </p>
 
           {/* Countdown */}
@@ -265,24 +265,24 @@ export default function MaintenancePage() {
 
           {/* Contact */}
           <div style={{display:'flex',alignItems:'center',justifyContent:'center',gap:20,flexWrap:'wrap',animation:'fadeUp .7s .42s cubic-bezier(.16,1,.3,1) both'}}>
-            <a href="mailto:support@vaultx.io" style={{display:'inline-flex',alignItems:'center',gap:7,fontSize:'.74rem',color:'var(--text-sec)',textDecoration:'none',transition:'color .2s',letterSpacing:'.03em'}}
+            <a href="mailto:support@Valutx.io" style={{display:'inline-flex',alignItems:'center',gap:7,fontSize:'.74rem',color:'var(--text-sec)',textDecoration:'none',transition:'color .2s',letterSpacing:'.03em'}}
               onMouseOver={e=>(e.currentTarget.style.color='var(--gold)')}
               onMouseOut={e=>(e.currentTarget.style.color='var(--text-sec)')}>
               <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="var(--gold)" strokeWidth={1.8}>
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                 <polyline points="22,6 12,13 2,6"/>
               </svg>
-              support@vaultx.io
+              support@Valutx.io
             </a>
             <div style={{width:3,height:3,borderRadius:'50%',background:'var(--border-h)',flexShrink:0}}/>
-            <a href="https://t.me/VaultXOfficial" target="_blank" rel="noreferrer"
+            <a href="https://t.me/ValutXOfficial" target="_blank" rel="noreferrer"
               style={{display:'inline-flex',alignItems:'center',gap:7,fontSize:'.74rem',color:'var(--text-sec)',textDecoration:'none',transition:'color .2s',letterSpacing:'.03em'}}
               onMouseOver={e=>(e.currentTarget.style.color='var(--gold)')}
               onMouseOut={e=>(e.currentTarget.style.color='var(--text-sec)')}>
               <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="var(--gold)" strokeWidth={1.8}>
                 <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
               </svg>
-              @VaultXOfficial
+              @ValutXOfficial
             </a>
           </div>
         </div>{/* /maint-card */}
@@ -302,7 +302,7 @@ export default function MaintenancePage() {
 
       {/* Bottom caption */}
       <div style={{position:'fixed',bottom:14,left:0,right:0,textAlign:'center',zIndex:2,pointerEvents:'none',fontSize:'.64rem',letterSpacing:'.08em',color:'rgba(107,100,89,.4)'}}>
-        © 2025 VaultX · All rights reserved
+        © 2025 ValutX · All rights reserved
       </div>
     </>
   );
@@ -318,8 +318,8 @@ import type { Metadata } from 'next';
 import '../globals.css';
 
 export const metadata: Metadata = {
-  title: 'VaultX — Under Maintenance',
-  description: 'VaultX is currently undergoing scheduled maintenance.',
+  title: 'ValutX — Under Maintenance',
+  description: 'ValutX is currently undergoing scheduled maintenance.',
 };
 
 export default function MaintenanceLayout({ children }: { children: React.ReactNode }) {

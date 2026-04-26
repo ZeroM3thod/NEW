@@ -11,12 +11,12 @@ import About from '@/components/About';
 import Contact from '@/components/Contact';
 import Footer from '@/components/Footer';
 import ScrollRevealInit from '@/components/ScrollRevealInit';
-import VaultXLoader from '@/components/VaultXLoader';
+import ValutXLoader from '@/components/ValutXLoader';
 
 export default function HomePage() {
   return (
     <>
-      <VaultXLoader pageName="Home" />
+      <ValutXLoader pageName="Home" />
       <ScrollRevealInit />
       <BgCanvas />
       <Navbar />

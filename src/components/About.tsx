@@ -15,9 +15,9 @@ export default function About() {
       <section className="about" id="about">
         <div className="about-inner">
           <div className="reveal">
-            <span className="section-label">About VaultX</span>
+            <span className="section-label">About ValutX</span>
             <h2 className="section-title">Built for discipline,<br/>not speculation</h2>
-            <p className="section-sub">VaultX is a structured investment platform operating through defined seasonal cycles. We do not chase volatile markets. We apply systematic, rule-based strategies across diversified asset pools — and we share the results transparently.</p>
+            <p className="section-sub">ValutX is a structured investment platform operating through defined seasonal cycles. We do not chase volatile markets. We apply systematic, rule-based strategies across diversified asset pools — and we share the results transparently.</p>
             <div className="about-features">
               {features.map((f,i)=>(
                 <div key={i} className="about-feature">

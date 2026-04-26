@@ -1,4 +1,4 @@
-# VaultX — Product Requirements Document (PRD)
+# ValutX — Product Requirements Document (PRD)
 **Version:** 1.0  
 **Stack:** Next.js 14 (App Router) · Supabase · Vercel  
 **Prepared:** April 2026
@@ -7,7 +7,7 @@
 
 ## 1. Project Overview
 
-VaultX is a structured USDT investment platform operating through defined seasonal investment cycles. Users deposit USDT, invest across seasons, and earn ROI. Admins manage seasons, approve deposits/withdrawals, and control platform settings including maintenance mode.
+ValutX is a structured USDT investment platform operating through defined seasonal investment cycles. Users deposit USDT, invest across seasons, and earn ROI. Admins manage seasons, approve deposits/withdrawals, and control platform settings including maintenance mode.
 
 ---
 
@@ -233,9 +233,9 @@ INSERT INTO platform_settings VALUES
   ('referral_rate', '5%', NOW()),
   ('min_deposit', '30', NOW()),
   ('min_withdrawal', '30', NOW()),
-  ('platform_name', 'VaultX', NOW()),
-  ('support_email', 'support@vaultx.io', NOW()),
-  ('telegram_handle', 'VaultXOfficial', NOW());
+  ('platform_name', 'ValutX', NOW()),
+  ('support_email', 'support@Valutx.io', NOW()),
+  ('telegram_handle', 'ValutXOfficial', NOW());
 ```
 
 ### 3.10 `transactions` (unified ledger)
@@ -847,4 +847,4 @@ src/
 
 ---
 
-*End of PRD — VaultX v1.0*
+*End of PRD — ValutX v1.0*

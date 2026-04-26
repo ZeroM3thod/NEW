@@ -1,5 +1,5 @@
 -- ================================================================
--- VaultX Migration 11: Fix Season Pool Updates
+-- ValutX Migration 11: Fix Season Pool Updates
 -- ================================================================
 
 -- 1. Function to increment season pool (SECURITY DEFINER so users can call it)

@@ -1,4 +1,4 @@
-# VaultX Password Reset & Email Confirmation Fix Guide
+# ValutX Password Reset & Email Confirmation Fix Guide
 
 ## Problem Summary
 1. Confirmation/reset links use localhost:3000 instead of Vercel URL

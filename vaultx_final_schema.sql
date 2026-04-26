@@ -1,5 +1,5 @@
 -- ================================================================
--- VaultX — FINAL COMPLETE DATABASE SCHEMA
+-- ValutX — FINAL COMPLETE DATABASE SCHEMA
 -- Run this on a fresh Supabase project (SQL Editor)
 -- Incorporates all migrations: schema, RLS fixes, referral logic,
 -- deposit lock feature, pool increment RPC, duplicate-signup fix.

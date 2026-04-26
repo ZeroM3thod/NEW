@@ -11,7 +11,7 @@ export default function Hero() {
         <div className="hero-inner">
           <div className="hero-badge">Season 4 Now Open — Limited Slots</div>
           <h1>Where Capital<br/>Meets <em>Discipline</em></h1>
-          <p>VaultX runs structured investment seasons with defined entry periods, transparent ROI targets, and no hidden fees. Grow your wealth the intelligent way.</p>
+          <p>ValutX runs structured investment seasons with defined entry periods, transparent ROI targets, and no hidden fees. Grow your wealth the intelligent way.</p>
           <div className="hero-cta">
             <button className="btn-lg"         onClick={() => router.push('/signup')}>Start Investing</button>
             <button className="btn-outline-lg" onClick={scrollToSeasons}>View Seasons</button>

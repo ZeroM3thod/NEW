@@ -124,7 +124,7 @@ export default function AdminSidebar({ open, onClose, onToast }: Props) {
         <div className="adm-sb-top">
           <div className="adm-sb-logo-mark" />
           <div>
-            <div className="adm-sb-logo-text">Vault<span>X</span></div>
+            <div className="adm-sb-logo-text">Valut<span>X</span></div>
             <span className="adm-sb-admin-badge">Admin Panel</span>
           </div>
         </div>

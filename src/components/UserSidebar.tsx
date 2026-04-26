@@ -73,7 +73,7 @@ export default function UserSidebar({ open, onClose }: Props) {
         <div className="usr-sb-logo">
           <a href="/" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
             <div className="usr-logo-mark" />
-            <span className="usr-logo-text">Vault<span>X</span></span>
+            <span className="usr-logo-text">Valut<span>X</span></span>
           </a>
         </div>
         <nav className="usr-sb-nav">

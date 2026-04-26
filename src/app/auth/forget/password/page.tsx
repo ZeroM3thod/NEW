@@ -179,7 +179,7 @@ function SetPasswordContent() {
           <div className="auth-card" style={{textAlign:'center',animation:'fadeView .35s ease both'}}>
             <div className="card-logo">
               <div className="logo-icon"/>
-              <div className="logo-name">Vault<span style={{color:'var(--gold)'}}>X</span></div>
+              <div className="logo-name">Valut<span style={{color:'var(--gold)'}}>X</span></div>
             </div>
             <div style={{padding:'20px 0',color:'var(--text-sec)',fontSize:'.85rem'}}>
               Verifying reset link…
@@ -205,7 +205,7 @@ function SetPasswordContent() {
           <div className="auth-card" style={{animation:'fadeView .35s ease both'}}>
             <div className="card-logo">
               <div className="logo-icon"/>
-              <div className="logo-name">Vault<span style={{color:'var(--gold)'}}>X</span></div>
+              <div className="logo-name">Valut<span style={{color:'var(--gold)'}}>X</span></div>
             </div>
             <div className="success-state">
               <div className="success-icon" style={{background:'rgba(155,58,58,.1)',border:'1px solid rgba(155,58,58,.25)'}}>⚠️</div>
@@ -219,7 +219,7 @@ function SetPasswordContent() {
             </div>
           </div>
         </div>
-        <div className="page-caption">© 2025 VaultX · All rights reserved</div>
+        <div className="page-caption">© 2025 ValutX · All rights reserved</div>
         <style>{`@keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }`}</style>
       </>
     );
@@ -239,7 +239,7 @@ function SetPasswordContent() {
         <div className="auth-card" style={{animation:'fadeView .35s ease both'}}>
           <div className="card-logo">
             <div className="logo-icon"/>
-            <div className="logo-name">Vault<span style={{color:'var(--gold)'}}>X</span></div>
+            <div className="logo-name">Valut<span style={{color:'var(--gold)'}}>X</span></div>
           </div>
 
           {!success?(
@@ -334,7 +334,7 @@ function SetPasswordContent() {
         </div>
       </div>
 
-      <div className="page-caption">© 2024 VaultX · All rights reserved</div>
+      <div className="page-caption">© 2024 ValutX · All rights reserved</div>
 
       <style>{`
         @keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }

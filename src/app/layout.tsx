@@ -5,9 +5,9 @@ import './logo-vx-override.css';   // ← ADD THIS: applies Compact·Light VX lo
 import StyledJsxRegistry from '@/components/StyledJsxRegistry';
 
 export const metadata: Metadata = {
-  title: 'VaultX — Investment Platform',
+  title: 'ValutX — Investment Platform',
   description:
-    'VaultX runs structured investment seasons with defined entry periods, transparent ROI targets, and no hidden fees.',
+    'ValutX runs structured investment seasons with defined entry periods, transparent ROI targets, and no hidden fees.',
 
   verification: {
     google: "google3a0401f11912ee2b",

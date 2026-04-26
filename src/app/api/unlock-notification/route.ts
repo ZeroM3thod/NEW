@@ -52,10 +52,10 @@ export async function POST(req: NextRequest) {
     });
 
     await transporter.sendMail({
-      from: `"VaultX" <${process.env.GMAIL_USER}>`,
+      from: `"ValutX" <${process.env.GMAIL_USER}>`,
       to: userEmail,
       replyTo: process.env.GMAIL_USER,
-      subject: `✅ Your $${amount} USDT Deposit Lock Has Expired — VaultX`,
+      subject: `✅ Your $${amount} USDT Deposit Lock Has Expired — ValutX`,
       html: `
 <!DOCTYPE html>
 <html>
@@ -99,7 +99,7 @@ export async function POST(req: NextRequest) {
 <body>
   <div class="wrapper">
     <div class="header">
-      <p class="logo-text">Vault<span style="color:#b8935a">X</span></p>
+      <p class="logo-text">Valut<span style="color:#b8935a">X</span></p>
       <p class="logo-sub">Deposit Notification</p>
       <div class="unlock-pill">&#10003; Funds Unlocked</div>
     </div>
@@ -145,7 +145,7 @@ export async function POST(req: NextRequest) {
       </div>
     </div>
     <div class="footer">
-      <p>&copy; ${new Date().getFullYear()} VaultX &middot; This is an automated security notification. Do not reply to this email.</p>
+      <p>&copy; ${new Date().getFullYear()} ValutX &middot; This is an automated security notification. Do not reply to this email.</p>
     </div>
   </div>
 </body>

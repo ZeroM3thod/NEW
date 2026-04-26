@@ -4,7 +4,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import Script from 'next/script'
 import UserSidebar from '@/components/UserSidebar'
-import VaultXLoader from '@/components/VaultXLoader'
+import ValutXLoader from '@/components/ValutXLoader'
 import { createClient } from '@/utils/supabase/client'
 
 declare global {
@@ -337,7 +337,7 @@ export default function DashboardPage() {
 
   return (
     <>
-      {loading && <VaultXLoader pageName="Dashboard" />}
+      {loading && <ValutXLoader pageName="Dashboard" />}
       <Script src='https://cdn.jsdelivr.net/npm/chart.js' onReady={() => setChartReady(true)} />
       <canvas ref={bgCanvasRef} style={{position:'fixed',inset:0,zIndex:0,pointerEvents:'none',opacity:.055,width:'100%',height:'100%'}}/>
       <div className={`db-toast${toastShow?' show':''}`}>{toastMsg}</div>
@@ -481,7 +481,7 @@ export default function DashboardPage() {
           <button className='db-hamburger' onClick={() => setSidebarOpen(true)}><span/><span/><span/></button>
           <div style={{display:'flex',alignItems:'center',gap:6}}>
             <div className='db-logo-mark' style={{width:26,height:26}}/>
-            <span className='db-logo-text' style={{fontSize:'1.15rem'}}>Vault<span>X</span></span>
+            <span className='db-logo-text' style={{fontSize:'1.15rem'}}>Valut<span>X</span></span>
           </div>
           <div className='db-avatar' style={{width:32,height:32,fontSize:'.8rem',cursor:'pointer'}} onClick={() => router.push('/profile')}>
             {(profile?.first_name?.[0]||'')}{(profile?.last_name?.[0]||'')}

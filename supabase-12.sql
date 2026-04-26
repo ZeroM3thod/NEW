@@ -1,5 +1,5 @@
 -- ================================================================
--- VaultX Migration 11: Deposit Lock Feature (5-minute security hold)
+-- ValutX Migration 11: Deposit Lock Feature (5-minute security hold)
 -- ================================================================
 
 -- 1. Add locked_until and unlock_email_sent to deposits

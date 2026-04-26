@@ -1,5 +1,5 @@
 -- ================================================================
--- VaultX Migration 10: Fix Referral RLS & Status
+-- ValutX Migration 10: Fix Referral RLS & Status
 -- ================================================================
 
 -- 1. Update investments RLS to allow referrers to see their referrals' investments

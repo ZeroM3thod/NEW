@@ -47,7 +47,7 @@ export default function Navbar() {
           <a href="#" className="logo">
             <div className="logo-mark"/>
             <div style={{display:'flex',flexDirection:'column'}}>
-              <span className="logo-text">Vault<span>X</span></span>
+              <span className="logo-text">Valut<span>X</span></span>
               {activeSeason && (
                 <span style={{fontSize:'.55rem',letterSpacing:'.1em',textTransform:'uppercase',color:'var(--gold)',marginTop:'-4px'}}>
                   {activeSeason.name} Now Open — Limited Slots

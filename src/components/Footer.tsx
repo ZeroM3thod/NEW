@@ -17,7 +17,7 @@ export default function Footer() {
             <div className="footer-brand">
               <a href="#" className="logo">
                 <div className="logo-mark"/>
-                <span className="logo-text">Vault<span>X</span></span>
+                <span className="logo-text">Valut<span>X</span></span>
               </a>
               <p>A structured investment platform operating through seasonal cycles with full transparency and consistent returns since 2023.</p>
             </div>
@@ -37,7 +37,7 @@ export default function Footer() {
             ))}
           </div>
           <div className="footer-bottom">
-            <p>© 2024 VaultX. All rights reserved. Investment returns are not guaranteed.</p>
+            <p>© 2024 ValutX. All rights reserved. Investment returns are not guaranteed.</p>
             <div className="footer-legal">
               <a href="#">Privacy</a><a href="#">Terms</a><a href="#">Risk</a>
             </div>

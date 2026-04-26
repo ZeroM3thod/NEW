@@ -1,5 +1,5 @@
 -- ================================================================
--- VaultX Migration: Referral & Balance Logic Fixes
+-- ValutX Migration: Referral & Balance Logic Fixes
 -- Run this in your Supabase SQL editor
 -- ================================================================
 

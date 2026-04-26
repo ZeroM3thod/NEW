@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import UserSidebar from '@/components/UserSidebar';
-import VaultXLoader from '@/components/VaultXLoader';
+import ValutXLoader from '@/components/ValutXLoader';
 import { createClient } from '@/utils/supabase/client';
 
 interface Ticket { id:string;subject:string;category:string;priority:string;date:string;status:'open'|'pending'|'closed' }
@@ -26,7 +26,7 @@ const FAQS = [
   { cat:'account',  q:'Can I change my registered email?',                 a:'Yes. Visit <strong>Settings → Account</strong> and request an email change. A confirmation link is sent to both addresses. Verify both within 24 hours.' },
   { cat:'security', q:'What if I suspect unauthorised access?',            a:'Immediately change your password, enable 2FA, and contact our support team. Use a unique, strong password and enable login notifications in account settings.' },
   { cat:'security', q:'How do I enable two-factor authentication (2FA)?',  a:'Go to <strong>Settings → Security</strong> and click Enable 2FA. Scan the QR code with Google Authenticator or Authy, enter the 6-digit code to confirm. 2FA is then required at every login.' },
-  { cat:'finance',  q:'Are there fees for deposits or withdrawals?',       a:'VaultX does not charge platform fees on deposits. For withdrawals, a small <strong>network gas fee</strong> is deducted depending on the blockchain used (TRC20 is cheapest).' },
+  { cat:'finance',  q:'Are there fees for deposits or withdrawals?',       a:'ValutX does not charge platform fees on deposits. For withdrawals, a small <strong>network gas fee</strong> is deducted depending on the blockchain used (TRC20 is cheapest).' },
 ];
 
 const CAT_LABELS: Record<string,string> = { account:'Account', invest:'Investing', finance:'Finance', referral:'Referral', security:'Security' };
@@ -112,7 +112,7 @@ export default function SupportPage() {
 
   return (
     <>
-      {pageLoading && <VaultXLoader pageName="Support" />}
+      {pageLoading && <ValutXLoader pageName="Support" />}
       <div className={`sp-toast${toastShow ? ' show' : ''}${toastCls ? ' ' + toastCls : ''}`}>
         {toastMsg}
       </div>
@@ -128,7 +128,7 @@ export default function SupportPage() {
           </button>
           <div style={{position:'absolute',left:'50%',transform:'translateX(-50%)',display:'flex',alignItems:'center',gap:8,cursor:'pointer'}} onClick={()=>router.push('/')}>
             <div className="sp-logo-mark" style={{width:26,height:26}}/>
-            <span className="sp-logo-text" style={{fontSize:'1.15rem'}}>Vault<span>X</span></span>
+            <span className="sp-logo-text" style={{fontSize:'1.15rem'}}>Valut<span>X</span></span>
           </div>
           <div className="sp-mob-avatar" onClick={()=>router.push('/profile')}>
             {profile ? `${profile.first_name[0]}${profile.last_name[0]}` : '...'}
@@ -188,7 +188,7 @@ export default function SupportPage() {
                   </div>
                   <span className="sp-support-opt-badge"><span className="sp-live-dot"/>Available</span>
                 </div>
-                <div className="sp-support-opt" onClick={()=>{window.open('https://t.me/VaultXOfficial','_blank');showToast('📤 Opening Telegram…')}}>
+                <div className="sp-support-opt" onClick={()=>{window.open('https://t.me/ValutXOfficial','_blank');showToast('📤 Opening Telegram…')}}>
                   <div className="sp-support-opt-icon" style={{background:'rgba(184,147,90,.08)'}}>
                     <svg viewBox="0 0 24 24" style={{stroke:'var(--gold-d)'}}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                   </div>

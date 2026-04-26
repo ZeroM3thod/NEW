@@ -1,5 +1,5 @@
 -- ================================================================
--- VaultX — Role Expansion Migration
+-- ValutX — Role Expansion Migration
 -- Run this in your Supabase SQL Editor
 -- ================================================================
 

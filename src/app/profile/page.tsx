@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import UserSidebar from '@/components/UserSidebar'
-import VaultXLoader from '@/components/VaultXLoader'
+import ValutXLoader from '@/components/ValutXLoader'
 import { createClient } from '@/utils/supabase/client'
 
 const COUNTRY_CODES = [
@@ -268,7 +268,7 @@ export default function ProfilePage() {
   }
 
   const copyCode = () => {
-    const code = profile?.referral_code || 'VAULT-X'
+    const code = profile?.referral_code || 'Valut-X'
     const doShow = () => {
       setCopied(true)
       showToast('Referral code copied', 'ok')
@@ -303,7 +303,7 @@ export default function ProfilePage() {
 
   return (
     <>
-      {loading && <VaultXLoader pageName="Profile" />}
+      {loading && <ValutXLoader pageName="Profile" />}
       <canvas ref={bgRef} style={{position:'fixed',inset:0,zIndex:0,pointerEvents:'none',opacity:.055,width:'100%',height:'100%'}}/>
       <div className={`pf-toast${toastShow?' show':''}${toastCls?' '+toastCls:''}`}>{toastMsg}</div>
       <UserSidebar open={sidebarOpen} onClose={()=>setSidebarOpen(false)}/>
@@ -314,7 +314,7 @@ export default function ProfilePage() {
           <button className='pf-hamburger' onClick={()=>setSidebarOpen(true)}><span/><span/><span/></button>
           <div style={{display:'flex',alignItems:'center',gap:6}}>
             <div className='pf-logo-mark' style={{width:26,height:26}}/>
-            <span className='pf-logo-text' style={{fontSize:'1.15rem'}}>Vault<span>X</span></span>
+            <span className='pf-logo-text' style={{fontSize:'1.15rem'}}>Valut<span>X</span></span>
           </div>
           <div className='pf-avatar' style={{width:32,height:32,fontSize:'.8rem',cursor:'pointer'}} onClick={()=>router.push('/profile')}>
             {profile?.first_name?.[0]}{profile?.last_name?.[0]}
@@ -477,7 +477,7 @@ export default function ProfilePage() {
                   </p>
                   <span className='pf-sec-label'>Your Code</span>
                   <div className='pf-ref-code-box' style={{marginBottom:18}}>
-                    <span className='pf-ref-code-val'>{profile?.referral_code || 'VAULT-X'}</span>
+                    <span className='pf-ref-code-val'>{profile?.referral_code || 'Valut-X'}</span>
                     <button className={`pf-btn-copy${copied?' copied':''}`} onClick={copyCode}>
                       {copied?'Copied!':'Copy'}
                     </button>

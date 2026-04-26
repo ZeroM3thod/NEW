@@ -6,7 +6,7 @@ const testimonials = [
     name: 'Rafiqul Molla',
     role: 'Investor since Season 2 · Dhaka',
     roi: '+23.4%',
-    text: 'I was skeptical at first — every platform promises returns. But VaultX delivered exactly what Season 2 projected. Withdrew 23.4% on top of my principal without a single issue. I am now in Season 4 with three times my original stake.',
+    text: 'I was skeptical at first — every platform promises returns. But ValutX delivered exactly what Season 2 projected. Withdrew 23.4% on top of my principal without a single issue. I am now in Season 4 with three times my original stake.',
   },
   {
     initials: 'SN',
@@ -27,14 +27,14 @@ const testimonials = [
     name: 'Farzana Khanam',
     role: 'First-time Investor · Rajshahi',
     roi: '+18.2%',
-    text: 'As a small investor starting with just $200, I appreciated that VaultX has no minimum pressure. The returns were proportional, the withdrawal was fast, and customer support actually responded within hours.',
+    text: 'As a small investor starting with just $200, I appreciated that ValutX has no minimum pressure. The returns were proportional, the withdrawal was fast, and customer support actually responded within hours.',
   },
   {
     initials: 'MR',
     name: 'Mostafizur Rahman',
     role: 'International Investor · Khulna',
     roi: '+26.8%',
-    text: 'I have used similar platforms in Malaysia and Singapore. VaultX is comparable in professionalism — maybe better in terms of communication. The season-based model removes emotional trading decisions entirely.',
+    text: 'I have used similar platforms in Malaysia and Singapore. ValutX is comparable in professionalism — maybe better in terms of communication. The season-based model removes emotional trading decisions entirely.',
   },
   {
     initials: 'NB',

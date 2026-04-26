@@ -505,7 +505,7 @@ export default function SignUpPage() {
         <div className="auth-card" style={{maxWidth:500,animation:'fadeView .35s ease both'}}>
           <div className="card-logo">
             <div className="logo-icon"/>
-            <div className="logo-name">Vault<span>X</span></div>
+            <div className="logo-name">Valut<span>X</span></div>
           </div>
           <h1 className="card-heading">Create account</h1>
           <p className="card-sub">Join thousands of investors growing capital through structured seasons.</p>
@@ -669,7 +669,7 @@ export default function SignUpPage() {
         </div>
       </div>
 
-      <div className="page-caption">© 2024 VaultX · All rights reserved</div>
+      <div className="page-caption">© 2024 ValutX · All rights reserved</div>
 
       <style>{`
         @keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }

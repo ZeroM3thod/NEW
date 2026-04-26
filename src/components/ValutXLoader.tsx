@@ -6,7 +6,7 @@ interface Props {
   pageName?: string;
 }
 
-export default function VaultXLoader({ pageName = '' }: Props) {
+export default function ValutXLoader({ pageName = '' }: Props) {
   const [visible, setVisible] = useState(true);
   const [fading, setFading] = useState(false);
   const [pct, setPct] = useState(0);
@@ -346,7 +346,7 @@ export default function VaultXLoader({ pageName = '' }: Props) {
           </div>
 
           {/* Brand */}
-          <div className="vx-brand">Vault<b>X</b></div>
+          <div className="vx-brand">Valut<b>X</b></div>
 
           {/* Page name — under VX */}
           {pageName && (

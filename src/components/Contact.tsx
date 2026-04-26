@@ -28,7 +28,7 @@ const contactItems = [
       </svg>
     ),
     title: 'Headquarters',
-    detail: <>Dhaka, Bangladesh<br />Remote operations globally</>,
+    detail: <>45 Wall St, New York, NY 10005, USA<br />Remote operations globally</>,
   },
   {
     icon: (

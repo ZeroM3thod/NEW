@@ -88,12 +88,11 @@ export default function ProfilePage() {
   const [toastCls, setToastCls] = useState('')
   const [toastShow, setToastShow] = useState(false)
   const [copied, setCopied] = useState(false)
-  
+
   const [profile, setProfile] = useState<any>(null)
   const [referrals, setReferrals] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [pwResetSent, setPwResetSent] = useState(false)
-  // ── FIX: computed avg ROI from closed investments ──
   const [computedAvgRoi, setComputedAvgRoi] = useState<number | null>(null)
 
   const [fName, setFName] = useState('')
@@ -122,7 +121,7 @@ export default function ProfilePage() {
           .select('*')
           .eq('id', user.id)
           .maybeSingle()
-        
+
         if (profileData) {
           setProfile(profileData)
           setFName(`${profileData.first_name} ${profileData.last_name}`)
@@ -137,7 +136,6 @@ export default function ProfilePage() {
           setFEm(user.email || '')
         }
 
-        // ── FIX: fetch investments to compute avg ROI from closed seasons ──
         const { data: investments } = await supabase
           .from('investments')
           .select('amount, status, seasons(final_roi, status)')
@@ -152,7 +150,7 @@ export default function ProfilePage() {
               acc + Number(inv.seasons.final_roi), 0)
             setComputedAvgRoi(Math.round((sum / closedWithRoi.length) * 100) / 100)
           } else {
-            setComputedAvgRoi(null) // no closed seasons yet
+            setComputedAvgRoi(null)
           }
         }
 
@@ -160,7 +158,7 @@ export default function ProfilePage() {
           .from('profiles')
           .select('*')
           .eq('referred_by', user.id)
-        
+
         setReferrals(referralData || [])
       } catch (err) {
         console.error('Profile page fetch error:', err)
@@ -197,41 +195,41 @@ export default function ProfilePage() {
   useEffect(() => {
     const cvs = bgRef.current; if (!cvs) return
     const cx = cvs.getContext('2d'); if (!cx) return
-    type Candle = { x:number;y:number;w:number;h:number;wick:number;up:boolean;spd:number;ph:number }
-    type Wave = { pts:{x:number;y:number}[];spd:number;ph:number;amp:number;color:string;opa:string }
-    let W=0, H=0, candles:Candle[]=[], waves:Wave[]=[], T=0, animId=0
+    type Candle = { x: number; y: number; w: number; h: number; wick: number; up: boolean; spd: number; ph: number }
+    type Wave = { pts: { x: number; y: number }[]; spd: number; ph: number; amp: number; color: string; opa: string }
+    let W = 0, H = 0, candles: Candle[] = [], waves: Wave[] = [], T = 0, animId = 0
     const build = () => {
       const count = Math.max(6, Math.floor(W / 50))
-      candles = Array.from({length:count},(_,i)=>({x:(i/count)*W+14+Math.random()*18,y:H*.2+Math.random()*H*.58,w:8+Math.random()*8,h:14+Math.random()*70,wick:6+Math.random()*20,up:Math.random()>.42,spd:.16+Math.random()*.36,ph:Math.random()*Math.PI*2}))
+      candles = Array.from({ length: count }, (_, i) => ({ x: (i / count) * W + 14 + Math.random() * 18, y: H * .2 + Math.random() * H * .58, w: 8 + Math.random() * 8, h: 14 + Math.random() * 70, wick: 6 + Math.random() * 20, up: Math.random() > .42, spd: .16 + Math.random() * .36, ph: Math.random() * Math.PI * 2 }))
       const pts = Math.ceil(W / 36) + 2
-      waves = [0,1,2,3].map(i=>({pts:Array.from({length:pts},(_,j)=>({x:j*36,y:H*(.15+i*.22)+Math.random()*45})),spd:.11+i*.04,ph:i*1.4,amp:14+i*8,color:i%2===0?'rgba(74,103,65,':'rgba(184,147,90,',opa:i%2===0?'0.7)':'0.55)'}))
+      waves = [0, 1, 2, 3].map(i => ({ pts: Array.from({ length: pts }, (_, j) => ({ x: j * 36, y: H * (.15 + i * .22) + Math.random() * 45 })), spd: .11 + i * .04, ph: i * 1.4, amp: 14 + i * 8, color: i % 2 === 0 ? 'rgba(74,103,65,' : 'rgba(184,147,90,', opa: i % 2 === 0 ? '0.7)' : '0.55)' }))
     }
-    const setup = () => { W=cvs.width=window.innerWidth; H=cvs.height=window.innerHeight; build() }
+    const setup = () => { W = cvs.width = window.innerWidth; H = cvs.height = window.innerHeight; build() }
     const draw = () => {
-      cx.clearRect(0,0,W,H); T+=.011
-      waves.forEach(w=>{cx.beginPath();w.pts.forEach((p,j)=>{const y=p.y+Math.sin(T*w.spd+j*.3+w.ph)*w.amp;j===0?cx.moveTo(p.x,y):cx.lineTo(p.x,y)});cx.strokeStyle=w.color+w.opa;cx.lineWidth=1;cx.stroke()})
-      candles.forEach(c=>{const bob=Math.sin(T*c.spd+c.ph)*7,x=c.x,y=c.y+bob;cx.strokeStyle='rgba(28,28,28,.8)';cx.lineWidth=1;cx.beginPath();cx.moveTo(x+c.w/2,y-c.wick);cx.lineTo(x+c.w/2,y+c.h+c.wick);cx.stroke();cx.fillStyle=c.up?'rgba(74,103,65,.88)':'rgba(184,147,90,.82)';cx.fillRect(x,y,c.w,c.h);cx.strokeRect(x,y,c.w,c.h)})
-      animId=requestAnimationFrame(draw)
+      cx.clearRect(0, 0, W, H); T += .011
+      waves.forEach(w => { cx.beginPath(); w.pts.forEach((p, j) => { const y = p.y + Math.sin(T * w.spd + j * .3 + w.ph) * w.amp; j === 0 ? cx.moveTo(p.x, y) : cx.lineTo(p.x, y) }); cx.strokeStyle = w.color + w.opa; cx.lineWidth = 1; cx.stroke() })
+      candles.forEach(c => { const bob = Math.sin(T * c.spd + c.ph) * 7, x = c.x, y = c.y + bob; cx.strokeStyle = 'rgba(28,28,28,.8)'; cx.lineWidth = 1; cx.beginPath(); cx.moveTo(x + c.w / 2, y - c.wick); cx.lineTo(x + c.w / 2, y + c.h + c.wick); cx.stroke(); cx.fillStyle = c.up ? 'rgba(74,103,65,.88)' : 'rgba(184,147,90,.82)'; cx.fillRect(x, y, c.w, c.h); cx.strokeRect(x, y, c.w, c.h) })
+      animId = requestAnimationFrame(draw)
     }
     window.addEventListener('resize', setup); setup(); draw()
-    return()=>{ window.removeEventListener('resize',setup); cancelAnimationFrame(animId) }
+    return () => { window.removeEventListener('resize', setup); cancelAnimationFrame(animId) }
   }, [])
 
   useEffect(() => {
-    const obs = new IntersectionObserver(entries=>{entries.forEach(e=>{if(e.isIntersecting)e.target.classList.add('show')})},{threshold:.1})
-    document.querySelectorAll<HTMLElement>('.pf-reveal').forEach(el=>obs.observe(el))
-    return()=>obs.disconnect()
+    const obs = new IntersectionObserver(entries => { entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('show') }) }, { threshold: .1 })
+    document.querySelectorAll<HTMLElement>('.pf-reveal').forEach(el => obs.observe(el))
+    return () => obs.disconnect()
   }, [])
 
   useEffect(() => {
     document.body.style.overflow = sidebarOpen ? 'hidden' : ''
-    return()=>{ document.body.style.overflow='' }
+    return () => { document.body.style.overflow = '' }
   }, [sidebarOpen])
 
   useEffect(() => {
-    const h=(e:KeyboardEvent)=>{ if(e.key==='Escape')setSidebarOpen(false) }
+    const h = (e: KeyboardEvent) => { if (e.key === 'Escape') setSidebarOpen(false) }
     document.addEventListener('keydown', h)
-    return()=>document.removeEventListener('keydown', h)
+    return () => document.removeEventListener('keydown', h)
   }, [])
 
   const saveProfile = async (e: React.FormEvent) => {
@@ -243,12 +241,12 @@ export default function ProfilePage() {
     const fullPhone = fPhoneNumber ? `${fDialCode}${fPhoneNumber}` : ''
     const { error } = await supabase
       .from('profiles')
-      .update({ first_name:firstName, last_name:lastName, username:fUn, phone_number:fullPhone, country:fCo })
+      .update({ first_name: firstName, last_name: lastName, username: fUn, phone_number: fullPhone, country: fCo })
       .eq('id', user.id)
     if (error) {
       showToast(error.message, 'err')
     } else {
-      setProfile({...profile, first_name:firstName, last_name:lastName, username:fUn, phone_number:fullPhone, country:fCo})
+      setProfile({ ...profile, first_name: firstName, last_name: lastName, username: fUn, phone_number: fullPhone, country: fCo })
       setFPh(fullPhone)
       showToast('Profile saved successfully', 'ok')
     }
@@ -280,7 +278,7 @@ export default function ProfilePage() {
   }
 
   const scrollToForm = () => {
-    formCardRef.current?.scrollIntoView({behavior:'smooth',block:'start'})
+    formCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   }
 
   const handleLogout = async () => {
@@ -289,72 +287,75 @@ export default function ProfilePage() {
     router.push('/auth/signin')
   }
 
-  // ── FIX: avg ROI display helper ──
   const avgRoiDisplay = computedAvgRoi !== null
     ? `${computedAvgRoi >= 0 ? '+' : ''}${computedAvgRoi}%`
     : '—'
 
-  const LockSVG = () => (
-    <svg width='20' height='20' fill='none' stroke='var(--gold)' strokeWidth='2.2' strokeLinecap='round' strokeLinejoin='round' viewBox='0 0 24 24'>
-      <rect x='3' y='11' width='18' height='11' rx='2' ry='2' fill='rgba(184,147,90,0.15)'/>
-      <path d='M7 11V7a5 5 0 0110 0v4'/>
-    </svg>
-  )
+  // Derive KYC status from profile (adjust field name to match your DB schema)
+  const kycStatus: 'verified' | 'pending' | 'not_started' =
+    profile?.kyc_status === 'verified' ? 'verified'
+    : profile?.kyc_status === 'pending' ? 'pending'
+    : 'not_started'
+
+  const kycBadge = {
+    verified: { label: 'Verified', cls: 'pf-b-act' },
+    pending:  { label: 'Under Review', cls: 'pf-b-pend' },
+    not_started: { label: 'Not Started', cls: 'pf-b-pend' },
+  }[kycStatus]
 
   return (
     <>
       {loading && <ValutXLoader pageName="Profile" />}
-      <canvas ref={bgRef} style={{position:'fixed',inset:0,zIndex:0,pointerEvents:'none',opacity:.055,width:'100%',height:'100%'}}/>
-      <div className={`pf-toast${toastShow?' show':''}${toastCls?' '+toastCls:''}`}>{toastMsg}</div>
-      <UserSidebar open={sidebarOpen} onClose={()=>setSidebarOpen(false)}/>
+      <canvas ref={bgRef} style={{ position: 'fixed', inset: 0, zIndex: 0, pointerEvents: 'none', opacity: .055, width: '100%', height: '100%' }} />
+      <div className={`pf-toast${toastShow ? ' show' : ''}${toastCls ? ' ' + toastCls : ''}`}>{toastMsg}</div>
+      <UserSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
 
       <div className='pf-layout'>
         {/* MOBILE TOPBAR */}
         <div className='pf-topbar'>
-          <button className='pf-hamburger' onClick={()=>setSidebarOpen(true)}><span/><span/><span/></button>
-          <div style={{display:'flex',alignItems:'center',gap:6}}>
-            <div className='pf-logo-mark' style={{width:26,height:26}}/>
-            <span className='pf-logo-text' style={{fontSize:'1.15rem'}}>Valut<span>X</span></span>
+          <button className='pf-hamburger' onClick={() => setSidebarOpen(true)}><span /><span /><span /></button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+            <div className='pf-logo-mark' style={{ width: 26, height: 26 }} />
+            <span className='pf-logo-text' style={{ fontSize: '1.15rem' }}>Valut<span>X</span></span>
           </div>
-          <div className='pf-avatar' style={{width:32,height:32,fontSize:'.8rem',cursor:'pointer'}} onClick={()=>router.push('/profile')}>
+          <div className='pf-avatar' style={{ width: 32, height: 32, fontSize: '.8rem', cursor: 'pointer' }} onClick={() => router.push('/profile')}>
             {profile?.first_name?.[0]}{profile?.last_name?.[0]}
           </div>
         </div>
 
         <div className='pf-main'>
-          <div style={{maxWidth:960,margin:'0 auto'}}>
+          <div style={{ maxWidth: 960, margin: '0 auto' }}>
 
             {/* HEADING */}
-            <div className='pf-reveal' style={{marginBottom:24}}>
+            <div className='pf-reveal' style={{ marginBottom: 24 }}>
               <span className='pf-label'>Account</span>
-              <h1 style={{fontFamily:"'Cormorant Garamond',serif",fontSize:'clamp(1.6rem,4vw,2.2rem)',fontWeight:400,color:'var(--ink)',lineHeight:1.15}}>
-                Good morning,<br/>
-                <em style={{fontStyle:'italic',color:'var(--gold)'}}>{profile?.first_name || 'User'}</em>
+              <h1 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 'clamp(1.6rem,4vw,2.2rem)', fontWeight: 400, color: 'var(--ink)', lineHeight: 1.15 }}>
+                Good morning,<br />
+                <em style={{ fontStyle: 'italic', color: 'var(--gold)' }}>{profile?.first_name || 'User'}</em>
               </h1>
             </div>
 
             {/* HERO CARD */}
-            <div className='pf-hero-card pf-reveal' style={{transitionDelay:'.05s'}}>
-              <div style={{position:'relative',flexShrink:0}}>
+            <div className='pf-hero-card pf-reveal' style={{ transitionDelay: '.05s' }}>
+              <div style={{ position: 'relative', flexShrink: 0 }}>
                 <div className='pf-avatar-lg'>
                   {profile ? `${profile.first_name[0]}${profile.last_name[0]}` : '...'}
-                  <div className='pf-online-dot'/>
+                  <div className='pf-online-dot' />
                 </div>
               </div>
               <div className='pf-hero-body'>
                 <h2 className='pf-hero-name'>{profile ? `${profile.first_name} ${profile.last_name}` : 'Loading...'}</h2>
                 <div className='pf-hero-uid'>
-                  @{profile?.username} · Member since {profile ? new Date(profile.created_at).toLocaleDateString(undefined,{month:'short',year:'numeric'}) : '...'}
+                  @{profile?.username} · Member since {profile ? new Date(profile.created_at).toLocaleDateString(undefined, { month: 'short', year: 'numeric' }) : '...'}
                 </div>
                 <div className='pf-meta-pills'>
                   <div className='pf-pill'>Balance <strong>${profile?.balance?.toLocaleString() || '0'}</strong></div>
-                  {/* ── FIX: use computed avg ROI ── */}
                   <div className='pf-pill'>ROI <strong>{avgRoiDisplay}</strong></div>
                   <div className='pf-pill'>Season <strong>{profile?.active_season_id ? 'Active' : 'Not Joined'}</strong></div>
                   <div className='pf-pill'>Referred <strong>{referrals.length} users</strong></div>
                 </div>
               </div>
-              <div style={{display:'flex',gap:10,flexWrap:'wrap',flexShrink:0}}>
+              <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', flexShrink: 0 }}>
                 <button className='pf-btn-ghost' onClick={scrollToForm}>Edit Profile</button>
                 <button className='pf-btn-danger' onClick={handleLogout}>Logout</button>
               </div>
@@ -365,47 +366,47 @@ export default function ProfilePage() {
               {/* LEFT COL */}
               <div className='pf-col'>
                 {/* PROFILE FORM */}
-                <div className='pf-card pf-reveal' ref={formCardRef} style={{transitionDelay:'.08s'}}>
-                  <div className='pf-cp' style={{paddingBottom:0}}>
+                <div className='pf-card pf-reveal' ref={formCardRef} style={{ transitionDelay: '.08s' }}>
+                  <div className='pf-cp' style={{ paddingBottom: 0 }}>
                     <span className='pf-sec-label'>Personal Info</span>
-                    <h2 className='pf-sec-title' style={{fontSize:'1.25rem',marginBottom:22}}>Edit Profile</h2>
+                    <h2 className='pf-sec-title' style={{ fontSize: '1.25rem', marginBottom: 22 }}>Edit Profile</h2>
                   </div>
-                  <form onSubmit={saveProfile} className='pf-cp' style={{paddingTop:0}}>
+                  <form onSubmit={saveProfile} className='pf-cp' style={{ paddingTop: 0 }}>
                     <div className='pf-form-grid'>
-                      {[['Full Name','pf-fn','text','name'],['Username','pf-un','text','username']].map(([lbl,id,type,key])=>(
+                      {[['Full Name', 'pf-fn', 'text', 'name'], ['Username', 'pf-un', 'text', 'username']].map(([lbl, id, type, key]) => (
                         <div key={id} className='pf-fg'>
                           <label className='pf-fl'>{lbl}</label>
-                          <input className='pf-fi' type={type} value={(key==='name'?fName:fUn)} onChange={e=>key==='name'?setFName(e.target.value):setFUn(e.target.value)}/>
+                          <input className='pf-fi' type={type} value={(key === 'name' ? fName : fUn)} onChange={e => key === 'name' ? setFName(e.target.value) : setFUn(e.target.value)} />
                         </div>
                       ))}
                       <div className='pf-fg pf-f-full'>
                         <label className='pf-fl'>Email Address</label>
-                        <input className='pf-fi' type='email' value={fEm} readOnly style={{opacity:.6}}/>
+                        <input className='pf-fi' type='email' value={fEm} readOnly style={{ opacity: .6 }} />
                       </div>
                       <div className='pf-fg pf-f-full'>
                         <label className='pf-fl'>Phone Number</label>
-                        <div style={{display:'flex',gap:0,border:'1px solid var(--border)',borderRadius:'var(--radius)',overflow:'hidden',background:'var(--cream)'}}>
-                          <div style={{position:'relative',flexShrink:0}}>
-                            <select value={fDialCode} onChange={e=>{setFDialCode(e.target.value);const f=COUNTRY_CODES.find(c=>c.dial===e.target.value);if(f)setFCo(f.name)}} style={{padding:'11px 28px 11px 10px',height:'100%',background:'var(--parchment)',border:'none',borderRight:'1px solid var(--border)',fontFamily:"'DM Sans',sans-serif",fontSize:'.82rem',color:'var(--ink)',outline:'none',cursor:'pointer',appearance:'none',WebkitAppearance:'none',minWidth:90}}>
-                              {COUNTRY_CODES.map(c=><option key={c.code} value={c.dial}>{c.flag} {c.dial}</option>)}
+                        <div style={{ display: 'flex', gap: 0, border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', background: 'var(--cream)' }}>
+                          <div style={{ position: 'relative', flexShrink: 0 }}>
+                            <select value={fDialCode} onChange={e => { setFDialCode(e.target.value); const f = COUNTRY_CODES.find(c => c.dial === e.target.value); if (f) setFCo(f.name) }} style={{ padding: '11px 28px 11px 10px', height: '100%', background: 'var(--parchment)', border: 'none', borderRight: '1px solid var(--border)', fontFamily: "'DM Sans',sans-serif", fontSize: '.82rem', color: 'var(--ink)', outline: 'none', cursor: 'pointer', appearance: 'none', WebkitAppearance: 'none', minWidth: 90 }}>
+                              {COUNTRY_CODES.map(c => <option key={c.code} value={c.dial}>{c.flag} {c.dial}</option>)}
                             </select>
-                            <span style={{position:'absolute',right:7,top:'50%',transform:'translateY(-50%)',pointerEvents:'none',fontSize:'.6rem',color:'var(--text-secondary)'}}>▼</span>
+                            <span style={{ position: 'absolute', right: 7, top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '.6rem', color: 'var(--text-secondary)' }}>▼</span>
                           </div>
-                          <input className='pf-fi' type='tel' value={fPhoneNumber} onChange={e=>setFPhoneNumber(e.target.value)} placeholder='1712-345678' style={{border:'none',borderRadius:0,flex:1,background:'transparent'}}/>
+                          <input className='pf-fi' type='tel' value={fPhoneNumber} onChange={e => setFPhoneNumber(e.target.value)} placeholder='1712-345678' style={{ border: 'none', borderRadius: 0, flex: 1, background: 'transparent' }} />
                         </div>
                       </div>
                       <div className='pf-fg'>
                         <label className='pf-fl'>Country</label>
-                        <select className='pf-fi' value={fCo} onChange={e=>{setFCo(e.target.value);const f=COUNTRY_CODES.find(c=>c.name===e.target.value);if(f)setFDialCode(f.dial)}} style={{appearance:'none',WebkitAppearance:'none',backgroundImage:"url(\"data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9' stroke='%236b6459' stroke-width='1.8' fill='none'/%3E%3C/svg%3E\")",backgroundRepeat:'no-repeat',backgroundPosition:'right 12px center',backgroundSize:'16px',paddingRight:34,cursor:'pointer'}}>
+                        <select className='pf-fi' value={fCo} onChange={e => { setFCo(e.target.value); const f = COUNTRY_CODES.find(c => c.name === e.target.value); if (f) setFDialCode(f.dial) }} style={{ appearance: 'none', WebkitAppearance: 'none', backgroundImage: "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 24 24' xmlns='http://www.w3.org/2000/svg'%3E%3Cpolyline points='6 9 12 15 18 9' stroke='%236b6459' stroke-width='1.8' fill='none'/%3E%3C/svg%3E\")", backgroundRepeat: 'no-repeat', backgroundPosition: 'right 12px center', backgroundSize: '16px', paddingRight: 34, cursor: 'pointer' }}>
                           <option value=''>Select your country…</option>
-                          {COUNTRY_CODES.map(c=><option key={c.code} value={c.name}>{c.flag} {c.name}</option>)}
+                          {COUNTRY_CODES.map(c => <option key={c.code} value={c.name}>{c.flag} {c.name}</option>)}
                         </select>
                       </div>
                       <div className='pf-fg'>
                         <label className='pf-fl'>Active Season</label>
-                        <input className='pf-fi' type='text' value={profile?.active_season_id?'Active':'None'} readOnly/>
+                        <input className='pf-fi' type='text' value={profile?.active_season_id ? 'Active' : 'None'} readOnly />
                       </div>
-                      <div className='pf-f-full' style={{display:'flex',gap:10,flexWrap:'wrap',marginTop:6}}>
+                      <div className='pf-f-full' style={{ display: 'flex', gap: 10, flexWrap: 'wrap', marginTop: 6 }}>
                         <button type='submit' className='pf-btn-ink'>Save Changes</button>
                         <button type='button' className='pf-btn-ghost' onClick={resetForm}>Cancel</button>
                       </div>
@@ -414,54 +415,73 @@ export default function ProfilePage() {
                 </div>
 
                 {/* SECURITY */}
-                <div className='pf-card pf-reveal pf-cp' style={{transitionDelay:'.12s'}}>
+                <div className='pf-card pf-reveal pf-cp' style={{ transitionDelay: '.12s' }}>
                   <span className='pf-sec-label'>Security</span>
-                  <h2 className='pf-sec-title' style={{fontSize:'1.25rem',marginBottom:18}}>Account Security</h2>
-                  <div style={{display:'flex',flexDirection:'column',gap:10}}>
+                  <h2 className='pf-sec-title' style={{ fontSize: '1.25rem', marginBottom: 18 }}>Account Security</h2>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+
+                    {/* Password row */}
                     <div className='pf-sec-row'>
                       <div>
-                        <div style={{fontSize:'.82rem',fontWeight:500,color:'var(--ink)',marginBottom:2}}>Password</div>
-                        <div style={{fontSize:'.7rem',color:'var(--txt2)'}}>Change your passwoard every Month</div>
+                        <div style={{ fontSize: '.82rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 2 }}>Password</div>
+                        <div style={{ fontSize: '.7rem', color: 'var(--txt2)' }}>Change your password every month</div>
                       </div>
-                      <button className='pf-btn-ghost' style={{fontSize:'.7rem',padding:'7px 14px'}} onClick={handlePasswordChange} disabled={pwResetSent}>
-                        {pwResetSent?'Link Sent ✓':'Change'}
+                      <button className='pf-btn-ghost' style={{ fontSize: '.7rem', padding: '7px 14px' }} onClick={handlePasswordChange} disabled={pwResetSent}>
+                        {pwResetSent ? 'Link Sent ✓' : 'Change'}
                       </button>
                     </div>
-                    <div className='pf-lock-wrapper'>
-                      <div className='pf-sec-row'>
-                        <div>
-                          <div style={{fontSize:'.82rem',fontWeight:500,color:'var(--ink)',marginBottom:2}}>Google Two-Factor Auth</div>
-                          <div style={{fontSize:'.7rem',color:'var(--txt2)'}}>Extra layer of protection via Google Authenticator</div>
-                        </div>
-                        <div style={{display:'flex',alignItems:'center',gap:8}}>
-                          <span style={{fontSize:'.68rem',textTransform:'uppercase',letterSpacing:'.06em',color:'var(--sage)'}}>Enabled</span>
-                          <div className='pf-toggle-track'><div className='pf-toggle-knob'/></div>
-                        </div>
+
+                    {/* Google 2FA row — lock overlay removed */}
+                    <div className='pf-sec-row'>
+                      <div>
+                        <div style={{ fontSize: '.82rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 2 }}>Google Two-Factor Auth</div>
+                        <div style={{ fontSize: '.7rem', color: 'var(--txt2)' }}>Extra layer of protection via Google Authenticator</div>
                       </div>
-                      <div className='pf-lock-overlay'>
-                        <div className='pf-lock-badge'><LockSVG/></div>
-                        <div className='pf-lock-text-block'>
-                          <span className='pf-lock-main'>Not available in your region</span>
-                          <span className='pf-lock-hint'>Google 2FA is restricted for your account</span>
-                        </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <span style={{ fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--sage)' }}>Enabled</span>
+                        <div className='pf-toggle-track'><div className='pf-toggle-knob' /></div>
                       </div>
                     </div>
-                    <div className='pf-lock-wrapper'>
-                      <div className='pf-sec-row'>
-                        <div>
-                          <div style={{fontSize:'.82rem',fontWeight:500,color:'var(--ink)',marginBottom:2}}>KYC Verification</div>
-                          <div style={{fontSize:'.7rem',color:'var(--txt2)'}}>Identity document verification</div>
+
+                    {/* KYC row — lock overlay removed, linked to /profile/kyc */}
+                    <div className='pf-sec-row' style={{ flexWrap: 'wrap', gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '.82rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 2 }}>KYC Verification</div>
+                        <div style={{ fontSize: '.7rem', color: 'var(--txt2)' }}>
+                          {kycStatus === 'verified'
+                            ? 'Your identity has been successfully verified'
+                            : kycStatus === 'pending'
+                            ? 'Your submission is under review (24–48 hrs)'
+                            : 'Complete identity verification to unlock full access'}
                         </div>
-                        <span className='pf-badge pf-b-act'>Verified</span>
                       </div>
-                      <div className='pf-lock-overlay'>
-                        <div className='pf-lock-badge'><LockSVG/></div>
-                        <div className='pf-lock-text-block'>
-                          <span className='pf-lock-main'>Not available in your region</span>
-                          <span className='pf-lock-hint'>KYC verification is restricted for your account</span>
-                        </div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <span className={`pf-badge ${kycBadge.cls}`}>{kycBadge.label}</span>
+                        {kycStatus !== 'verified' && (
+                          <button
+                            className='pf-btn-ghost'
+                            style={{ fontSize: '.68rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 5 }}
+                            onClick={() => router.push('/profile/kyc')}
+                          >
+                            <svg width="10" height="11" viewBox="0 0 10 11" fill="none">
+                              <path d="M5 1L1 3v3c0 2 1.5 3.5 4 4 2.5-.5 4-2 4-4V3L5 1z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round"/>
+                              <path d="M3.5 5.5l1.2 1.2L7 4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                            {kycStatus === 'pending' ? 'View Status' : 'Start KYC'}
+                          </button>
+                        )}
+                        {kycStatus === 'verified' && (
+                          <button
+                            className='pf-btn-ghost'
+                            style={{ fontSize: '.68rem', padding: '6px 12px' }}
+                            onClick={() => router.push('/profile/kyc')}
+                          >
+                            View
+                          </button>
+                        )}
                       </div>
                     </div>
+
                   </div>
                 </div>
               </div>
@@ -469,21 +489,21 @@ export default function ProfilePage() {
               {/* RIGHT COL */}
               <div className='pf-col'>
                 {/* REFERRAL */}
-                <div className='pf-card pf-reveal pf-cp' style={{transitionDelay:'.1s'}}>
+                <div className='pf-card pf-reveal pf-cp' style={{ transitionDelay: '.1s' }}>
                   <span className='pf-sec-label'>Passive Income</span>
-                  <h2 className='pf-sec-title' style={{fontSize:'1.25rem',marginBottom:6}}>Referral Program</h2>
-                  <p style={{fontSize:'.78rem',color:'var(--txt2)',fontWeight:300,lineHeight:1.75,marginBottom:20}}>
-                    Earn <strong style={{color:'var(--gold)'}}>7% commission</strong> automatically every time a referred user makes profit — no cap, no delays.
+                  <h2 className='pf-sec-title' style={{ fontSize: '1.25rem', marginBottom: 6 }}>Referral Program</h2>
+                  <p style={{ fontSize: '.78rem', color: 'var(--txt2)', fontWeight: 300, lineHeight: 1.75, marginBottom: 20 }}>
+                    Earn <strong style={{ color: 'var(--gold)' }}>7% commission</strong> automatically every time a referred user makes profit — no cap, no delays.
                   </p>
                   <span className='pf-sec-label'>Your Code</span>
-                  <div className='pf-ref-code-box' style={{marginBottom:18}}>
+                  <div className='pf-ref-code-box' style={{ marginBottom: 18 }}>
                     <span className='pf-ref-code-val'>{profile?.referral_code || 'Valut-X'}</span>
-                    <button className={`pf-btn-copy${copied?' copied':''}`} onClick={copyCode}>
-                      {copied?'Copied!':'Copy'}
+                    <button className={`pf-btn-copy${copied ? ' copied' : ''}`} onClick={copyCode}>
+                      {copied ? 'Copied!' : 'Copy'}
                     </button>
                   </div>
                   <span className='pf-sec-label'>Statistics</span>
-                  <div className='pf-stat-trio' style={{marginBottom:18}}>
+                  <div className='pf-stat-trio' style={{ marginBottom: 18 }}>
                     <div className='pf-stat-cell'>
                       <div className='pf-stat-val'>${Number(profile?.referral_earned || 0).toLocaleString()}</div>
                       <div className='pf-stat-lbl'>Commission</div>
@@ -497,16 +517,16 @@ export default function ProfilePage() {
                       <div className='pf-stat-lbl'>Rate</div>
                     </div>
                   </div>
-                  <div style={{background:'rgba(184,147,90,.05)',border:'1px solid var(--border)',borderRadius:6,padding:'12px 14px',marginBottom:20}}>
-                    <div style={{fontSize:'.68rem',color:'var(--txt2)',lineHeight:1.85,fontWeight:300}}>
-                      📌 Share code → Friend invests → Friend Profits → <strong style={{color:'var(--gold)'}}>You earn 7%</strong> credited automatically.
+                  <div style={{ background: 'rgba(184,147,90,.05)', border: '1px solid var(--border)', borderRadius: 6, padding: '12px 14px', marginBottom: 20 }}>
+                    <div style={{ fontSize: '.68rem', color: 'var(--txt2)', lineHeight: 1.85, fontWeight: 300 }}>
+                      📌 Share code → Friend invests → Friend Profits → <strong style={{ color: 'var(--gold)' }}>You earn 7%</strong> credited automatically.
                     </div>
                   </div>
 
                   {/* Referred users table */}
-                  <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',marginBottom:10}}>
-                    <span className='pf-sec-label' style={{marginBottom:0}}>Referred Users</span>
-                    <span style={{fontSize:'.65rem',color:'var(--txt2)',letterSpacing:'.06em'}}>{referrals.length} total</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+                    <span className='pf-sec-label' style={{ marginBottom: 0 }}>Referred Users</span>
+                    <span style={{ fontSize: '.65rem', color: 'var(--txt2)', letterSpacing: '.06em' }}>{referrals.length} total</span>
                   </div>
                   <div className='pf-tbl-wrap'>
                     <table className='pf-rtbl'>
@@ -515,7 +535,7 @@ export default function ProfilePage() {
                       </thead>
                       <tbody>
                         {referrals.length === 0 ? (
-                          <tr><td colSpan={3} style={{textAlign:'center',padding:'16px',color:'var(--txt2)',fontSize:'.78rem'}}>No referrals yet.</td></tr>
+                          <tr><td colSpan={3} style={{ textAlign: 'center', padding: '16px', color: 'var(--txt2)', fontSize: '.78rem' }}>No referrals yet.</td></tr>
                         ) : referrals.slice(0, 5).map((u, i) => (
                           <tr key={i}>
                             <td>
@@ -527,18 +547,17 @@ export default function ProfilePage() {
                                 </div>
                               </div>
                             </td>
-                            <td style={{fontWeight:500,color:'var(--ink)'}}>${Number(u.balance||0).toLocaleString()}</td>
+                            <td style={{ fontWeight: 500, color: 'var(--ink)' }}>${Number(u.balance || 0).toLocaleString()}</td>
                             <td><span className='pf-badge pf-b-act'>active</span></td>
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
-                  <div style={{marginTop:14,textAlign:'center'}}>
-                    {/* ── FIX: navigate to referral page instead of opening modal ── */}
+                  <div style={{ marginTop: 14, textAlign: 'center' }}>
                     <button
                       className='pf-btn-ghost'
-                      style={{width:'100%'}}
+                      style={{ width: '100%' }}
                       onClick={() => router.push('/referral')}
                     >
                       See Full List →
@@ -547,17 +566,16 @@ export default function ProfilePage() {
                 </div>
 
                 {/* WALLET */}
-                <div className='pf-card pf-reveal pf-cp' style={{transitionDelay:'.14s'}}>
+                <div className='pf-card pf-reveal pf-cp' style={{ transitionDelay: '.14s' }}>
                   <span className='pf-sec-label'>Assets</span>
-                  <h2 className='pf-sec-title' style={{fontSize:'1.25rem',marginBottom:16}}>Wallet Summary</h2>
-                  <div style={{display:'flex',flexDirection:'column',gap:8}}>
-                    <div className='pf-wrow'><span className='pf-wrow-lbl'>Total Invested</span><span className='pf-wrow-val' style={{color:'var(--ink)'}}>${Number(profile?.invested_total||0).toLocaleString()}</span></div>
-                    <div className='pf-wrow'><span className='pf-wrow-lbl'>Current Balance</span><span className='pf-wrow-val' style={{color:'var(--gold)'}}>${Number(profile?.balance||0).toLocaleString()}</span></div>
-                    <div className='pf-wrow'><span className='pf-wrow-lbl'>Withdrawable</span><span className='pf-wrow-val' style={{color:'var(--sage)'}}>${Number(profile?.withdrawable_total||0).toLocaleString()}</span></div>
-                    <div className='pf-wrow'><span className='pf-wrow-lbl'>Total Profits</span><span className='pf-wrow-val' style={{color:'var(--sage)'}}>+${Number(profile?.profits_total||0).toLocaleString()}</span></div>
-                    <div className='pf-wrow'><span className='pf-wrow-lbl'>Referral Commission</span><span className='pf-wrow-val' style={{color:'var(--gold)'}}>+${Number(profile?.referral_earned||0).toLocaleString()}</span></div>
-                    {/* ── FIX: show computed avg ROI ── */}
-                    <div className='pf-wrow'><span className='pf-wrow-lbl'>Average Season ROI</span><span className='pf-wrow-val' style={{color: computedAvgRoi !== null && computedAvgRoi >= 0 ? 'var(--sage)' : computedAvgRoi !== null ? '#b05252' : 'var(--txt2)'}}>{avgRoiDisplay}</span></div>
+                  <h2 className='pf-sec-title' style={{ fontSize: '1.25rem', marginBottom: 16 }}>Wallet Summary</h2>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                    <div className='pf-wrow'><span className='pf-wrow-lbl'>Total Invested</span><span className='pf-wrow-val' style={{ color: 'var(--ink)' }}>${Number(profile?.invested_total || 0).toLocaleString()}</span></div>
+                    <div className='pf-wrow'><span className='pf-wrow-lbl'>Current Balance</span><span className='pf-wrow-val' style={{ color: 'var(--gold)' }}>${Number(profile?.balance || 0).toLocaleString()}</span></div>
+                    <div className='pf-wrow'><span className='pf-wrow-lbl'>Withdrawable</span><span className='pf-wrow-val' style={{ color: 'var(--sage)' }}>${Number(profile?.withdrawable_total || 0).toLocaleString()}</span></div>
+                    <div className='pf-wrow'><span className='pf-wrow-lbl'>Total Profits</span><span className='pf-wrow-val' style={{ color: 'var(--sage)' }}>+${Number(profile?.profits_total || 0).toLocaleString()}</span></div>
+                    <div className='pf-wrow'><span className='pf-wrow-lbl'>Referral Commission</span><span className='pf-wrow-val' style={{ color: 'var(--gold)' }}>+${Number(profile?.referral_earned || 0).toLocaleString()}</span></div>
+                    <div className='pf-wrow'><span className='pf-wrow-lbl'>Average Season ROI</span><span className='pf-wrow-val' style={{ color: computedAvgRoi !== null && computedAvgRoi >= 0 ? 'var(--sage)' : computedAvgRoi !== null ? '#b05252' : 'var(--txt2)' }}>{avgRoiDisplay}</span></div>
                   </div>
                 </div>
               </div>

@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
-import { createBrowserClient } from '@supabase/ssr';
 import { authenticator } from 'otplib';
 
 authenticator.options = { window: 1 };
@@ -28,14 +27,8 @@ export async function POST(req: NextRequest) {
     }
 
     // ── 1. Verify password by attempting sign-in ────────────────
-    const browserSupabase = createBrowserClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
-    const email = user.email!;
-    const { error: signInError } = await browserSupabase.auth.signInWithPassword({
-      email,
+    const { error: signInError } = await supabase.auth.signInWithPassword({
+      email: user.email!,
       password,
     });
 

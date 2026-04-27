@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
 import UserSidebar from '@/components/UserSidebar';
@@ -11,7 +11,6 @@ type Step = 'status' | 'intro' | 'qr' | 'verify-setup' | 'backup-codes' | 'succe
 type ToastT = 'ok' | 'err' | '';
 
 /* ─────────────── HELPERS ─────────────── */
-// FIX 1: Added `autoFocus` prop so the first box gets focus on mount
 const OTPDigitInput = ({
   value, index, onchange, onkeydown, onpaste, inputRef, shake, autoFocus = false,
 }: {
@@ -44,6 +43,575 @@ const OTPDigitInput = ({
       animation: shake ? 'shake2fa .5s ease' : 'none',
     }}
   />
+);
+
+/* ─────────────── STEP COMPONENTS ─────────────── */
+
+const StatusCard = ({
+  is2FAEnabled, enabledAt, backupRemaining, setStep, setDisableDigits, setDisableBackupCode, setDisableCodeMode, setDisablePassword, router
+}: {
+  is2FAEnabled: boolean;
+  enabledAt: string | null;
+  backupRemaining: number;
+  setStep: (s: Step) => void;
+  setDisableDigits: (d: string[]) => void;
+  setDisableBackupCode: (c: string) => void;
+  setDisableCodeMode: (m: 'totp' | 'backup') => void;
+  setDisablePassword: (p: string) => void;
+  router: any;
+}) => (
+  <div className="pf-card pf-cp" style={{ maxWidth: 640, margin: '0 auto' }}>
+    <span className="pf-sec-label">Security</span>
+    <h2 className="pf-sec-title" style={{ marginBottom: 6 }}>Two-Factor Authentication</h2>
+    <p style={{ fontSize: '.8rem', color: 'var(--txt2)', fontWeight: 300, lineHeight: 1.75, marginBottom: 28 }}>
+      Add an extra layer of security by requiring a one-time code from Google Authenticator whenever you sign in.
+    </p>
+
+    <div style={{
+      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+      padding: '16px 18px',
+      background: is2FAEnabled ? 'rgba(74,103,65,.06)' : 'rgba(184,147,90,.05)',
+      border: `1px solid ${is2FAEnabled ? 'rgba(74,103,65,.25)' : 'var(--border)'}`,
+      borderRadius: 10, marginBottom: 24,
+    }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{
+          width: 42, height: 42, borderRadius: 10,
+          background: is2FAEnabled ? 'rgba(74,103,65,.12)' : 'rgba(184,147,90,.1)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {is2FAEnabled ? (
+            <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
+              <path d="M10 2L2 5.5V10c0 5.5 3.5 10.5 8 12 4.5-1.5 8-6.5 8-12V5.5L10 2z" stroke="#4a6741" strokeWidth="1.4" strokeLinejoin="round" />
+              <path d="M6.5 11l2.8 2.8L14 8" stroke="#4a6741" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+            </svg>
+          ) : (
+            <svg width="18" height="22" viewBox="0 0 18 22" fill="none">
+              <path d="M9 2L1 5.5V10c0 5.5 3.5 10.5 8 12 4.5-1.5 8-6.5 8-12V5.5L9 2z" stroke="#b8935a" strokeWidth="1.4" strokeLinejoin="round" />
+              <path d="M9 9v4M9 15h.01" stroke="#b8935a" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+          )}
+        </div>
+        <div>
+          <div style={{ fontSize: '.85rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 2 }}>
+            2FA is {is2FAEnabled ? 'enabled' : 'disabled'}
+          </div>
+          <div style={{ fontSize: '.7rem', color: 'var(--txt2)' }}>
+            {is2FAEnabled
+              ? `Enabled${enabledAt ? ` on ${new Date(enabledAt).toLocaleDateString()}` : ''} · ${backupRemaining} backup code${backupRemaining !== 1 ? 's' : ''} remaining`
+              : 'Your account is protected by password only'}
+          </div>
+        </div>
+      </div>
+      <span className={`pf-badge ${is2FAEnabled ? 'pf-b-act' : 'pf-b-pend'}`}>
+        {is2FAEnabled ? 'Active' : 'Off'}
+      </span>
+    </div>
+
+    {!is2FAEnabled && (
+      <div style={{ marginBottom: 24 }}>
+        <div style={{ fontSize: '.66rem', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 12 }}>How it works</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          {[
+            ['📲', 'Install Google Authenticator on your phone'],
+            ['🔗', 'Scan the QR code to link your account'],
+            ['🔢', 'Enter the 6-digit code each time you log in'],
+          ].map(([icon, text]) => (
+            <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--cream)', border: '1px solid var(--border)', borderRadius: 6 }}>
+              <span style={{ fontSize: '1rem' }}>{icon}</span>
+              <span style={{ fontSize: '.78rem', color: 'var(--txt2)' }}>{text}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+    )}
+
+    <div style={{ display: 'flex', gap: 10 }}>
+      {!is2FAEnabled ? (
+        <button className="pf-btn-ink" onClick={() => setStep('intro')} style={{ flex: 1 }}>
+          Set Up Two-Factor Auth →
+        </button>
+      ) : (
+        <button
+          className="pf-btn-ghost"
+          onClick={() => {
+            setDisableDigits(['', '', '', '', '', '']);
+            setDisableBackupCode('');
+            setDisableCodeMode('totp');
+            setDisablePassword('');
+            setStep('disable-confirm');
+          }}
+          style={{ flex: 1, borderColor: 'rgba(155,58,58,.3)', color: '#c0392b' }}
+        >
+          Disable 2FA
+        </button>
+      )}
+      <button className="pf-btn-ghost" onClick={() => router.push('/profile')}>
+        ← Back
+      </button>
+    </div>
+  </div>
+);
+
+const IntroStep = ({ startSetup, setStep }: { startSetup: () => void; setStep: (s: Step) => void }) => (
+  <div className="pf-card pf-cp" style={{ maxWidth: 580, margin: '0 auto' }}>
+    <div style={{ textAlign: 'center', marginBottom: 28 }}>
+      <div style={{ width: 70, height: 70, borderRadius: '50%', background: 'rgba(184,147,90,.1)', border: '1px solid rgba(184,147,90,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+        <span style={{ fontSize: '1.8rem' }}>🔐</span>
+      </div>
+      <span className="pf-sec-label" style={{ justifyContent: 'center' }}>Step 1 of 3</span>
+      <h2 className="pf-sec-title" style={{ marginBottom: 8, fontSize: '1.5rem' }}>Before you begin</h2>
+      <p style={{ fontSize: '.8rem', color: 'var(--txt2)', lineHeight: 1.75 }}>
+        You'll need an authenticator app installed on your phone. We recommend Google Authenticator.
+      </p>
+    </div>
+
+    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
+      {[
+        { name: 'Google Authenticator', sub: 'iOS & Android', icon: '📱', url: 'https://support.google.com/accounts/answer/1066447' },
+        { name: 'Microsoft Authenticator', sub: 'iOS & Android', icon: '🛡️', url: 'https://www.microsoft.com/en-us/security/mobile-authenticator-app' },
+      ].map(app => (
+        <a
+          key={app.name}
+          href={app.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{
+            padding: '14px 16px', background: 'var(--cream)', border: '1px solid var(--border)',
+            borderRadius: 8, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, transition: 'border-color .2s',
+          }}
+          onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--gold)')}
+          onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
+        >
+          <span style={{ fontSize: '1.4rem' }}>{app.icon}</span>
+          <div>
+            <div style={{ fontSize: '.76rem', fontWeight: 500, color: 'var(--ink)' }}>{app.name}</div>
+            <div style={{ fontSize: '.65rem', color: 'var(--txt2)' }}>{app.sub}</div>
+          </div>
+        </a>
+      ))}
+    </div>
+
+    <div style={{ background: 'rgba(74,103,65,.06)', border: '1px solid rgba(74,103,65,.2)', borderRadius: 8, padding: '12px 16px', marginBottom: 24 }}>
+      <div style={{ fontSize: '.72rem', color: 'var(--sage)', lineHeight: 1.75 }}>
+        ✓ Already have an authenticator app installed? You can proceed now.
+      </div>
+    </div>
+
+    <div style={{ display: 'flex', gap: 10 }}>
+      <button className="pf-btn-ink" onClick={startSetup} style={{ flex: 1 }}>Continue →</button>
+      <button className="pf-btn-ghost" onClick={() => setStep('status')}>Cancel</button>
+    </div>
+  </div>
+);
+
+const QRStep = ({ qrDataUrl, showManualKey, setShowManualKey, secretFormatted, setStep }: {
+  qrDataUrl: string;
+  showManualKey: boolean;
+  setShowManualKey: (v: boolean | ((prev: boolean) => boolean)) => void;
+  secretFormatted: string;
+  setStep: (s: Step) => void;
+}) => (
+  <div className="pf-card pf-cp" style={{ maxWidth: 580, margin: '0 auto' }}>
+    <span className="pf-sec-label">Step 2 of 3</span>
+    <h2 className="pf-sec-title" style={{ marginBottom: 8, fontSize: '1.4rem' }}>Scan QR Code</h2>
+    <p style={{ fontSize: '.8rem', color: 'var(--txt2)', lineHeight: 1.75, marginBottom: 24 }}>
+      Open your authenticator app and scan this QR code. It will add ValutX to your app.
+    </p>
+
+    <div style={{ textAlign: 'center', marginBottom: 24 }}>
+      {qrDataUrl ? (
+        <div style={{
+          display: 'inline-block', padding: 16,
+          background: '#faf7f2', border: '2px solid rgba(184,147,90,.3)',
+          borderRadius: 12, boxShadow: '0 4px 20px rgba(184,147,90,.12)',
+        }}>
+          <img src={qrDataUrl} alt="2FA QR Code" style={{ width: 200, height: 200, display: 'block' }} />
+        </div>
+      ) : (
+        <div style={{
+          width: 232, height: 232, margin: '0 auto',
+          background: 'var(--parchment)', borderRadius: 12,
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          border: '1px solid var(--border)',
+        }}>
+          <div style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid var(--gold)', borderTopColor: 'transparent', animation: 'spin2fa .8s linear infinite' }} />
+        </div>
+      )}
+    </div>
+
+    <div style={{ marginBottom: 24 }}>
+      <button
+        onClick={() => setShowManualKey(v => !v)}
+        style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: '.75rem', cursor: 'pointer', letterSpacing: '.05em', textDecoration: 'underline', textUnderlineOffset: 2 }}
+      >
+        {showManualKey ? '▲ Hide manual key' : "▼ Can't scan? Enter key manually"}
+      </button>
+
+      {showManualKey && secretFormatted && (
+        <div style={{ marginTop: 12, padding: '14px 16px', background: 'var(--cream)', border: '1px solid var(--border)', borderRadius: 8 }}>
+          <div style={{ fontSize: '.62rem', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--txt2)', marginBottom: 6 }}>Account name</div>
+          <div style={{ fontSize: '.82rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 12 }}>ValutX</div>
+          <div style={{ fontSize: '.62rem', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--txt2)', marginBottom: 6 }}>Secret key</div>
+          <div style={{ fontFamily: 'monospace', fontSize: '.9rem', color: 'var(--gold)', letterSpacing: '.12em', wordBreak: 'break-all', marginBottom: 8 }}>{secretFormatted}</div>
+          <div style={{ fontSize: '.68rem', color: 'var(--txt2)' }}>Time-based (TOTP) · SHA1 · 6 digits · 30 seconds</div>
+        </div>
+      )}
+    </div>
+
+    <div style={{ background: 'rgba(184,147,90,.05)', border: '1px solid var(--border)', borderRadius: 8, padding: '11px 14px', marginBottom: 24 }}>
+      <div style={{ fontSize: '.72rem', color: 'var(--txt2)', lineHeight: 1.7 }}>
+        📋 After scanning, your authenticator app will show a 6-digit code that changes every 30 seconds.
+      </div>
+    </div>
+
+    <div style={{ display: 'flex', gap: 10 }}>
+      <button className="pf-btn-ink" onClick={() => setStep('verify-setup')} style={{ flex: 1 }}>
+        I've Scanned It →
+      </button>
+      <button className="pf-btn-ghost" onClick={() => setStep('intro')}>← Back</button>
+    </div>
+  </div>
+);
+
+const VerifySetupStep = ({
+  setupDigits, handleSetupDigit, handleSetupKeyDown, handleSetupPaste, setupRefs, setupShake, setSetupDigits, setStep
+}: {
+  setupDigits: string[];
+  handleSetupDigit: (i: number, v: string) => void;
+  handleSetupKeyDown: (i: number, e: React.KeyboardEvent) => void;
+  handleSetupPaste: (e: React.ClipboardEvent) => void;
+  setupRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
+  setupShake: boolean;
+  setSetupDigits: (d: string[]) => void;
+  setStep: (s: Step) => void;
+}) => (
+  <div className="pf-card pf-cp" style={{ maxWidth: 480, margin: '0 auto', textAlign: 'center' }}>
+    <span className="pf-sec-label" style={{ justifyContent: 'center' }}>Step 3 of 3</span>
+    <h2 className="pf-sec-title" style={{ marginBottom: 8, fontSize: '1.4rem' }}>Verify Setup</h2>
+    <p style={{ fontSize: '.8rem', color: 'var(--txt2)', lineHeight: 1.75, marginBottom: 28 }}>
+      Enter the 6-digit code currently shown in your authenticator app to confirm the setup worked.
+    </p>
+
+    <div style={{ marginBottom: 28 }}>
+      <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+        {setupDigits.map((d, i) => (
+          <OTPDigitInput
+            key={i}
+            value={d}
+            index={i}
+            onchange={handleSetupDigit}
+            onkeydown={handleSetupKeyDown}
+            onpaste={handleSetupPaste}
+            inputRef={el => { setupRefs.current[i] = el; }}
+            shake={setupShake}
+            autoFocus={i === 0}
+          />
+        ))}
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginTop: 10 }}>
+        {setupDigits.map((d, i) => (
+          <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: d ? 'var(--gold)' : 'var(--parchment)', border: '1px solid rgba(184,147,90,.3)', transition: 'background .2s' }} />
+        ))}
+      </div>
+    </div>
+
+    <div style={{ background: 'rgba(184,147,90,.05)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 20 }}>
+      <div style={{ fontSize: '.7rem', color: 'var(--txt2)', lineHeight: 1.7 }}>
+        ⏱ Code refreshes every 30 seconds. Make sure your device's clock is accurate.
+      </div>
+    </div>
+
+    <div style={{ display: 'flex', gap: 10 }}>
+      <button className="pf-btn-ghost" onClick={() => { setSetupDigits(['', '', '', '', '', '']); setStep('qr'); }} style={{ flex: 1 }}>
+        ← Back to QR
+      </button>
+    </div>
+  </div>
+);
+
+const BackupCodesStep = ({
+  newBackupCodes, copyBackupCodes, downloadBackupCodes, backupAcked, setBackupAcked, copiedBackup, setStep, setIs2FAEnabled
+}: {
+  newBackupCodes: string[];
+  copyBackupCodes: () => void;
+  downloadBackupCodes: () => void;
+  backupAcked: boolean;
+  setBackupAcked: (v: boolean) => void;
+  copiedBackup: boolean;
+  setStep: (s: Step) => void;
+  setIs2FAEnabled: (v: boolean) => void;
+}) => (
+  <div className="pf-card pf-cp" style={{ maxWidth: 540, margin: '0 auto' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+      <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(155,58,58,.1)', border: '1px solid rgba(155,58,58,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <span style={{ fontSize: '1.2rem' }}>⚠️</span>
+      </div>
+      <div>
+        <div style={{ fontSize: '.66rem', letterSpacing: '.16em', textTransform: 'uppercase', color: '#c0392b', marginBottom: 2 }}>Critical — Save These Now</div>
+        <h2 className="pf-sec-title" style={{ fontSize: '1.3rem', marginBottom: 0 }}>Backup Codes</h2>
+      </div>
+    </div>
+
+    <p style={{ fontSize: '.79rem', color: 'var(--txt2)', lineHeight: 1.75, marginBottom: 20 }}>
+      If you ever lose access to your authenticator app, use one of these codes to sign in. <strong style={{ color: 'var(--ink)' }}>Each code works only once.</strong> Store them somewhere safe.
+    </p>
+
+    <div style={{
+      display: 'grid', gridTemplateColumns: '1fr 1fr',
+      gap: 6, padding: '16px', marginBottom: 16,
+      background: 'var(--cream)', border: '1px solid var(--border)', borderRadius: 8,
+    }}>
+      {newBackupCodes.map((code, i) => (
+        <div key={i} style={{
+          fontFamily: 'monospace', fontSize: '.88rem', color: 'var(--ink)', letterSpacing: '.1em',
+          padding: '7px 10px', background: 'var(--parchment)',
+          borderRadius: 4, textAlign: 'center', border: '1px solid rgba(184,147,90,.15)',
+        }}>
+          {code}
+        </div>
+      ))}
+    </div>
+
+    <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
+      <button className="pf-btn-ghost" style={{ flex: 1, fontSize: '.72rem', padding: '9px 14px' }} onClick={copyBackupCodes}>
+        {copiedBackup ? '✓ Copied!' : '📋 Copy All'}
+      </button>
+      <button className="pf-btn-ghost" style={{ flex: 1, fontSize: '.72rem', padding: '9px 14px' }} onClick={downloadBackupCodes}>
+        ⬇ Download .txt
+      </button>
+    </div>
+
+    <label className="check-row" style={{ marginBottom: 20, background: 'rgba(155,58,58,.05)', border: '1px solid rgba(155,58,58,.18)', borderRadius: 8, padding: '12px 14px' }}>
+      <input type="checkbox" checked={backupAcked} onChange={e => setBackupAcked(e.target.checked)} />
+      <span className="check-label" style={{ color: 'var(--ink)', fontSize: '.79rem' }}>
+        I have saved my backup codes in a secure location.
+      </span>
+    </label>
+
+    <button
+      className="pf-btn-ink"
+      disabled={!backupAcked}
+      onClick={() => { setStep('success'); setIs2FAEnabled(true); }}
+      style={{ width: '100%' }}
+    >
+      Done — Finish Setup →
+    </button>
+  </div>
+);
+
+const SuccessStep = ({ setStep, setIs2FAEnabled }: { setStep: (s: Step) => void; setIs2FAEnabled: (v: boolean) => void }) => (
+  <div className="pf-card pf-cp" style={{ maxWidth: 480, margin: '0 auto', textAlign: 'center' }}>
+    <div style={{ marginBottom: 24 }}>
+      <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(74,103,65,.1)', border: '1px solid rgba(74,103,65,.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
+        <svg width="32" height="36" viewBox="0 0 32 36" fill="none">
+          <path d="M16 2L2 8v10c0 9 6 17 14 18 8-1 14-9 14-18V8L16 2z" fill="rgba(74,103,65,.15)" stroke="#4a6741" strokeWidth="1.5" strokeLinejoin="round" />
+          <path d="M10 18l4.5 4.5L22 13" stroke="#4a6741" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      </div>
+      <h2 className="pf-sec-title" style={{ fontSize: '1.6rem', marginBottom: 8 }}>2FA Enabled!</h2>
+      <p style={{ fontSize: '.8rem', color: 'var(--txt2)', lineHeight: 1.75 }}>
+        Your account is now protected with two-factor authentication. You'll be asked for a code each time you sign in.
+      </p>
+    </div>
+
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
+      {[['✓', 'Authenticator app linked'], ['✓', 'Backup codes saved'], ['✓', 'Account secured']].map(([icon, text]) => (
+        <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'rgba(74,103,65,.05)', border: '1px solid rgba(74,103,65,.15)', borderRadius: 6 }}>
+          <span style={{ color: 'var(--sage)', fontWeight: 500 }}>{icon}</span>
+          <span style={{ fontSize: '.78rem', color: 'var(--txt2)' }}>{text}</span>
+        </div>
+      ))}
+    </div>
+
+    <button className="pf-btn-ink" onClick={() => { setStep('status'); setIs2FAEnabled(true); }} style={{ width: '100%' }}>
+      ← Return to Security Settings
+    </button>
+  </div>
+);
+
+const DisableConfirmStep = ({
+  handleDisable, disablePassword, setDisablePassword, showDisablePassword, setShowDisablePassword, disableCodeMode, setDisableCodeMode, setDisableDigits, setDisableBackupCode, disableDigits, handleDisableDigit, handleDisableKeyDown, handleDisablePaste, disableRefs, disableShake, disableLoading, setStep
+}: {
+  handleDisable: (e: React.FormEvent) => void;
+  disablePassword: string;
+  setDisablePassword: (p: string) => void;
+  showDisablePassword: boolean;
+  setShowDisablePassword: (v: boolean | ((prev: boolean) => boolean)) => void;
+  disableCodeMode: 'totp' | 'backup';
+  setDisableCodeMode: (m: 'totp' | 'backup' | ((prev: 'totp' | 'backup') => 'totp' | 'backup')) => void;
+  setDisableDigits: (d: string[]) => void;
+  setDisableBackupCode: (c: string) => void;
+  disableDigits: string[];
+  handleDisableDigit: (i: number, v: string) => void;
+  handleDisableKeyDown: (i: number, e: React.KeyboardEvent) => void;
+  handleDisablePaste: (e: React.ClipboardEvent) => void;
+  disableRefs: React.MutableRefObject<(HTMLInputElement | null)[]>;
+  disableShake: boolean;
+  disableLoading: boolean;
+  setStep: (s: Step) => void;
+}) => (
+  <div className="pf-card pf-cp" style={{ maxWidth: 480, margin: '0 auto' }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
+      <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(155,58,58,.1)', border: '1px solid rgba(155,58,58,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <svg width="18" height="22" viewBox="0 0 18 22" fill="none">
+          <path d="M9 2L1 5.5V10c0 5.5 3.5 10.5 8 12 4.5-1.5 8-6.5 8-12V5.5L9 2z" stroke="#c0392b" strokeWidth="1.4" strokeLinejoin="round" />
+          <path d="M9 8v5M9 15h.01" stroke="#c0392b" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      </div>
+      <div>
+        <div style={{ fontSize: '.66rem', letterSpacing: '.16em', textTransform: 'uppercase', color: '#c0392b', marginBottom: 2 }}>Danger Zone</div>
+        <h2 className="pf-sec-title" style={{ fontSize: '1.3rem', marginBottom: 0 }}>Disable 2FA</h2>
+      </div>
+    </div>
+
+    <div style={{ background: 'rgba(155,58,58,.05)', border: '1px solid rgba(155,58,58,.18)', borderRadius: 8, padding: '12px 14px', marginBottom: 24 }}>
+      <div style={{ fontSize: '.75rem', color: '#9b3a3a', lineHeight: 1.7 }}>
+        Disabling 2FA will make your account less secure. You will only need a password to sign in.
+      </div>
+    </div>
+
+    <form onSubmit={handleDisable} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+      {/* Password field */}
+      <div className="pf-fg">
+        <label className="pf-fl">Current Password</label>
+        <div style={{ position: 'relative' }}>
+          <input
+            className="pf-fi"
+            type={showDisablePassword ? 'text' : 'password'}
+            placeholder="Your account password"
+            value={disablePassword}
+            onChange={e => setDisablePassword(e.target.value)}
+            style={{ paddingRight: 44 }}
+            autoComplete="current-password"
+          />
+          <button
+            type="button"
+            onClick={() => setShowDisablePassword(v => !v)}
+            style={{
+              position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+              background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt2)',
+              display: 'flex', alignItems: 'center', padding: 2,
+            }}
+          >
+            {showDisablePassword ? (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                <line x1="1" y1="1" x2="23" y2="23"/>
+              </svg>
+            ) : (
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+              </svg>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* 2FA Code section with mode toggle */}
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+          <label className="pf-fl" style={{ margin: 0 }}>
+            {disableCodeMode === 'totp' ? 'Authenticator Code' : 'Backup Code'}
+          </label>
+          <button
+            type="button"
+            onClick={() => {
+              setDisableCodeMode(m => m === 'totp' ? 'backup' : 'totp');
+              setDisableDigits(['', '', '', '', '', '']);
+              setDisableBackupCode('');
+            }}
+            style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: '.68rem', cursor: 'pointer', letterSpacing: '.06em', textDecoration: 'underline', textUnderlineOffset: 2 }}
+          >
+            {disableCodeMode === 'totp' ? 'Use backup code instead →' : '← Use authenticator app'}
+          </button>
+        </div>
+
+        {disableCodeMode === 'totp' ? (
+          /* OTP digit boxes for TOTP */
+          <div>
+            <div style={{ display: 'flex', gap: 7, justifyContent: 'center' }}>
+              {disableDigits.map((d, i) => (
+                <OTPDigitInput
+                  key={i}
+                  value={d}
+                  index={i}
+                  onchange={handleDisableDigit}
+                  onkeydown={handleDisableKeyDown}
+                  onpaste={handleDisablePaste}
+                  inputRef={el => { disableRefs.current[i] = el; }}
+                  shake={disableShake}
+                  autoFocus={i === 0}
+                />
+              ))}
+            </div>
+            {/* Progress dots */}
+            <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginTop: 8 }}>
+              {disableDigits.map((d, i) => (
+                <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: d ? 'var(--gold)' : 'var(--parchment)', border: '1px solid rgba(184,147,90,.3)', transition: 'background .2s' }} />
+              ))}
+            </div>
+            <div style={{ textAlign: 'center', marginTop: 8, fontSize: '.68rem', color: 'var(--txt2)' }}>
+              Enter the 6-digit code from your authenticator app
+            </div>
+          </div>
+        ) : (
+          /* Text input for backup code */
+          <div>
+            <input
+              className="pf-fi"
+              type="text"
+              placeholder="XXXX-XXXX"
+              value={disableBackupCode}
+              onChange={e => setDisableBackupCode(e.target.value)}
+              autoFocus
+              style={{ letterSpacing: '.14em', textAlign: 'center', fontSize: '.95rem', fontFamily: "'Cormorant Garamond',serif" }}
+              autoComplete="off"
+            />
+            <div style={{ marginTop: 6, fontSize: '.68rem', color: 'var(--txt2)', textAlign: 'center' }}>
+              Format: XXXX-XXXX — each backup code can only be used once
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Submit */}
+      <div style={{ display: 'flex', gap: 10 }}>
+        <button
+          type="submit"
+          disabled={
+            disableLoading ||
+            !disablePassword ||
+            (disableCodeMode === 'totp' && disableDigits.some(d => !d)) ||
+            (disableCodeMode === 'backup' && !disableBackupCode.trim())
+          }
+          style={{
+            flex: 1, padding: '12px', background: 'rgba(155,58,58,.9)', color: '#fff',
+            border: '1px solid rgba(155,58,58,.5)', borderRadius: 4,
+            fontFamily: "'DM Sans',sans-serif", fontSize: '.75rem', letterSpacing: '.1em',
+            textTransform: 'uppercase', cursor: 'pointer',
+            opacity: (!disablePassword || (disableCodeMode === 'totp' && disableDigits.some(d => !d)) || (disableCodeMode === 'backup' && !disableBackupCode.trim())) ? .5 : 1,
+            transition: 'opacity .2s, background .2s',
+          }}
+        >
+          {disableLoading ? 'Disabling…' : 'Confirm Disable 2FA'}
+        </button>
+        <button
+          type="button"
+          className="pf-btn-ghost"
+          onClick={() => {
+            setDisableDigits(['', '', '', '', '', '']);
+            setDisableBackupCode('');
+            setDisablePassword('');
+            setStep('status');
+          }}
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  </div>
 );
 
 /* ─────────────── PAGE ─────────────── */
@@ -80,7 +648,6 @@ export default function TwoFAManagePage() {
   const [showDisablePassword, setShowDisablePassword] = useState(false);
   const [disableLoading, setDisableLoading]         = useState(false);
 
-  // FIX 2: Separate state for disable OTP digit boxes
   const [disableDigits, setDisableDigits]   = useState(['', '', '', '', '', '']);
   const [disableShake, setDisableShake]     = useState(false);
   const [disableCodeMode, setDisableCodeMode] = useState<'totp' | 'backup'>('totp');
@@ -153,7 +720,6 @@ export default function TwoFAManagePage() {
     const nd = [...setupDigits];
     nd[index] = value.slice(-1);
     setSetupDigits(nd);
-    // FIX 3: Auto-advance to next box when a digit is entered
     if (value && index < 5) {
       setTimeout(() => setupRefs.current[index + 1]?.focus(), 0);
     }
@@ -207,7 +773,7 @@ export default function TwoFAManagePage() {
     }
   };
 
-  /* ── FIX 4: Disable OTP digit handlers ── */
+  /* ── Disable OTP digit handlers ── */
   const handleDisableDigit = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
     const nd = [...disableDigits];
@@ -244,7 +810,6 @@ export default function TwoFAManagePage() {
     }
   };
 
-  /* ── FIX 5: Updated handleDisable to use digit boxes + proper error reset ── */
   const handleDisable = async (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -271,7 +836,6 @@ export default function TwoFAManagePage() {
     setDisableLoading(false);
 
     if (!res.ok) {
-      // Shake + reset only if it was a code error (not a password error)
       if (disableCodeMode === 'totp') {
         setDisableShake(true);
         setTimeout(() => setDisableShake(false), 600);
@@ -284,7 +848,6 @@ export default function TwoFAManagePage() {
       setEnabledAt(null);
       setStep('status');
       showToast('✓ Two-factor authentication disabled.', 'ok');
-      // Reset all disable state
       setDisablePassword('');
       setDisableDigits(['', '', '', '', '', '']);
       setDisableBackupCode('');
@@ -310,517 +873,6 @@ export default function TwoFAManagePage() {
     a.click();
     showToast('✓ Backup codes downloaded', 'ok');
   };
-
-  /* ─────────────── RENDER HELPERS ─────────────── */
-
-  const StatusCard = () => (
-    <div className="pf-card pf-cp" style={{ maxWidth: 640, margin: '0 auto' }}>
-      <span className="pf-sec-label">Security</span>
-      <h2 className="pf-sec-title" style={{ marginBottom: 6 }}>Two-Factor Authentication</h2>
-      <p style={{ fontSize: '.8rem', color: 'var(--txt2)', fontWeight: 300, lineHeight: 1.75, marginBottom: 28 }}>
-        Add an extra layer of security by requiring a one-time code from Google Authenticator whenever you sign in.
-      </p>
-
-      <div style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '16px 18px',
-        background: is2FAEnabled ? 'rgba(74,103,65,.06)' : 'rgba(184,147,90,.05)',
-        border: `1px solid ${is2FAEnabled ? 'rgba(74,103,65,.25)' : 'var(--border)'}`,
-        borderRadius: 10, marginBottom: 24,
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{
-            width: 42, height: 42, borderRadius: 10,
-            background: is2FAEnabled ? 'rgba(74,103,65,.12)' : 'rgba(184,147,90,.1)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            {is2FAEnabled ? (
-              <svg width="20" height="22" viewBox="0 0 20 22" fill="none">
-                <path d="M10 2L2 5.5V10c0 5.5 3.5 10.5 8 12 4.5-1.5 8-6.5 8-12V5.5L10 2z" stroke="#4a6741" strokeWidth="1.4" strokeLinejoin="round" />
-                <path d="M6.5 11l2.8 2.8L14 8" stroke="#4a6741" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-              </svg>
-            ) : (
-              <svg width="18" height="22" viewBox="0 0 18 22" fill="none">
-                <path d="M9 2L1 5.5V10c0 5.5 3.5 10.5 8 12 4.5-1.5 8-6.5 8-12V5.5L9 2z" stroke="#b8935a" strokeWidth="1.4" strokeLinejoin="round" />
-                <path d="M9 9v4M9 15h.01" stroke="#b8935a" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            )}
-          </div>
-          <div>
-            <div style={{ fontSize: '.85rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 2 }}>
-              2FA is {is2FAEnabled ? 'enabled' : 'disabled'}
-            </div>
-            <div style={{ fontSize: '.7rem', color: 'var(--txt2)' }}>
-              {is2FAEnabled
-                ? `Enabled${enabledAt ? ` on ${new Date(enabledAt).toLocaleDateString()}` : ''} · ${backupRemaining} backup code${backupRemaining !== 1 ? 's' : ''} remaining`
-                : 'Your account is protected by password only'}
-            </div>
-          </div>
-        </div>
-        <span className={`pf-badge ${is2FAEnabled ? 'pf-b-act' : 'pf-b-pend'}`}>
-          {is2FAEnabled ? 'Active' : 'Off'}
-        </span>
-      </div>
-
-      {!is2FAEnabled && (
-        <div style={{ marginBottom: 24 }}>
-          <div style={{ fontSize: '.66rem', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 12 }}>How it works</div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {[
-              ['📲', 'Install Google Authenticator on your phone'],
-              ['🔗', 'Scan the QR code to link your account'],
-              ['🔢', 'Enter the 6-digit code each time you log in'],
-            ].map(([icon, text]) => (
-              <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'var(--cream)', border: '1px solid var(--border)', borderRadius: 6 }}>
-                <span style={{ fontSize: '1rem' }}>{icon}</span>
-                <span style={{ fontSize: '.78rem', color: 'var(--txt2)' }}>{text}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      <div style={{ display: 'flex', gap: 10 }}>
-        {!is2FAEnabled ? (
-          <button className="pf-btn-ink" onClick={() => setStep('intro')} style={{ flex: 1 }}>
-            Set Up Two-Factor Auth →
-          </button>
-        ) : (
-          <button
-            className="pf-btn-ghost"
-            onClick={() => {
-              setDisableDigits(['', '', '', '', '', '']);
-              setDisableBackupCode('');
-              setDisableCodeMode('totp');
-              setDisablePassword('');
-              setStep('disable-confirm');
-            }}
-            style={{ flex: 1, borderColor: 'rgba(155,58,58,.3)', color: '#c0392b' }}
-          >
-            Disable 2FA
-          </button>
-        )}
-        <button className="pf-btn-ghost" onClick={() => router.push('/profile')}>
-          ← Back
-        </button>
-      </div>
-    </div>
-  );
-
-  const IntroStep = () => (
-    <div className="pf-card pf-cp" style={{ maxWidth: 580, margin: '0 auto' }}>
-      <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div style={{ width: 70, height: 70, borderRadius: '50%', background: 'rgba(184,147,90,.1)', border: '1px solid rgba(184,147,90,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-          <span style={{ fontSize: '1.8rem' }}>🔐</span>
-        </div>
-        <span className="pf-sec-label" style={{ justifyContent: 'center' }}>Step 1 of 3</span>
-        <h2 className="pf-sec-title" style={{ marginBottom: 8, fontSize: '1.5rem' }}>Before you begin</h2>
-        <p style={{ fontSize: '.8rem', color: 'var(--txt2)', lineHeight: 1.75 }}>
-          You'll need an authenticator app installed on your phone. We recommend Google Authenticator.
-        </p>
-      </div>
-
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
-        {[
-          { name: 'Google Authenticator', sub: 'iOS & Android', icon: '📱', url: 'https://support.google.com/accounts/answer/1066447' },
-          { name: 'Microsoft Authenticator', sub: 'iOS & Android', icon: '🛡️', url: 'https://www.microsoft.com/en-us/security/mobile-authenticator-app' },
-        ].map(app => (
-          <a
-            key={app.name}
-            href={app.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            style={{
-              padding: '14px 16px', background: 'var(--cream)', border: '1px solid var(--border)',
-              borderRadius: 8, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 10, transition: 'border-color .2s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.borderColor = 'var(--gold)')}
-            onMouseLeave={e => (e.currentTarget.style.borderColor = 'var(--border)')}
-          >
-            <span style={{ fontSize: '1.4rem' }}>{app.icon}</span>
-            <div>
-              <div style={{ fontSize: '.76rem', fontWeight: 500, color: 'var(--ink)' }}>{app.name}</div>
-              <div style={{ fontSize: '.65rem', color: 'var(--txt2)' }}>{app.sub}</div>
-            </div>
-          </a>
-        ))}
-      </div>
-
-      <div style={{ background: 'rgba(74,103,65,.06)', border: '1px solid rgba(74,103,65,.2)', borderRadius: 8, padding: '12px 16px', marginBottom: 24 }}>
-        <div style={{ fontSize: '.72rem', color: 'var(--sage)', lineHeight: 1.75 }}>
-          ✓ Already have an authenticator app installed? You can proceed now.
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button className="pf-btn-ink" onClick={startSetup} style={{ flex: 1 }}>Continue →</button>
-        <button className="pf-btn-ghost" onClick={() => setStep('status')}>Cancel</button>
-      </div>
-    </div>
-  );
-
-  const QRStep = () => (
-    <div className="pf-card pf-cp" style={{ maxWidth: 580, margin: '0 auto' }}>
-      <span className="pf-sec-label">Step 2 of 3</span>
-      <h2 className="pf-sec-title" style={{ marginBottom: 8, fontSize: '1.4rem' }}>Scan QR Code</h2>
-      <p style={{ fontSize: '.8rem', color: 'var(--txt2)', lineHeight: 1.75, marginBottom: 24 }}>
-        Open your authenticator app and scan this QR code. It will add ValutX to your app.
-      </p>
-
-      <div style={{ textAlign: 'center', marginBottom: 24 }}>
-        {qrDataUrl ? (
-          <div style={{
-            display: 'inline-block', padding: 16,
-            background: '#faf7f2', border: '2px solid rgba(184,147,90,.3)',
-            borderRadius: 12, boxShadow: '0 4px 20px rgba(184,147,90,.12)',
-          }}>
-            <img src={qrDataUrl} alt="2FA QR Code" style={{ width: 200, height: 200, display: 'block' }} />
-          </div>
-        ) : (
-          <div style={{
-            width: 232, height: 232, margin: '0 auto',
-            background: 'var(--parchment)', borderRadius: 12,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            border: '1px solid var(--border)',
-          }}>
-            <div style={{ width: 24, height: 24, borderRadius: '50%', border: '2px solid var(--gold)', borderTopColor: 'transparent', animation: 'spin2fa .8s linear infinite' }} />
-          </div>
-        )}
-      </div>
-
-      <div style={{ marginBottom: 24 }}>
-        <button
-          onClick={() => setShowManualKey(v => !v)}
-          style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: '.75rem', cursor: 'pointer', letterSpacing: '.05em', textDecoration: 'underline', textUnderlineOffset: 2 }}
-        >
-          {showManualKey ? '▲ Hide manual key' : "▼ Can't scan? Enter key manually"}
-        </button>
-
-        {showManualKey && secretFormatted && (
-          <div style={{ marginTop: 12, padding: '14px 16px', background: 'var(--cream)', border: '1px solid var(--border)', borderRadius: 8 }}>
-            <div style={{ fontSize: '.62rem', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--txt2)', marginBottom: 6 }}>Account name</div>
-            <div style={{ fontSize: '.82rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 12 }}>ValutX</div>
-            <div style={{ fontSize: '.62rem', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--txt2)', marginBottom: 6 }}>Secret key</div>
-            <div style={{ fontFamily: 'monospace', fontSize: '.9rem', color: 'var(--gold)', letterSpacing: '.12em', wordBreak: 'break-all', marginBottom: 8 }}>{secretFormatted}</div>
-            <div style={{ fontSize: '.68rem', color: 'var(--txt2)' }}>Time-based (TOTP) · SHA1 · 6 digits · 30 seconds</div>
-          </div>
-        )}
-      </div>
-
-      <div style={{ background: 'rgba(184,147,90,.05)', border: '1px solid var(--border)', borderRadius: 8, padding: '11px 14px', marginBottom: 24 }}>
-        <div style={{ fontSize: '.72rem', color: 'var(--txt2)', lineHeight: 1.7 }}>
-          📋 After scanning, your authenticator app will show a 6-digit code that changes every 30 seconds.
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button className="pf-btn-ink" onClick={() => setStep('verify-setup')} style={{ flex: 1 }}>
-          I've Scanned It →
-        </button>
-        <button className="pf-btn-ghost" onClick={() => setStep('intro')}>← Back</button>
-      </div>
-    </div>
-  );
-
-  // FIX 6: VerifySetupStep now passes autoFocus={i === 0} and uses onpaste prop
-  const VerifySetupStep = () => (
-    <div className="pf-card pf-cp" style={{ maxWidth: 480, margin: '0 auto', textAlign: 'center' }}>
-      <span className="pf-sec-label" style={{ justifyContent: 'center' }}>Step 3 of 3</span>
-      <h2 className="pf-sec-title" style={{ marginBottom: 8, fontSize: '1.4rem' }}>Verify Setup</h2>
-      <p style={{ fontSize: '.8rem', color: 'var(--txt2)', lineHeight: 1.75, marginBottom: 28 }}>
-        Enter the 6-digit code currently shown in your authenticator app to confirm the setup worked.
-      </p>
-
-      <div style={{ marginBottom: 28 }}>
-        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-          {setupDigits.map((d, i) => (
-            <OTPDigitInput
-              key={i}
-              value={d}
-              index={i}
-              onchange={handleSetupDigit}
-              onkeydown={handleSetupKeyDown}
-              onpaste={handleSetupPaste}
-              inputRef={el => { setupRefs.current[i] = el; }}
-              shake={setupShake}
-              autoFocus={i === 0}
-            />
-          ))}
-        </div>
-        <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginTop: 10 }}>
-          {setupDigits.map((d, i) => (
-            <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: d ? 'var(--gold)' : 'var(--parchment)', border: '1px solid rgba(184,147,90,.3)', transition: 'background .2s' }} />
-          ))}
-        </div>
-      </div>
-
-      <div style={{ background: 'rgba(184,147,90,.05)', border: '1px solid var(--border)', borderRadius: 8, padding: '10px 14px', marginBottom: 20 }}>
-        <div style={{ fontSize: '.7rem', color: 'var(--txt2)', lineHeight: 1.7 }}>
-          ⏱ Code refreshes every 30 seconds. Make sure your device's clock is accurate.
-        </div>
-      </div>
-
-      <div style={{ display: 'flex', gap: 10 }}>
-        <button className="pf-btn-ghost" onClick={() => { setSetupDigits(['', '', '', '', '', '']); setStep('qr'); }} style={{ flex: 1 }}>
-          ← Back to QR
-        </button>
-      </div>
-    </div>
-  );
-
-  const BackupCodesStep = () => (
-    <div className="pf-card pf-cp" style={{ maxWidth: 540, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(155,58,58,.1)', border: '1px solid rgba(155,58,58,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <span style={{ fontSize: '1.2rem' }}>⚠️</span>
-        </div>
-        <div>
-          <div style={{ fontSize: '.66rem', letterSpacing: '.16em', textTransform: 'uppercase', color: '#c0392b', marginBottom: 2 }}>Critical — Save These Now</div>
-          <h2 className="pf-sec-title" style={{ fontSize: '1.3rem', marginBottom: 0 }}>Backup Codes</h2>
-        </div>
-      </div>
-
-      <p style={{ fontSize: '.79rem', color: 'var(--txt2)', lineHeight: 1.75, marginBottom: 20 }}>
-        If you ever lose access to your authenticator app, use one of these codes to sign in. <strong style={{ color: 'var(--ink)' }}>Each code works only once.</strong> Store them somewhere safe.
-      </p>
-
-      <div style={{
-        display: 'grid', gridTemplateColumns: '1fr 1fr',
-        gap: 6, padding: '16px', marginBottom: 16,
-        background: 'var(--cream)', border: '1px solid var(--border)', borderRadius: 8,
-      }}>
-        {newBackupCodes.map((code, i) => (
-          <div key={i} style={{
-            fontFamily: 'monospace', fontSize: '.88rem', color: 'var(--ink)', letterSpacing: '.1em',
-            padding: '7px 10px', background: 'var(--parchment)',
-            borderRadius: 4, textAlign: 'center', border: '1px solid rgba(184,147,90,.15)',
-          }}>
-            {code}
-          </div>
-        ))}
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        <button className="pf-btn-ghost" style={{ flex: 1, fontSize: '.72rem', padding: '9px 14px' }} onClick={copyBackupCodes}>
-          {copiedBackup ? '✓ Copied!' : '📋 Copy All'}
-        </button>
-        <button className="pf-btn-ghost" style={{ flex: 1, fontSize: '.72rem', padding: '9px 14px' }} onClick={downloadBackupCodes}>
-          ⬇ Download .txt
-        </button>
-      </div>
-
-      <label className="check-row" style={{ marginBottom: 20, background: 'rgba(155,58,58,.05)', border: '1px solid rgba(155,58,58,.18)', borderRadius: 8, padding: '12px 14px' }}>
-        <input type="checkbox" checked={backupAcked} onChange={e => setBackupAcked(e.target.checked)} />
-        <span className="check-label" style={{ color: 'var(--ink)', fontSize: '.79rem' }}>
-          I have saved my backup codes in a secure location.
-        </span>
-      </label>
-
-      <button
-        className="pf-btn-ink"
-        disabled={!backupAcked}
-        onClick={() => { setStep('success'); setIs2FAEnabled(true); }}
-        style={{ width: '100%' }}
-      >
-        Done — Finish Setup →
-      </button>
-    </div>
-  );
-
-  const SuccessStep = () => (
-    <div className="pf-card pf-cp" style={{ maxWidth: 480, margin: '0 auto', textAlign: 'center' }}>
-      <div style={{ marginBottom: 24 }}>
-        <div style={{ width: 72, height: 72, borderRadius: '50%', background: 'rgba(74,103,65,.1)', border: '1px solid rgba(74,103,65,.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 16px' }}>
-          <svg width="32" height="36" viewBox="0 0 32 36" fill="none">
-            <path d="M16 2L2 8v10c0 9 6 17 14 18 8-1 14-9 14-18V8L16 2z" fill="rgba(74,103,65,.15)" stroke="#4a6741" strokeWidth="1.5" strokeLinejoin="round" />
-            <path d="M10 18l4.5 4.5L22 13" stroke="#4a6741" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
-        </div>
-        <h2 className="pf-sec-title" style={{ fontSize: '1.6rem', marginBottom: 8 }}>2FA Enabled!</h2>
-        <p style={{ fontSize: '.8rem', color: 'var(--txt2)', lineHeight: 1.75 }}>
-          Your account is now protected with two-factor authentication. You'll be asked for a code each time you sign in.
-        </p>
-      </div>
-
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
-        {[['✓', 'Authenticator app linked'], ['✓', 'Backup codes saved'], ['✓', 'Account secured']].map(([icon, text]) => (
-          <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'rgba(74,103,65,.05)', border: '1px solid rgba(74,103,65,.15)', borderRadius: 6 }}>
-            <span style={{ color: 'var(--sage)', fontWeight: 500 }}>{icon}</span>
-            <span style={{ fontSize: '.78rem', color: 'var(--txt2)' }}>{text}</span>
-          </div>
-        ))}
-      </div>
-
-      <button className="pf-btn-ink" onClick={() => { setStep('status'); setIs2FAEnabled(true); }} style={{ width: '100%' }}>
-        ← Return to Security Settings
-      </button>
-    </div>
-  );
-
-  // FIX 7: Completely redesigned DisableConfirmStep with OTP digit boxes + backup toggle
-  const DisableConfirmStep = () => (
-    <div className="pf-card pf-cp" style={{ maxWidth: 480, margin: '0 auto' }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
-        <div style={{ width: 44, height: 44, borderRadius: 10, background: 'rgba(155,58,58,.1)', border: '1px solid rgba(155,58,58,.25)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-          <svg width="18" height="22" viewBox="0 0 18 22" fill="none">
-            <path d="M9 2L1 5.5V10c0 5.5 3.5 10.5 8 12 4.5-1.5 8-6.5 8-12V5.5L9 2z" stroke="#c0392b" strokeWidth="1.4" strokeLinejoin="round" />
-            <path d="M9 8v5M9 15h.01" stroke="#c0392b" strokeWidth="1.5" strokeLinecap="round" />
-          </svg>
-        </div>
-        <div>
-          <div style={{ fontSize: '.66rem', letterSpacing: '.16em', textTransform: 'uppercase', color: '#c0392b', marginBottom: 2 }}>Danger Zone</div>
-          <h2 className="pf-sec-title" style={{ fontSize: '1.3rem', marginBottom: 0 }}>Disable 2FA</h2>
-        </div>
-      </div>
-
-      <div style={{ background: 'rgba(155,58,58,.05)', border: '1px solid rgba(155,58,58,.18)', borderRadius: 8, padding: '12px 14px', marginBottom: 24 }}>
-        <div style={{ fontSize: '.75rem', color: '#9b3a3a', lineHeight: 1.7 }}>
-          Disabling 2FA will make your account less secure. You will only need a password to sign in.
-        </div>
-      </div>
-
-      <form onSubmit={handleDisable} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-
-        {/* Password field */}
-        <div className="pf-fg">
-          <label className="pf-fl">Current Password</label>
-          <div style={{ position: 'relative' }}>
-            <input
-              className="pf-fi"
-              type={showDisablePassword ? 'text' : 'password'}
-              placeholder="Your account password"
-              value={disablePassword}
-              onChange={e => setDisablePassword(e.target.value)}
-              style={{ paddingRight: 44 }}
-              autoComplete="current-password"
-            />
-            <button
-              type="button"
-              onClick={() => setShowDisablePassword(v => !v)}
-              style={{
-                position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
-                background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt2)',
-                display: 'flex', alignItems: 'center', padding: 2,
-              }}
-            >
-              {showDisablePassword ? (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-                  <line x1="1" y1="1" x2="23" y2="23"/>
-                </svg>
-              ) : (
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
-                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-                </svg>
-              )}
-            </button>
-          </div>
-        </div>
-
-        {/* 2FA Code section with mode toggle */}
-        <div>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-            <label className="pf-fl" style={{ margin: 0 }}>
-              {disableCodeMode === 'totp' ? 'Authenticator Code' : 'Backup Code'}
-            </label>
-            <button
-              type="button"
-              onClick={() => {
-                setDisableCodeMode(m => m === 'totp' ? 'backup' : 'totp');
-                setDisableDigits(['', '', '', '', '', '']);
-                setDisableBackupCode('');
-              }}
-              style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: '.68rem', cursor: 'pointer', letterSpacing: '.06em', textDecoration: 'underline', textUnderlineOffset: 2 }}
-            >
-              {disableCodeMode === 'totp' ? 'Use backup code instead →' : '← Use authenticator app'}
-            </button>
-          </div>
-
-          {disableCodeMode === 'totp' ? (
-            /* OTP digit boxes for TOTP */
-            <div>
-              <div style={{ display: 'flex', gap: 7, justifyContent: 'center' }}>
-                {disableDigits.map((d, i) => (
-                  <OTPDigitInput
-                    key={i}
-                    value={d}
-                    index={i}
-                    onchange={handleDisableDigit}
-                    onkeydown={handleDisableKeyDown}
-                    onpaste={handleDisablePaste}
-                    inputRef={el => { disableRefs.current[i] = el; }}
-                    shake={disableShake}
-                    autoFocus={i === 0}
-                  />
-                ))}
-              </div>
-              {/* Progress dots */}
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginTop: 8 }}>
-                {disableDigits.map((d, i) => (
-                  <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: d ? 'var(--gold)' : 'var(--parchment)', border: '1px solid rgba(184,147,90,.3)', transition: 'background .2s' }} />
-                ))}
-              </div>
-              <div style={{ textAlign: 'center', marginTop: 8, fontSize: '.68rem', color: 'var(--txt2)' }}>
-                Enter the 6-digit code from your authenticator app
-              </div>
-            </div>
-          ) : (
-            /* Text input for backup code */
-            <div>
-              <input
-                className="pf-fi"
-                type="text"
-                placeholder="XXXX-XXXX"
-                value={disableBackupCode}
-                onChange={e => setDisableBackupCode(e.target.value)}
-                autoFocus
-                style={{ letterSpacing: '.14em', textAlign: 'center', fontSize: '.95rem', fontFamily: "'Cormorant Garamond',serif" }}
-                autoComplete="off"
-              />
-              <div style={{ marginTop: 6, fontSize: '.68rem', color: 'var(--txt2)', textAlign: 'center' }}>
-                Format: XXXX-XXXX — each backup code can only be used once
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Submit */}
-        <div style={{ display: 'flex', gap: 10 }}>
-          <button
-            type="submit"
-            disabled={
-              disableLoading ||
-              !disablePassword ||
-              (disableCodeMode === 'totp' && disableDigits.some(d => !d)) ||
-              (disableCodeMode === 'backup' && !disableBackupCode.trim())
-            }
-            style={{
-              flex: 1, padding: '12px', background: 'rgba(155,58,58,.9)', color: '#fff',
-              border: '1px solid rgba(155,58,58,.5)', borderRadius: 4,
-              fontFamily: "'DM Sans',sans-serif", fontSize: '.75rem', letterSpacing: '.1em',
-              textTransform: 'uppercase', cursor: 'pointer',
-              opacity: (!disablePassword || (disableCodeMode === 'totp' && disableDigits.some(d => !d)) || (disableCodeMode === 'backup' && !disableBackupCode.trim())) ? .5 : 1,
-              transition: 'opacity .2s, background .2s',
-            }}
-          >
-            {disableLoading ? 'Disabling…' : 'Confirm Disable 2FA'}
-          </button>
-          <button
-            type="button"
-            className="pf-btn-ghost"
-            onClick={() => {
-              setDisableDigits(['', '', '', '', '', '']);
-              setDisableBackupCode('');
-              setDisablePassword('');
-              setStep('status');
-            }}
-          >
-            Cancel
-          </button>
-        </div>
-      </form>
-    </div>
-  );
 
   /* ─────────────── MAIN RENDER ─────────────── */
   return (
@@ -853,13 +905,13 @@ export default function TwoFAManagePage() {
             </div>
 
             {/* Step content */}
-            {step === 'status'          && <StatusCard />}
-            {step === 'intro'           && <IntroStep />}
-            {step === 'qr'              && <QRStep />}
-            {step === 'verify-setup'    && <VerifySetupStep />}
-            {step === 'backup-codes'    && <BackupCodesStep />}
-            {step === 'success'         && <SuccessStep />}
-            {step === 'disable-confirm' && <DisableConfirmStep />}
+            {step === 'status'          && <StatusCard is2FAEnabled={is2FAEnabled} enabledAt={enabledAt} backupRemaining={backupRemaining} setStep={setStep} setDisableDigits={setDisableDigits} setDisableBackupCode={setDisableBackupCode} setDisableCodeMode={setDisableCodeMode} setDisablePassword={setDisablePassword} router={router} />}
+            {step === 'intro'           && <IntroStep startSetup={startSetup} setStep={setStep} />}
+            {step === 'qr'              && <QRStep qrDataUrl={qrDataUrl} showManualKey={showManualKey} setShowManualKey={setShowManualKey} secretFormatted={secretFormatted} setStep={setStep} />}
+            {step === 'verify-setup'    && <VerifySetupStep setupDigits={setupDigits} handleSetupDigit={handleSetupDigit} handleSetupKeyDown={handleSetupKeyDown} handleSetupPaste={handleSetupPaste} setupRefs={setupRefs} setupShake={setupShake} setSetupDigits={setSetupDigits} setStep={setStep} />}
+            {step === 'backup-codes'    && <BackupCodesStep newBackupCodes={newBackupCodes} copyBackupCodes={copyBackupCodes} downloadBackupCodes={downloadBackupCodes} backupAcked={backupAcked} setBackupAcked={setBackupAcked} copiedBackup={copiedBackup} setStep={setStep} setIs2FAEnabled={setIs2FAEnabled} />}
+            {step === 'success'         && <SuccessStep setStep={setStep} setIs2FAEnabled={setIs2FAEnabled} />}
+            {step === 'disable-confirm' && <DisableConfirmStep handleDisable={handleDisable} disablePassword={disablePassword} setDisablePassword={setDisablePassword} showDisablePassword={showDisablePassword} setShowDisablePassword={setShowDisablePassword} disableCodeMode={disableCodeMode} setDisableCodeMode={setDisableCodeMode} setDisableDigits={setDisableDigits} setDisableBackupCode={setDisableBackupCode} disableDigits={disableDigits} handleDisableDigit={handleDisableDigit} handleDisableKeyDown={handleDisableKeyDown} handleDisablePaste={handleDisablePaste} disableRefs={disableRefs} disableShake={disableShake} disableLoading={disableLoading} setStep={setStep} />}
           </div>
         </div>
       </div>

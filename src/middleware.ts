@@ -47,6 +47,7 @@ export async function updateSession(request: NextRequest) {
   const isMaintenancePage = pathname.startsWith('/maintenance')
   const isSuspendedPage   = pathname.startsWith('/suspended')
   const isAdminPage       = pathname.startsWith('/admin')
+  const isModeratorPage   = pathname.startsWith('/moderator')
   const isAuthPage        = pathname.startsWith('/auth')
   const isApiPage         = pathname.startsWith('/api/')
   const isHomePage        = pathname === '/'
@@ -112,6 +113,15 @@ export async function updateSession(request: NextRequest) {
   // ── ADMIN ROUTE PROTECTION ──────────────────────────────────
   if (isAdminPage) {
     if (!user || userRole !== 'admin') {
+      const url = request.nextUrl.clone()
+      url.pathname = '/404'
+      return NextResponse.redirect(url)
+    }
+  }
+
+  // ── MODERATOR ROUTE PROTECTION ──────────────────────────────
+  if (isModeratorPage) {
+    if (!user || (userRole !== 'moderator' && userRole !== 'admin')) {
       const url = request.nextUrl.clone()
       url.pathname = '/404'
       return NextResponse.redirect(url)

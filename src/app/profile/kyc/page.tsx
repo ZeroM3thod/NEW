@@ -116,11 +116,13 @@ export default function KYCPage() {
       }
     }
     function resize() {
+      if (!canvas) return
       W = canvas.width = window.innerWidth
       H = canvas.height = window.innerHeight
       initCandles(); initLines()
     }
     function animate() {
+      if (!ctx || !canvas) return
       ctx.clearRect(0, 0, W, H); t += 0.01
       lines.forEach((l, i) => {
         ctx.beginPath()

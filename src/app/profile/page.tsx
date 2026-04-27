@@ -95,6 +95,11 @@ export default function ProfilePage() {
   const [pwResetSent, setPwResetSent] = useState(false)
   const [computedAvgRoi, setComputedAvgRoi] = useState<number | null>(null)
 
+  // ── 2FA state ───────────────────────────────────────────────
+  const [is2FAEnabled, setIs2FAEnabled] = useState(false)
+  const [twoFABackupRemaining, setTwoFABackupRemaining] = useState(0)
+  const [twoFAEnabledAt, setTwoFAEnabledAt] = useState<string | null>(null)
+
   const [fName, setFName] = useState('')
   const [fUn, setFUn] = useState('')
   const [fEm, setFEm] = useState('')
@@ -116,13 +121,14 @@ export default function ProfilePage() {
           return
         }
 
-        const { data: profileData } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle()
+        // Fetch profile + 2FA status in parallel
+        const [profileRes, twoFARes] = await Promise.all([
+          supabase.from('profiles').select('*').eq('id', user.id).maybeSingle(),
+          fetch('/api/auth/2fa/status'),
+        ])
 
-        if (profileData) {
+        if (profileRes.data) {
+          const profileData = profileRes.data
           setProfile(profileData)
           setFName(`${profileData.first_name} ${profileData.last_name}`)
           setFUn(profileData.username || '')
@@ -134,6 +140,14 @@ export default function ProfilePage() {
           setFPhoneNumber(number)
         } else {
           setFEm(user.email || '')
+        }
+
+        // 2FA status
+        if (twoFARes.ok) {
+          const twoFAData = await twoFARes.json()
+          setIs2FAEnabled(twoFAData.enabled ?? false)
+          setTwoFABackupRemaining(twoFAData.backupCodesRemaining ?? 0)
+          setTwoFAEnabledAt(twoFAData.enabledAt ?? null)
         }
 
         const { data: investments } = await supabase
@@ -216,10 +230,21 @@ export default function ProfilePage() {
   }, [])
 
   useEffect(() => {
-    const obs = new IntersectionObserver(entries => { entries.forEach(e => { if (e.isIntersecting) e.target.classList.add('show') }) }, { threshold: .1 })
-    document.querySelectorAll<HTMLElement>('.pf-reveal').forEach(el => obs.observe(el))
-    return () => obs.disconnect()
-  }, [])
+    if (loading) return
+    const obs = new IntersectionObserver(entries => {
+      entries.forEach(e => {
+        if (e.isIntersecting) e.target.classList.add('show')
+      })
+    }, { threshold: .1 })
+    // Use a small timeout to ensure DOM is fully rendered after loading state change
+    const timer = setTimeout(() => {
+      document.querySelectorAll<HTMLElement>('.pf-reveal').forEach(el => obs.observe(el))
+    }, 100)
+    return () => {
+      obs.disconnect()
+      clearTimeout(timer)
+    }
+  }, [loading])
 
   useEffect(() => {
     document.body.style.overflow = sidebarOpen ? 'hidden' : ''
@@ -291,17 +316,24 @@ export default function ProfilePage() {
     ? `${computedAvgRoi >= 0 ? '+' : ''}${computedAvgRoi}%`
     : '—'
 
-  // Derive KYC status from profile (adjust field name to match your DB schema)
+  // Derive KYC status from profile
   const kycStatus: 'verified' | 'pending' | 'not_started' =
     profile?.kyc_status === 'verified' ? 'verified'
     : profile?.kyc_status === 'pending' ? 'pending'
     : 'not_started'
 
   const kycBadge = {
-    verified: { label: 'Verified', cls: 'pf-b-act' },
-    pending:  { label: 'Under Review', cls: 'pf-b-pend' },
-    not_started: { label: 'Not Started', cls: 'pf-b-pend' },
+    verified:    { label: 'Verified',      cls: 'pf-b-act' },
+    pending:     { label: 'Under Review',  cls: 'pf-b-pend' },
+    not_started: { label: 'Not Started',   cls: 'pf-b-pend' },
   }[kycStatus]
+
+  // ── 2FA display helpers ──────────────────────────────────────
+  const twoFAStatusLabel = is2FAEnabled ? 'Enabled' : 'Disabled'
+  const twoFAStatusCls   = is2FAEnabled ? 'pf-b-act' : 'pf-b-pend'
+  const twoFASubtext     = is2FAEnabled
+    ? `Active${twoFAEnabledAt ? ' since ' + new Date(twoFAEnabledAt).toLocaleDateString() : ''} · ${twoFABackupRemaining} backup code${twoFABackupRemaining !== 1 ? 's' : ''} left`
+    : 'Not configured — password-only sign-in'
 
   return (
     <>
@@ -431,19 +463,76 @@ export default function ProfilePage() {
                       </button>
                     </div>
 
-                    {/* Google 2FA row — lock overlay removed */}
-                    <div className='pf-sec-row'>
-                      <div>
-                        <div style={{ fontSize: '.82rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 2 }}>Google Two-Factor Auth</div>
-                        <div style={{ fontSize: '.7rem', color: 'var(--txt2)' }}>Extra layer of protection via Google Authenticator</div>
+                    {/* ── Google 2FA row — live status ── */}
+                    <div className='pf-sec-row' style={{ flexWrap: 'wrap', gap: 10 }}>
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '.82rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 2 }}>
+                          Google Two-Factor Auth
+                        </div>
+                        <div style={{ fontSize: '.7rem', color: 'var(--txt2)' }}>
+                          {twoFASubtext}
+                        </div>
                       </div>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <span style={{ fontSize: '.68rem', textTransform: 'uppercase', letterSpacing: '.06em', color: 'var(--sage)' }}>Enabled</span>
-                        <div className='pf-toggle-track'><div className='pf-toggle-knob' /></div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexShrink: 0 }}>
+                        <span className={`pf-badge ${twoFAStatusCls}`}>{twoFAStatusLabel}</span>
+                        <button
+                          className='pf-btn-ghost'
+                          style={{ fontSize: '.68rem', padding: '6px 12px', display: 'flex', alignItems: 'center', gap: 5 }}
+                          onClick={() => router.push('/profile/security/2fa')}
+                        >
+                          {is2FAEnabled ? (
+                            <>
+                              <svg width="10" height="11" viewBox="0 0 10 11" fill="none">
+                                <path d="M5 1L1 3v3c0 2 1.5 3.5 4 4 2.5-.5 4-2 4-4V3L5 1z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round"/>
+                                <path d="M3.5 5.5l1.2 1.2L7 4" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                              Manage
+                            </>
+                          ) : (
+                            <>
+                              <svg width="10" height="11" viewBox="0 0 10 11" fill="none">
+                                <path d="M5 1L1 3v3c0 2 1.5 3.5 4 4 2.5-.5 4-2 4-4V3L5 1z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round"/>
+                              </svg>
+                              Set Up
+                            </>
+                          )}
+                        </button>
                       </div>
                     </div>
 
-                    {/* KYC row — lock overlay removed, linked to /profile/kyc */}
+                    {/* Low backup codes warning */}
+                    {is2FAEnabled && twoFABackupRemaining <= 3 && twoFABackupRemaining > 0 && (
+                      <div style={{ background: 'rgba(184,147,90,.07)', border: '1px solid rgba(184,147,90,.3)', borderRadius: 6, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                        <div style={{ fontSize: '.72rem', color: 'var(--gold)', lineHeight: 1.6 }}>
+                          ⚠ Only {twoFABackupRemaining} backup code{twoFABackupRemaining !== 1 ? 's' : ''} remaining. Disable and re-enable 2FA to generate new ones.
+                        </div>
+                        <button
+                          className='pf-btn-ghost'
+                          style={{ fontSize: '.65rem', padding: '5px 10px', whiteSpace: 'nowrap', flexShrink: 0 }}
+                          onClick={() => router.push('/profile/security/2fa')}
+                        >
+                          Manage →
+                        </button>
+                      </div>
+                    )}
+
+                    {/* No backup codes left warning */}
+                    {is2FAEnabled && twoFABackupRemaining === 0 && (
+                      <div style={{ background: 'rgba(155,58,58,.06)', border: '1px solid rgba(155,58,58,.25)', borderRadius: 6, padding: '10px 14px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
+                        <div style={{ fontSize: '.72rem', color: '#c0392b', lineHeight: 1.6 }}>
+                          ✕ All backup codes used. You won't be able to recover your account if you lose your authenticator app.
+                        </div>
+                        <button
+                          className='pf-btn-ghost'
+                          style={{ fontSize: '.65rem', padding: '5px 10px', whiteSpace: 'nowrap', flexShrink: 0, borderColor: 'rgba(155,58,58,.3)', color: '#c0392b' }}
+                          onClick={() => router.push('/profile/security/2fa')}
+                        >
+                          Fix Now →
+                        </button>
+                      </div>
+                    )}
+
+                    {/* KYC row */}
                     <div className='pf-sec-row' style={{ flexWrap: 'wrap', gap: 10 }}>
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: '.82rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 2 }}>KYC Verification</div>

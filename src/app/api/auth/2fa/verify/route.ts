@@ -4,9 +4,10 @@ import { authenticator } from 'otplib';
 
 authenticator.options = { window: 1 };
 
-const TRUSTED_COOKIE  = 'vx_2fa_t';
-const PENDING_COOKIE  = 'vx_2fa_pending';
-const TRUSTED_MAX_AGE = 60 * 60 * 24 * 30; // 30 days
+// Cookie names — must stay in sync with check/route.ts and middleware.ts
+const PENDING_COOKIE   = 'vx_2fa_pending';
+const TRUSTED_PREFIX   = 'vx_2fa_t_';          // full prefix: vx_2fa_t_{userId}
+const TRUSTED_MAX_AGE  = 60 * 60 * 24 * 30;    // 30 days
 
 export async function POST(req: NextRequest) {
   try {
@@ -113,7 +114,7 @@ function buildSuccess(
 
   // Optionally mark device as trusted for 30 days
   if (rememberDevice) {
-    res.cookies.set(`${TRUSTED_COOKIE}_${userId}`, 'true', {
+    res.cookies.set(`${TRUSTED_PREFIX}${userId}`, 'true', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

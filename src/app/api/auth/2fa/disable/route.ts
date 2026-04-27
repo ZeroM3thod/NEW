@@ -5,6 +5,9 @@ import { authenticator } from 'otplib';
 
 authenticator.options = { window: 1 };
 
+// Cookie names — must stay in sync with verify/route.ts and check/route.ts
+const TRUSTED_PREFIX = 'vx_2fa_t_';  // full cookie: vx_2fa_t_{userId}
+
 export async function POST(req: NextRequest) {
   try {
     const supabase = createClient();
@@ -100,9 +103,9 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Failed to disable 2FA.' }, { status: 500 });
     }
 
-    // Clear trusted device cookies (best effort — can't enumerate all)
+    // Clear the trusted device cookie for this user
     const res = NextResponse.json({ success: true });
-    res.cookies.set(`vx_2fa_t_${user.id}`, '', {
+    res.cookies.set(`${TRUSTED_PREFIX}${user.id}`, '', {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',

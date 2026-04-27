@@ -1,9 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/utils/supabase/server';
 
+// Cookie names — must stay in sync with verify/route.ts and middleware.ts
 const PENDING_COOKIE  = 'vx_2fa_pending';
-const TRUSTED_PREFIX  = 'vx_2fa_t_';
-const PENDING_MAX_AGE = 10 * 60; // 10 minutes to complete 2FA
+const TRUSTED_PREFIX  = 'vx_2fa_t_';           // full cookie: vx_2fa_t_{userId}
+const PENDING_MAX_AGE = 10 * 60;               // 10 minutes to complete 2FA
 
 export async function POST(req: NextRequest) {
   try {
@@ -44,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     return res;
   } catch (err: any) {
-    console.error('2FA init-pending error:', err);
+    console.error('2FA check error:', err);
     return NextResponse.json(
       { error: err.message || 'Internal error.' },
       { status: 500 }

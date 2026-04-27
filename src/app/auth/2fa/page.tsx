@@ -15,6 +15,10 @@ export default function TwoFAVerifyPage() {
   const toastTimer  = useRef<ReturnType<typeof setTimeout> | null>(null);
   const inputRefs   = useRef<(HTMLInputElement | null)[]>([]);
 
+  // Use a ref for `remember` so submitCode always reads the latest value
+  // without needing to be in its dependency array (avoids stale closure issue)
+  const rememberRef = useRef(false);
+
   const [digits, setDigits]           = useState(['', '', '', '', '', '']);
   const [backupCode, setBackupCode]   = useState('');
   const [mode, setMode]               = useState<Mode>('totp');
@@ -24,6 +28,9 @@ export default function TwoFAVerifyPage() {
   const [shaking, setShaking]         = useState(false);
   const [userEmail, setUserEmail]     = useState('');
 
+  // Keep ref in sync with state
+  useEffect(() => { rememberRef.current = remember; }, [remember]);
+
   /* ── Load user email ── */
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -32,7 +39,7 @@ export default function TwoFAVerifyPage() {
     });
   }, [supabase, router]);
 
-  /* ── Canvas BG (same as signin page) ── */
+  /* ── Canvas BG ── */
   useEffect(() => {
     const cvs = canvasRef.current; if (!cvs) return;
     const cx = cvs.getContext('2d')!;
@@ -94,36 +101,7 @@ export default function TwoFAVerifyPage() {
     setTimeout(() => setShaking(false), 600);
   };
 
-  /* ── OTP digit handling ── */
-  const handleDigitChange = (index: number, value: string) => {
-    if (!/^\d*$/.test(value)) return;
-    const newDigits = [...digits];
-    newDigits[index] = value.slice(-1);
-    setDigits(newDigits);
-    if (value && index < 5) inputRefs.current[index + 1]?.focus();
-    if (newDigits.every(d => d !== '')) {
-      submitCode(newDigits.join(''));
-    }
-  };
-
-  const handleDigitKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !digits[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-    if (e.key === 'ArrowLeft' && index > 0) inputRefs.current[index - 1]?.focus();
-    if (e.key === 'ArrowRight' && index < 5) inputRefs.current[index + 1]?.focus();
-  };
-
-  const handleDigitPaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (pasted.length === 6) {
-      setDigits(pasted.split(''));
-      inputRefs.current[5]?.focus();
-      submitCode(pasted);
-    }
-  };
-
+  // submitCode reads rememberRef.current so it never captures a stale value
   const submitCode = useCallback(async (code: string) => {
     if (loading) return;
     setLoading(true);
@@ -132,7 +110,7 @@ export default function TwoFAVerifyPage() {
       const res = await fetch('/api/auth/2fa/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ code, rememberDevice: remember }),
+        body: JSON.stringify({ code, rememberDevice: rememberRef.current }),
       });
       const data = await res.json();
 
@@ -165,7 +143,37 @@ export default function TwoFAVerifyPage() {
     } finally {
       setLoading(false);
     }
-  }, [loading, remember, supabase, router, showToast]);
+  }, [loading, supabase, router, showToast]); // `remember` intentionally excluded — read via ref
+
+  /* ── OTP digit handling ── */
+  const handleDigitChange = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    const newDigits = [...digits];
+    newDigits[index] = value.slice(-1);
+    setDigits(newDigits);
+    if (value && index < 5) inputRefs.current[index + 1]?.focus();
+    if (newDigits.every(d => d !== '')) {
+      submitCode(newDigits.join(''));
+    }
+  };
+
+  const handleDigitKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace' && !digits[index] && index > 0) {
+      inputRefs.current[index - 1]?.focus();
+    }
+    if (e.key === 'ArrowLeft' && index > 0) inputRefs.current[index - 1]?.focus();
+    if (e.key === 'ArrowRight' && index < 5) inputRefs.current[index + 1]?.focus();
+  };
+
+  const handleDigitPaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const pasted = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (pasted.length === 6) {
+      setDigits(pasted.split(''));
+      inputRefs.current[5]?.focus();
+      submitCode(pasted);
+    }
+  };
 
   const handleBackupSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -266,11 +274,18 @@ export default function TwoFAVerifyPage() {
 
               {/* Remember device */}
               <label className="check-row" style={{ justifyContent: 'center', marginBottom: 16 }}>
-                <input type="checkbox" checked={remember} onChange={e => setRemember(e.target.checked)} />
+                <input
+                  type="checkbox"
+                  checked={remember}
+                  onChange={e => {
+                    setRemember(e.target.checked);
+                    rememberRef.current = e.target.checked;
+                  }}
+                />
                 <span className="check-label">Trust this device for 30 days</span>
               </label>
 
-              {/* Manual verify button (shown if not auto-submitted) */}
+              {/* Manual verify button (shown if all filled but not yet auto-submitted) */}
               {isFilled && (
                 <button
                   className="btn-primary"

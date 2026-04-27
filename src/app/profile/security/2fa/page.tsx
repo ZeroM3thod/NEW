@@ -397,7 +397,7 @@ export default function TwoFAManagePage() {
           onClick={() => setShowManualKey(v => !v)}
           style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: '.75rem', cursor: 'pointer', letterSpacing: '.05em', textDecoration: 'underline', textUnderlineOffset: 2 }}
         >
-          {showManualKey ? '▲ Hide manual key' : '▼ Can't scan? Enter key manually'}
+          {showManualKey ? '▲ Hide manual key' : "▼ Can't scan? Enter key manually"}
         </button>
 
         {showManualKey && secretFormatted && (

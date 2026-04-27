@@ -219,7 +219,7 @@ function SetPasswordContent() {
             </div>
           </div>
         </div>
-        <div className="page-caption">© 2025 ValutX · All rights reserved</div>
+        <div className="page-caption">© 2024 ValutX · All rights reserved</div>
         <style>{`@keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }`}</style>
       </>
     );

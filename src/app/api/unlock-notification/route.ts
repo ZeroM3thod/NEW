@@ -141,7 +141,7 @@ export async function POST(req: NextRequest) {
       </div>
 
       <div class="cta-wrap">
-        <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://valutx.vercel.app'}/withdraw" class="cta-btn">Withdraw Now</a>
+        <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://valutx.business'}/withdraw" class="cta-btn">Withdraw Now</a>
       </div>
     </div>
     <div class="footer">

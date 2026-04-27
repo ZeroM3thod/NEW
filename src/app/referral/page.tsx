@@ -153,7 +153,7 @@ export default function ReferralPage() {
 
   const copyRef = (type: 'link' | 'code') => {
     if (!profile) return
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://valutx.vercel.app'
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://valutx.business'
     const text = type === 'link'
       ? `${baseUrl}/auth/signup?ref=${profile.referral_code}`
       : profile.referral_code
@@ -165,7 +165,7 @@ export default function ReferralPage() {
 
   const shareVia = (platform: string) => {
     if (!profile) return
-    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://Valutx.vercel.app'
+    const baseUrl = typeof window !== 'undefined' ? window.location.origin : 'https://valutx.business'
     const link = `${baseUrl}/auth/signup?ref=${profile.referral_code}`
     const msg = `Join ValutX and invest with me! ${link}`
     const urls: Record<string, string> = {

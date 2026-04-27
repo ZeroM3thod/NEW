@@ -302,7 +302,7 @@ export default function MaintenancePage() {
 
       {/* Bottom caption */}
       <div style={{position:'fixed',bottom:14,left:0,right:0,textAlign:'center',zIndex:2,pointerEvents:'none',fontSize:'.64rem',letterSpacing:'.08em',color:'rgba(107,100,89,.4)'}}>
-        © 2025 ValutX · All rights reserved
+        © 2024 ValutX · All rights reserved
       </div>
     </>
   );

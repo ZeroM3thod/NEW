@@ -11,25 +11,35 @@ type Step = 'status' | 'intro' | 'qr' | 'verify-setup' | 'backup-codes' | 'succe
 type ToastT = 'ok' | 'err' | '';
 
 /* ─────────────── HELPERS ─────────────── */
+// FIX 1: Added `autoFocus` prop so the first box gets focus on mount
 const OTPDigitInput = ({
-  value, index, total, onchange, onkeydown, inputRef, shake,
+  value, index, onchange, onkeydown, onpaste, inputRef, shake, autoFocus = false,
 }: {
-  value: string; index: number; total: number;
+  value: string;
+  index: number;
   onchange: (i: number, v: string) => void;
   onkeydown: (i: number, e: React.KeyboardEvent) => void;
+  onpaste?: (e: React.ClipboardEvent) => void;
   inputRef: (el: HTMLInputElement | null) => void;
   shake: boolean;
+  autoFocus?: boolean;
 }) => (
   <input
     ref={inputRef}
-    type="text" inputMode="numeric" maxLength={1} value={value}
+    type="text"
+    inputMode="numeric"
+    maxLength={1}
+    value={value}
+    autoFocus={autoFocus}
     onChange={e => onchange(index, e.target.value)}
     onKeyDown={e => onkeydown(index, e)}
+    onPaste={onpaste}
     style={{
       width: 46, height: 56, textAlign: 'center', fontSize: '1.4rem', fontWeight: 600,
       fontFamily: "'Cormorant Garamond',serif", background: 'var(--cream)',
       border: `1.5px solid ${value ? 'var(--gold)' : 'var(--border)'}`,
-      borderRadius: 6, outline: 'none', color: 'var(--ink)', transition: 'border-color .2s, box-shadow .2s',
+      borderRadius: 6, outline: 'none', color: 'var(--ink)',
+      transition: 'border-color .2s, box-shadow .2s',
       boxShadow: value ? '0 0 0 3px rgba(184,147,90,.09)' : 'none',
       animation: shake ? 'shake2fa .5s ease' : 'none',
     }}
@@ -38,7 +48,7 @@ const OTPDigitInput = ({
 
 /* ─────────────── PAGE ─────────────── */
 export default function TwoFAManagePage() {
-  const router  = useRouter();
+  const router   = useRouter();
   const supabase = createClient();
 
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -66,10 +76,16 @@ export default function TwoFAManagePage() {
   const setupRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   /* ── Disable flow ── */
-  const [disablePassword, setDisablePassword]   = useState('');
-  const [disableCode, setDisableCode]           = useState('');
+  const [disablePassword, setDisablePassword]       = useState('');
   const [showDisablePassword, setShowDisablePassword] = useState(false);
-  const [disableLoading, setDisableLoading]     = useState(false);
+  const [disableLoading, setDisableLoading]         = useState(false);
+
+  // FIX 2: Separate state for disable OTP digit boxes
+  const [disableDigits, setDisableDigits]   = useState(['', '', '', '', '', '']);
+  const [disableShake, setDisableShake]     = useState(false);
+  const [disableCodeMode, setDisableCodeMode] = useState<'totp' | 'backup'>('totp');
+  const [disableBackupCode, setDisableBackupCode] = useState('');
+  const disableRefs = useRef<(HTMLInputElement | null)[]>([]);
 
   const showToast = useCallback((msg: string, type: ToastT = '') => {
     setToast({ msg, type, show: true });
@@ -110,8 +126,9 @@ export default function TwoFAManagePage() {
       for (let i = 0; i < 5; i++) {
         cx.beginPath();
         for (let x = 0; x <= W; x += 40)
-          x === 0 ? cx.moveTo(x, H * (.2 + i * .15) + Math.sin(T + x * .012 + i) * 22)
-                  : cx.lineTo(x, H * (.2 + i * .15) + Math.sin(T + x * .012 + i) * 22);
+          x === 0
+            ? cx.moveTo(x, H * (.2 + i * .15) + Math.sin(T + x * .012 + i) * 22)
+            : cx.lineTo(x, H * (.2 + i * .15) + Math.sin(T + x * .012 + i) * 22);
         cx.stroke();
       }
       id = requestAnimationFrame(draw);
@@ -133,20 +150,41 @@ export default function TwoFAManagePage() {
   /* ── Setup OTP digit handlers ── */
   const handleSetupDigit = (index: number, value: string) => {
     if (!/^\d*$/.test(value)) return;
-    const nd = [...setupDigits]; nd[index] = value.slice(-1);
+    const nd = [...setupDigits];
+    nd[index] = value.slice(-1);
     setSetupDigits(nd);
-    if (value && index < 5) setupRefs.current[index + 1]?.focus();
+    // FIX 3: Auto-advance to next box when a digit is entered
+    if (value && index < 5) {
+      setTimeout(() => setupRefs.current[index + 1]?.focus(), 0);
+    }
     if (nd.every(d => d)) verifySetupCode(nd.join(''));
   };
 
   const handleSetupKeyDown = (index: number, e: React.KeyboardEvent) => {
-    if (e.key === 'Backspace' && !setupDigits[index] && index > 0) setupRefs.current[index - 1]?.focus();
+    if (e.key === 'Backspace') {
+      if (!setupDigits[index] && index > 0) {
+        const nd = [...setupDigits];
+        nd[index - 1] = '';
+        setSetupDigits(nd);
+        setTimeout(() => setupRefs.current[index - 1]?.focus(), 0);
+      } else {
+        const nd = [...setupDigits];
+        nd[index] = '';
+        setSetupDigits(nd);
+      }
+    }
+    if (e.key === 'ArrowLeft' && index > 0) setupRefs.current[index - 1]?.focus();
+    if (e.key === 'ArrowRight' && index < 5) setupRefs.current[index + 1]?.focus();
   };
 
   const handleSetupPaste = (e: React.ClipboardEvent) => {
     e.preventDefault();
     const p = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-    if (p.length === 6) { setSetupDigits(p.split('')); setupRefs.current[5]?.focus(); verifySetupCode(p); }
+    if (p.length === 6) {
+      setSetupDigits(p.split(''));
+      setTimeout(() => setupRefs.current[5]?.focus(), 0);
+      verifySetupCode(p);
+    }
   };
 
   const verifySetupCode = async (code: string) => {
@@ -157,14 +195,100 @@ export default function TwoFAManagePage() {
     });
     const data = await res.json();
     if (!res.ok) {
-      setSetupShake(true); setTimeout(() => setSetupShake(false), 600);
+      setSetupShake(true);
+      setTimeout(() => setSetupShake(false), 600);
       setSetupDigits(['', '', '', '', '', '']);
-      setTimeout(() => setupRefs.current[0]?.focus(), 50);
+      setTimeout(() => setupRefs.current[0]?.focus(), 80);
       showToast('✕ ' + data.error, 'err');
     } else {
       setNewBackupCodes(data.backupCodes);
       setIs2FAEnabled(true);
       setStep('backup-codes');
+    }
+  };
+
+  /* ── FIX 4: Disable OTP digit handlers ── */
+  const handleDisableDigit = (index: number, value: string) => {
+    if (!/^\d*$/.test(value)) return;
+    const nd = [...disableDigits];
+    nd[index] = value.slice(-1);
+    setDisableDigits(nd);
+    if (value && index < 5) {
+      setTimeout(() => disableRefs.current[index + 1]?.focus(), 0);
+    }
+  };
+
+  const handleDisableKeyDown = (index: number, e: React.KeyboardEvent) => {
+    if (e.key === 'Backspace') {
+      if (!disableDigits[index] && index > 0) {
+        const nd = [...disableDigits];
+        nd[index - 1] = '';
+        setDisableDigits(nd);
+        setTimeout(() => disableRefs.current[index - 1]?.focus(), 0);
+      } else {
+        const nd = [...disableDigits];
+        nd[index] = '';
+        setDisableDigits(nd);
+      }
+    }
+    if (e.key === 'ArrowLeft' && index > 0) disableRefs.current[index - 1]?.focus();
+    if (e.key === 'ArrowRight' && index < 5) disableRefs.current[index + 1]?.focus();
+  };
+
+  const handleDisablePaste = (e: React.ClipboardEvent) => {
+    e.preventDefault();
+    const p = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
+    if (p.length === 6) {
+      setDisableDigits(p.split(''));
+      setTimeout(() => disableRefs.current[5]?.focus(), 0);
+    }
+  };
+
+  /* ── FIX 5: Updated handleDisable to use digit boxes + proper error reset ── */
+  const handleDisable = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    const codeToSubmit = disableCodeMode === 'totp'
+      ? disableDigits.join('')
+      : disableBackupCode.trim().toUpperCase().replace(/\s/g, '');
+
+    if (!disablePassword) {
+      showToast('⚠ Password is required.', 'err'); return;
+    }
+    if (!codeToSubmit || (disableCodeMode === 'totp' && codeToSubmit.length < 6)) {
+      showToast('⚠ Please enter a complete 6-digit code.', 'err');
+      setTimeout(() => disableRefs.current[0]?.focus(), 50);
+      return;
+    }
+
+    setDisableLoading(true);
+    const res = await fetch('/api/auth/2fa/disable', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password: disablePassword, code: codeToSubmit }),
+    });
+    const data = await res.json();
+    setDisableLoading(false);
+
+    if (!res.ok) {
+      // Shake + reset only if it was a code error (not a password error)
+      if (disableCodeMode === 'totp') {
+        setDisableShake(true);
+        setTimeout(() => setDisableShake(false), 600);
+        setDisableDigits(['', '', '', '', '', '']);
+        setTimeout(() => disableRefs.current[0]?.focus(), 80);
+      }
+      showToast('✕ ' + data.error, 'err');
+    } else {
+      setIs2FAEnabled(false);
+      setEnabledAt(null);
+      setStep('status');
+      showToast('✓ Two-factor authentication disabled.', 'ok');
+      // Reset all disable state
+      setDisablePassword('');
+      setDisableDigits(['', '', '', '', '', '']);
+      setDisableBackupCode('');
+      setDisableCodeMode('totp');
     }
   };
 
@@ -187,31 +311,6 @@ export default function TwoFAManagePage() {
     showToast('✓ Backup codes downloaded', 'ok');
   };
 
-  /* ── Disable 2FA ── */
-  const handleDisable = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!disablePassword || !disableCode) {
-      showToast('⚠ Password and 2FA code are both required.', 'err'); return;
-    }
-    setDisableLoading(true);
-    const res = await fetch('/api/auth/2fa/disable', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ password: disablePassword, code: disableCode }),
-    });
-    const data = await res.json();
-    setDisableLoading(false);
-    if (!res.ok) {
-      showToast('✕ ' + data.error, 'err');
-    } else {
-      setIs2FAEnabled(false);
-      setEnabledAt(null);
-      setStep('status');
-      showToast('✓ Two-factor authentication disabled.', 'ok');
-      setDisablePassword(''); setDisableCode('');
-    }
-  };
-
   /* ─────────────── RENDER HELPERS ─────────────── */
 
   const StatusCard = () => (
@@ -222,7 +321,6 @@ export default function TwoFAManagePage() {
         Add an extra layer of security by requiring a one-time code from Google Authenticator whenever you sign in.
       </p>
 
-      {/* Status indicator */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
         padding: '16px 18px',
@@ -264,7 +362,6 @@ export default function TwoFAManagePage() {
         </span>
       </div>
 
-      {/* How it works */}
       {!is2FAEnabled && (
         <div style={{ marginBottom: 24 }}>
           <div style={{ fontSize: '.66rem', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--gold)', marginBottom: 12 }}>How it works</div>
@@ -283,22 +380,25 @@ export default function TwoFAManagePage() {
         </div>
       )}
 
-      {/* Action buttons */}
       <div style={{ display: 'flex', gap: 10 }}>
         {!is2FAEnabled ? (
           <button className="pf-btn-ink" onClick={() => setStep('intro')} style={{ flex: 1 }}>
             Set Up Two-Factor Auth →
           </button>
         ) : (
-          <>
-            <button
-              className="pf-btn-ghost"
-              onClick={() => setStep('disable-confirm')}
-              style={{ flex: 1, borderColor: 'rgba(155,58,58,.3)', color: '#c0392b' }}
-            >
-              Disable 2FA
-            </button>
-          </>
+          <button
+            className="pf-btn-ghost"
+            onClick={() => {
+              setDisableDigits(['', '', '', '', '', '']);
+              setDisableBackupCode('');
+              setDisableCodeMode('totp');
+              setDisablePassword('');
+              setStep('disable-confirm');
+            }}
+            style={{ flex: 1, borderColor: 'rgba(155,58,58,.3)', color: '#c0392b' }}
+          >
+            Disable 2FA
+          </button>
         )}
         <button className="pf-btn-ghost" onClick={() => router.push('/profile')}>
           ← Back
@@ -320,7 +420,6 @@ export default function TwoFAManagePage() {
         </p>
       </div>
 
-      {/* App download links */}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 24 }}>
         {[
           { name: 'Google Authenticator', sub: 'iOS & Android', icon: '📱', url: 'https://support.google.com/accounts/answer/1066447' },
@@ -368,14 +467,12 @@ export default function TwoFAManagePage() {
         Open your authenticator app and scan this QR code. It will add ValutX to your app.
       </p>
 
-      {/* QR Code display */}
       <div style={{ textAlign: 'center', marginBottom: 24 }}>
         {qrDataUrl ? (
           <div style={{
             display: 'inline-block', padding: 16,
             background: '#faf7f2', border: '2px solid rgba(184,147,90,.3)',
-            borderRadius: 12,
-            boxShadow: '0 4px 20px rgba(184,147,90,.12)',
+            borderRadius: 12, boxShadow: '0 4px 20px rgba(184,147,90,.12)',
           }}>
             <img src={qrDataUrl} alt="2FA QR Code" style={{ width: 200, height: 200, display: 'block' }} />
           </div>
@@ -391,7 +488,6 @@ export default function TwoFAManagePage() {
         )}
       </div>
 
-      {/* Manual key option */}
       <div style={{ marginBottom: 24 }}>
         <button
           onClick={() => setShowManualKey(v => !v)}
@@ -401,10 +497,7 @@ export default function TwoFAManagePage() {
         </button>
 
         {showManualKey && secretFormatted && (
-          <div style={{
-            marginTop: 12, padding: '14px 16px',
-            background: 'var(--cream)', border: '1px solid var(--border)', borderRadius: 8,
-          }}>
+          <div style={{ marginTop: 12, padding: '14px 16px', background: 'var(--cream)', border: '1px solid var(--border)', borderRadius: 8 }}>
             <div style={{ fontSize: '.62rem', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--txt2)', marginBottom: 6 }}>Account name</div>
             <div style={{ fontSize: '.82rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 12 }}>ValutX</div>
             <div style={{ fontSize: '.62rem', letterSpacing: '.14em', textTransform: 'uppercase', color: 'var(--txt2)', marginBottom: 6 }}>Secret key</div>
@@ -429,6 +522,7 @@ export default function TwoFAManagePage() {
     </div>
   );
 
+  // FIX 6: VerifySetupStep now passes autoFocus={i === 0} and uses onpaste prop
   const VerifySetupStep = () => (
     <div className="pf-card pf-cp" style={{ maxWidth: 480, margin: '0 auto', textAlign: 'center' }}>
       <span className="pf-sec-label" style={{ justifyContent: 'center' }}>Step 3 of 3</span>
@@ -438,21 +532,18 @@ export default function TwoFAManagePage() {
       </p>
 
       <div style={{ marginBottom: 28 }}>
-        <div
-          style={{ display: 'flex', gap: 8, justifyContent: 'center' }}
-          onPaste={e => {
-            e.preventDefault();
-            const p = e.clipboardData.getData('text').replace(/\D/g, '').slice(0, 6);
-            if (p.length === 6) { setSetupDigits(p.split('')); verifySetupCode(p); }
-          }}
-        >
+        <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
           {setupDigits.map((d, i) => (
             <OTPDigitInput
-              key={i} value={d} index={i} total={6}
+              key={i}
+              value={d}
+              index={i}
               onchange={handleSetupDigit}
               onkeydown={handleSetupKeyDown}
+              onpaste={handleSetupPaste}
               inputRef={el => { setupRefs.current[i] = el; }}
               shake={setupShake}
+              autoFocus={i === 0}
             />
           ))}
         </div>
@@ -470,7 +561,9 @@ export default function TwoFAManagePage() {
       </div>
 
       <div style={{ display: 'flex', gap: 10 }}>
-        <button className="pf-btn-ghost" onClick={() => setStep('qr')} style={{ flex: 1 }}>← Back to QR</button>
+        <button className="pf-btn-ghost" onClick={() => { setSetupDigits(['', '', '', '', '', '']); setStep('qr'); }} style={{ flex: 1 }}>
+          ← Back to QR
+        </button>
       </div>
     </div>
   );
@@ -491,7 +584,6 @@ export default function TwoFAManagePage() {
         If you ever lose access to your authenticator app, use one of these codes to sign in. <strong style={{ color: 'var(--ink)' }}>Each code works only once.</strong> Store them somewhere safe.
       </p>
 
-      {/* Backup codes grid */}
       <div style={{
         display: 'grid', gridTemplateColumns: '1fr 1fr',
         gap: 6, padding: '16px', marginBottom: 16,
@@ -499,36 +591,24 @@ export default function TwoFAManagePage() {
       }}>
         {newBackupCodes.map((code, i) => (
           <div key={i} style={{
-            fontFamily: 'monospace', fontSize: '.88rem',
-            color: 'var(--ink)', letterSpacing: '.1em',
+            fontFamily: 'monospace', fontSize: '.88rem', color: 'var(--ink)', letterSpacing: '.1em',
             padding: '7px 10px', background: 'var(--parchment)',
-            borderRadius: 4, textAlign: 'center',
-            border: '1px solid rgba(184,147,90,.15)',
+            borderRadius: 4, textAlign: 'center', border: '1px solid rgba(184,147,90,.15)',
           }}>
             {code}
           </div>
         ))}
       </div>
 
-      {/* Actions */}
       <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        <button
-          className="pf-btn-ghost"
-          style={{ flex: 1, fontSize: '.72rem', padding: '9px 14px' }}
-          onClick={copyBackupCodes}
-        >
+        <button className="pf-btn-ghost" style={{ flex: 1, fontSize: '.72rem', padding: '9px 14px' }} onClick={copyBackupCodes}>
           {copiedBackup ? '✓ Copied!' : '📋 Copy All'}
         </button>
-        <button
-          className="pf-btn-ghost"
-          style={{ flex: 1, fontSize: '.72rem', padding: '9px 14px' }}
-          onClick={downloadBackupCodes}
-        >
+        <button className="pf-btn-ghost" style={{ flex: 1, fontSize: '.72rem', padding: '9px 14px' }} onClick={downloadBackupCodes}>
           ⬇ Download .txt
         </button>
       </div>
 
-      {/* Acknowledgment */}
       <label className="check-row" style={{ marginBottom: 20, background: 'rgba(155,58,58,.05)', border: '1px solid rgba(155,58,58,.18)', borderRadius: 8, padding: '12px 14px' }}>
         <input type="checkbox" checked={backupAcked} onChange={e => setBackupAcked(e.target.checked)} />
         <span className="check-label" style={{ color: 'var(--ink)', fontSize: '.79rem' }}>
@@ -563,11 +643,7 @@ export default function TwoFAManagePage() {
       </div>
 
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 24 }}>
-        {[
-          ['✓', 'Authenticator app linked'],
-          ['✓', 'Backup codes saved'],
-          ['✓', 'Account secured'],
-        ].map(([icon, text]) => (
+        {[['✓', 'Authenticator app linked'], ['✓', 'Backup codes saved'], ['✓', 'Account secured']].map(([icon, text]) => (
           <div key={text} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', background: 'rgba(74,103,65,.05)', border: '1px solid rgba(74,103,65,.15)', borderRadius: 6 }}>
             <span style={{ color: 'var(--sage)', fontWeight: 500 }}>{icon}</span>
             <span style={{ fontSize: '.78rem', color: 'var(--txt2)' }}>{text}</span>
@@ -581,6 +657,7 @@ export default function TwoFAManagePage() {
     </div>
   );
 
+  // FIX 7: Completely redesigned DisableConfirmStep with OTP digit boxes + backup toggle
   const DisableConfirmStep = () => (
     <div className="pf-card pf-cp" style={{ maxWidth: 480, margin: '0 auto' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
@@ -602,7 +679,9 @@ export default function TwoFAManagePage() {
         </div>
       </div>
 
-      <form onSubmit={handleDisable} style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+      <form onSubmit={handleDisable} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
+
+        {/* Password field */}
         <div className="pf-fg">
           <label className="pf-fl">Current Password</label>
           <div style={{ position: 'relative' }}>
@@ -612,47 +691,132 @@ export default function TwoFAManagePage() {
               placeholder="Your account password"
               value={disablePassword}
               onChange={e => setDisablePassword(e.target.value)}
-              style={{ paddingRight: 40 }}
+              style={{ paddingRight: 44 }}
+              autoComplete="current-password"
             />
             <button
               type="button"
               onClick={() => setShowDisablePassword(v => !v)}
-              style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt2)', fontSize: '.75rem' }}
+              style={{
+                position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)',
+                background: 'none', border: 'none', cursor: 'pointer', color: 'var(--txt2)',
+                display: 'flex', alignItems: 'center', padding: 2,
+              }}
             >
-              {showDisablePassword ? '🙈' : '👁'}
+              {showDisablePassword ? (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
+                  <line x1="1" y1="1" x2="23" y2="23"/>
+                </svg>
+              ) : (
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8">
+                  <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                </svg>
+              )}
             </button>
           </div>
         </div>
 
-        <div className="pf-fg">
-          <label className="pf-fl">Current 2FA Code</label>
-          <input
-            className="pf-fi"
-            type="text"
-            inputMode="numeric"
-            maxLength={9}
-            placeholder="000000 or XXXX-XXXX backup code"
-            value={disableCode}
-            onChange={e => setDisableCode(e.target.value)}
-            style={{ letterSpacing: '.1em', textAlign: 'center' }}
-          />
+        {/* 2FA Code section with mode toggle */}
+        <div>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+            <label className="pf-fl" style={{ margin: 0 }}>
+              {disableCodeMode === 'totp' ? 'Authenticator Code' : 'Backup Code'}
+            </label>
+            <button
+              type="button"
+              onClick={() => {
+                setDisableCodeMode(m => m === 'totp' ? 'backup' : 'totp');
+                setDisableDigits(['', '', '', '', '', '']);
+                setDisableBackupCode('');
+              }}
+              style={{ background: 'none', border: 'none', color: 'var(--gold)', fontSize: '.68rem', cursor: 'pointer', letterSpacing: '.06em', textDecoration: 'underline', textUnderlineOffset: 2 }}
+            >
+              {disableCodeMode === 'totp' ? 'Use backup code instead →' : '← Use authenticator app'}
+            </button>
+          </div>
+
+          {disableCodeMode === 'totp' ? (
+            /* OTP digit boxes for TOTP */
+            <div>
+              <div style={{ display: 'flex', gap: 7, justifyContent: 'center' }}>
+                {disableDigits.map((d, i) => (
+                  <OTPDigitInput
+                    key={i}
+                    value={d}
+                    index={i}
+                    onchange={handleDisableDigit}
+                    onkeydown={handleDisableKeyDown}
+                    onpaste={handleDisablePaste}
+                    inputRef={el => { disableRefs.current[i] = el; }}
+                    shake={disableShake}
+                    autoFocus={i === 0}
+                  />
+                ))}
+              </div>
+              {/* Progress dots */}
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 5, marginTop: 8 }}>
+                {disableDigits.map((d, i) => (
+                  <div key={i} style={{ width: 5, height: 5, borderRadius: '50%', background: d ? 'var(--gold)' : 'var(--parchment)', border: '1px solid rgba(184,147,90,.3)', transition: 'background .2s' }} />
+                ))}
+              </div>
+              <div style={{ textAlign: 'center', marginTop: 8, fontSize: '.68rem', color: 'var(--txt2)' }}>
+                Enter the 6-digit code from your authenticator app
+              </div>
+            </div>
+          ) : (
+            /* Text input for backup code */
+            <div>
+              <input
+                className="pf-fi"
+                type="text"
+                placeholder="XXXX-XXXX"
+                value={disableBackupCode}
+                onChange={e => setDisableBackupCode(e.target.value)}
+                autoFocus
+                style={{ letterSpacing: '.14em', textAlign: 'center', fontSize: '.95rem', fontFamily: "'Cormorant Garamond',serif" }}
+                autoComplete="off"
+              />
+              <div style={{ marginTop: 6, fontSize: '.68rem', color: 'var(--txt2)', textAlign: 'center' }}>
+                Format: XXXX-XXXX — each backup code can only be used once
+              </div>
+            </div>
+          )}
         </div>
 
+        {/* Submit */}
         <div style={{ display: 'flex', gap: 10 }}>
           <button
             type="submit"
-            disabled={disableLoading || !disablePassword || !disableCode}
+            disabled={
+              disableLoading ||
+              !disablePassword ||
+              (disableCodeMode === 'totp' && disableDigits.some(d => !d)) ||
+              (disableCodeMode === 'backup' && !disableBackupCode.trim())
+            }
             style={{
               flex: 1, padding: '12px', background: 'rgba(155,58,58,.9)', color: '#fff',
               border: '1px solid rgba(155,58,58,.5)', borderRadius: 4,
               fontFamily: "'DM Sans',sans-serif", fontSize: '.75rem', letterSpacing: '.1em',
-              textTransform: 'uppercase', cursor: 'pointer', opacity: (!disablePassword || !disableCode) ? .5 : 1,
+              textTransform: 'uppercase', cursor: 'pointer',
+              opacity: (!disablePassword || (disableCodeMode === 'totp' && disableDigits.some(d => !d)) || (disableCodeMode === 'backup' && !disableBackupCode.trim())) ? .5 : 1,
               transition: 'opacity .2s, background .2s',
             }}
           >
             {disableLoading ? 'Disabling…' : 'Confirm Disable 2FA'}
           </button>
-          <button type="button" className="pf-btn-ghost" onClick={() => setStep('status')}>Cancel</button>
+          <button
+            type="button"
+            className="pf-btn-ghost"
+            onClick={() => {
+              setDisableDigits(['', '', '', '', '', '']);
+              setDisableBackupCode('');
+              setDisablePassword('');
+              setStep('status');
+            }}
+          >
+            Cancel
+          </button>
         </div>
       </form>
     </div>
@@ -689,12 +853,12 @@ export default function TwoFAManagePage() {
             </div>
 
             {/* Step content */}
-            {step === 'status'        && <StatusCard />}
-            {step === 'intro'         && <IntroStep />}
-            {step === 'qr'            && <QRStep />}
-            {step === 'verify-setup'  && <VerifySetupStep />}
-            {step === 'backup-codes'  && <BackupCodesStep />}
-            {step === 'success'       && <SuccessStep />}
+            {step === 'status'          && <StatusCard />}
+            {step === 'intro'           && <IntroStep />}
+            {step === 'qr'              && <QRStep />}
+            {step === 'verify-setup'    && <VerifySetupStep />}
+            {step === 'backup-codes'    && <BackupCodesStep />}
+            {step === 'success'         && <SuccessStep />}
             {step === 'disable-confirm' && <DisableConfirmStep />}
           </div>
         </div>
@@ -709,7 +873,6 @@ export default function TwoFAManagePage() {
           45%     { transform: translateX(-5px); }
           60%     { transform: translateX(5px); }
         }
-        /* Fix check-row in pf context */
         .check-row { display: flex; align-items: flex-start; gap: 10px; cursor: pointer; }
         .check-row input[type="checkbox"] { width: 16px; height: 16px; flex-shrink: 0; margin-top: 2px; accent-color: var(--gold); cursor: pointer; }
         .check-label { font-size: .78rem; color: var(--text-sec); line-height: 1.55; }

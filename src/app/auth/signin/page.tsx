@@ -101,6 +101,21 @@ export default function SignInPage() {
       setLEmailCls('fi-err');
       setLPwCls('fi-err');
     } else if (user) {
+      // ── 2FA Check ──────────────────────────────────────────
+      try {
+        const checkRes = await fetch('/api/auth/2fa/check', { method: 'POST' });
+        const checkData = await checkRes.json();
+        
+        if (checkData.requires2fa) {
+          showToast('✓ Identity confirmed. 2FA required.', 'ok');
+          setTimeout(() => router.push('/auth/2fa'), 1000);
+          return;
+        }
+      } catch (err) {
+        console.error('2FA check error:', err);
+        // Fallback: proceed with regular login if check fails
+      }
+
       showToast('✓ Welcome back!', 'ok');
       
       try {

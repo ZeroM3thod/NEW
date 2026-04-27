@@ -128,6 +128,17 @@ export async function updateSession(request: NextRequest) {
     }
   }
 
+  // ── 2FA ENFORCEMENT ─────────────────────────────────────────
+  const is2faPage = pathname.startsWith('/auth/2fa')
+  const hasPending2fa = request.cookies.get('vx_2fa_pending')?.value === '1'
+
+  if (user && hasPending2fa && !is2faPage && !isApiPage) {
+    // Force to 2FA verification page
+    const url = request.nextUrl.clone()
+    url.pathname = '/auth/2fa'
+    return NextResponse.redirect(url)
+  }
+
   return supabaseResponse
 }
 

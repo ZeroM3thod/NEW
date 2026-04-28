@@ -12,7 +12,7 @@ const testimonials = [
     initials: 'SN',
     name: 'Sharmin Nahar',
     role: 'Referral Earner · Chittagong',
-    roi: '+7% ×5',
+    roi: '+15% ×5',
     text: 'The referral system is genuinely passive income. I referred five colleagues from my office. Every time one of them profits, I get credited automatically. Last month alone I earned extra just from referrals.',
   },
   {

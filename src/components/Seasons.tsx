@@ -128,7 +128,7 @@ export default function Seasons() {
                 </div>
                 <div className="season-detail-item">
                   <span className="detail-label-dark">Referral Bonus</span>
-                  <strong>7% Profit Share</strong>
+                  <strong>15% Profit Share</strong>
                 </div>
               </div>
             </div>

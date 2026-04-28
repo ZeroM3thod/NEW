@@ -511,7 +511,7 @@ export default function SuspendedPage() {
             <a href="mailto:valutxsupport@duck.com">valutxsupport@duck.com</a>
             {' '}or reach us on{' '}
             <a href="https://t.me/ValutXOfficial" target="_blank" rel="noreferrer">
-              Telegram @ValutXOfficial
+              Telegram @ValutXsupport
             </a>.
             Include your username and a brief explanation. Our team typically responds within 24 hours.
           </div>

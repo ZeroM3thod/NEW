@@ -282,7 +282,7 @@ export default function MaintenancePage() {
               <svg viewBox="0 0 24 24" width={15} height={15} fill="none" stroke="var(--gold)" strokeWidth={1.8}>
                 <line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/>
               </svg>
-              @ValutXOfficial
+              @ValutXsupport
             </a>
           </div>
         </div>{/* /maint-card */}

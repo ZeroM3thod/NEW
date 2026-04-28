@@ -252,7 +252,7 @@ export default function KYCPage() {
         <div className="kyc-nav-inner">
           <a href="/profile" className="kyc-logo">
             <div className="kyc-logo-mark" />
-            <span className="kyc-logo-text">Vault<span>X</span></span>
+            <span className="kyc-logo-text">Valut<span>X</span></span>
           </a>
           <div style={{display:'flex',alignItems:'center',gap:14}}>
             <div className="kyc-nav-badge">

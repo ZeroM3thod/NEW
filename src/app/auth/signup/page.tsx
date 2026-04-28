@@ -570,7 +570,7 @@ export default function SignUpPage() {
                 </div>
                 <input
                   className="fi"
-                  type="tel" placeholder="101010" autoComplete="tel"
+                  type="tel" placeholder="Enter phone number" autoComplete="tel"
                   value={rPhone} onChange={e=>handlePhoneInput(e.target.value)}
                   style={{border:'none',borderRadius:0,flex:1,background:'transparent',boxShadow:'none'}}
                 />

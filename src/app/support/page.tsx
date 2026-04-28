@@ -7,12 +7,8 @@ import { createClient } from '@/utils/supabase/client';
 
 interface Ticket { id:string;subject:string;category:string;priority:string;date:string;status:'open'|'pending'|'closed' }
 
-const INIT_TICKETS: Ticket[] = [
-  { id:'#TKT-A9X2K1', subject:'Withdrawal pending for 5 days',       category:'Withdrawal Issue', priority:'high',   date:'28 Mar 2025', status:'closed'  },
-  { id:'#TKT-B3M7P2', subject:'Referral commission not credited',     category:'Referral',         priority:'medium', date:'15 Mar 2025', status:'closed'  },
-  { id:'#TKT-C1L4Q8', subject:'Unable to complete KYC verification',  category:'KYC',              priority:'medium', date:'02 Mar 2025', status:'closed'  },
-  { id:'#TKT-D6R2W5', subject:'Season 6 ROI calculation discrepancy', category:'Investment',       priority:'low',    date:'18 Feb 2025', status:'closed'  },
-];
+// No tickets shown — ticket submission is locked
+const INIT_TICKETS: Ticket[] = [];
 
 const FAQS = [
   { cat:'finance',  q:'How do I make a deposit?',                          a:'Navigate to the <strong>Deposit</strong> page from your dashboard. Select your preferred network (USDT-TRC20, ERC20, or BEP20), enter the amount, and transfer funds to the displayed wallet address. Deposits are credited within 15–30 minutes after 1 confirmation.' },
@@ -30,9 +26,6 @@ const FAQS = [
 ];
 
 const CAT_LABELS: Record<string,string> = { account:'Account', invest:'Investing', finance:'Finance', referral:'Referral', security:'Security' };
-const PRI_COLOR: Record<string,string>  = { low:'var(--sage)', medium:'var(--gold)', high:'#9b3a3a', urgent:'#6b2020' };
-const PRI_BG:    Record<string,string>  = { low:'rgba(74,103,65,.08)', medium:'rgba(184,147,90,.08)', high:'rgba(155,58,58,.07)', urgent:'rgba(107,32,32,.07)' };
-const PRI_BD:    Record<string,string>  = { low:'rgba(74,103,65,.2)', medium:'var(--border)', high:'rgba(155,58,58,.18)', urgent:'rgba(107,32,32,.2)' };
 
 export default function SupportPage() {
   const router = useRouter();
@@ -45,7 +38,7 @@ export default function SupportPage() {
   const [faqSearch, setFaqSearch] = useState('');
   const [openFaq, setOpenFaq] = useState<number|null>(null);
   const [profile, setProfile] = useState<any>(null);
-  const [tickets, setTickets] = useState<Ticket[]>(INIT_TICKETS);
+  const [tickets] = useState<Ticket[]>(INIT_TICKETS);
   const [pageLoading, setPageLoading] = useState(true);
 
   const [fCategory, setFCategory] = useState('');  const [catErr, setCatErr]       = useState(false);
@@ -108,6 +101,11 @@ export default function SupportPage() {
 
   const submitForm = () => {
     showToast('Support tickets are temporarily disabled. Please use Telegram.', 'err');
+  };
+
+  const handleEmailSupport = () => {
+    showToast('📧 Opening email client…');
+    window.location.href = 'mailto:valutxsupport@duck.com?subject=Support%20Request&body=Hello%20ValutX%20Support%2C%0A%0A';
   };
 
   return (
@@ -178,16 +176,19 @@ export default function SupportPage() {
                     Not Available
                   </span>
                 </div>
-                <div className="sp-support-opt" onClick={()=>showToast('📧 Opening email support…')}>
+
+                {/* ── EMAIL — now opens mailto ── */}
+                <div className="sp-support-opt" onClick={handleEmailSupport}>
                   <div className="sp-support-opt-icon" style={{background:'rgba(184,147,90,.1)'}}>
                     <svg viewBox="0 0 24 24" style={{stroke:'var(--gold)'}}><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg>
                   </div>
                   <div>
                     <div className="sp-support-opt-title">Email Support</div>
-                    <div className="sp-support-opt-desc">Get a reply within 24 hours.</div>
+                    <div className="sp-support-opt-desc">valutxsupport@duck.com</div>
                   </div>
                   <span className="sp-support-opt-badge"><span className="sp-live-dot"/>Available</span>
                 </div>
+
                 <div className="sp-support-opt" onClick={()=>{window.open('https://t.me/ValutXsupport','_blank');showToast('📤 Opening Telegram…')}}>
                   <div className="sp-support-opt-icon" style={{background:'rgba(184,147,90,.08)'}}>
                     <svg viewBox="0 0 24 24" style={{stroke:'var(--gold-d)'}}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
@@ -198,6 +199,7 @@ export default function SupportPage() {
                   </div>
                   <span className="sp-support-opt-badge"><span className="sp-live-dot"/>Active</span>
                 </div>
+
                 <div className="sp-support-opt" onClick={()=>ticketRef.current?.scrollIntoView({behavior:'smooth',block:'start'})}>
                   <div className="sp-support-opt-icon" style={{background:'rgba(28,28,28,.06)'}}>
                     <svg viewBox="0 0 24 24" style={{stroke:'var(--charcoal)'}}><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
@@ -206,7 +208,8 @@ export default function SupportPage() {
                     <div className="sp-support-opt-title">Ticket History</div>
                     <div className="sp-support-opt-desc">View all your past support tickets.</div>
                   </div>
-                  <span className="sp-support-opt-badge" style={{background:'rgba(28,28,28,.06)',color:'var(--text-sec)',borderColor:'rgba(28,28,28,.1)'}}>{tickets.length} Tickets</span>
+                  {/* Always shows 0 — submission is locked */}
+                  <span className="sp-support-opt-badge" style={{background:'rgba(28,28,28,.06)',color:'var(--text-sec)',borderColor:'rgba(28,28,28,.1)'}}>0 Tickets</span>
                 </div>
               </div>
             </div>
@@ -272,7 +275,7 @@ export default function SupportPage() {
                       Region Restricted
                     </div>
                   </div>
-                  {/* FORM (dimmed) */}
+                  {/* FORM (dimmed behind overlay) */}
                   <div className="sp-card" style={{opacity:.25,pointerEvents:'none',userSelect:'none'}}>
                     {!formSuccess ? (
                       <div className="sp-card-body">
@@ -342,9 +345,9 @@ export default function SupportPage() {
               </div>
             </div>
 
-            </div>
-            </main>
-            </div>
-            </>
-            );
-            }
+          </div>
+        </main>
+      </div>
+    </>
+  );
+}

@@ -8,23 +8,26 @@ import './kyc.css'
 type Country = { name: string; flag: string }
 type DocType = 'National ID Card' | 'Driving Licence' | 'Passport' | null
 
+// Restricted/high-risk countries removed:
+// Bangladesh, India, Pakistan, Nepal, Nigeria, Kenya, Ghana, Algeria, Morocco,
+// Myanmar, Cambodia, Bolivia, Venezuela
 const COUNTRIES: Country[] = [
-  {name:'Afghanistan',flag:'🇦🇫'},{name:'Albania',flag:'🇦🇱'},{name:'Algeria',flag:'🇩🇿'},
+  {name:'Afghanistan',flag:'🇦🇫'},{name:'Albania',flag:'🇦🇱'},
   {name:'Argentina',flag:'🇦🇷'},{name:'Australia',flag:'🇦🇺'},{name:'Austria',flag:'🇦🇹'},
-  {name:'Azerbaijan',flag:'🇦🇿'},{name:'Bahrain',flag:'🇧🇭'},{name:'Bangladesh',flag:'🇧🇩'},
+  {name:'Azerbaijan',flag:'🇦🇿'},{name:'Bahrain',flag:'🇧🇭'},
   {name:'Belgium',flag:'🇧🇪'},{name:'Brazil',flag:'🇧🇷'},{name:'Canada',flag:'🇨🇦'},
   {name:'China',flag:'🇨🇳'},{name:'Colombia',flag:'🇨🇴'},{name:'Denmark',flag:'🇩🇰'},
   {name:'Egypt',flag:'🇪🇬'},{name:'Ethiopia',flag:'🇪🇹'},{name:'Finland',flag:'🇫🇮'},
-  {name:'France',flag:'🇫🇷'},{name:'Germany',flag:'🇩🇪'},{name:'Ghana',flag:'🇬🇭'},
-  {name:'Greece',flag:'🇬🇷'},{name:'Hungary',flag:'🇭🇺'},{name:'India',flag:'🇮🇳'},
+  {name:'France',flag:'🇫🇷'},{name:'Germany',flag:'🇩🇪'},
+  {name:'Greece',flag:'🇬🇷'},{name:'Hungary',flag:'🇭🇺'},
   {name:'Indonesia',flag:'🇮🇩'},{name:'Iran',flag:'🇮🇷'},{name:'Iraq',flag:'🇮🇶'},
   {name:'Ireland',flag:'🇮🇪'},{name:'Israel',flag:'🇮🇱'},{name:'Italy',flag:'🇮🇹'},
   {name:'Japan',flag:'🇯🇵'},{name:'Jordan',flag:'🇯🇴'},{name:'Kazakhstan',flag:'🇰🇿'},
-  {name:'Kenya',flag:'🇰🇪'},{name:'Kuwait',flag:'🇰🇼'},{name:'Lebanon',flag:'🇱🇧'},
+  {name:'Kuwait',flag:'🇰🇼'},{name:'Lebanon',flag:'🇱🇧'},
   {name:'Malaysia',flag:'🇲🇾'},{name:'Maldives',flag:'🇲🇻'},{name:'Mexico',flag:'🇲🇽'},
-  {name:'Morocco',flag:'🇲🇦'},{name:'Netherlands',flag:'🇳🇱'},{name:'New Zealand',flag:'🇳🇿'},
-  {name:'Nigeria',flag:'🇳🇬'},{name:'Norway',flag:'🇳🇴'},{name:'Oman',flag:'🇴🇲'},
-  {name:'Pakistan',flag:'🇵🇰'},{name:'Philippines',flag:'🇵🇭'},{name:'Poland',flag:'🇵🇱'},
+  {name:'Netherlands',flag:'🇳🇱'},{name:'New Zealand',flag:'🇳🇿'},
+  {name:'Norway',flag:'🇳🇴'},{name:'Oman',flag:'🇴🇲'},
+  {name:'Philippines',flag:'🇵🇭'},{name:'Poland',flag:'🇵🇱'},
   {name:'Portugal',flag:'🇵🇹'},{name:'Qatar',flag:'🇶🇦'},{name:'Romania',flag:'🇷🇴'},
   {name:'Russia',flag:'🇷🇺'},{name:'Saudi Arabia',flag:'🇸🇦'},{name:'Singapore',flag:'🇸🇬'},
   {name:'South Africa',flag:'🇿🇦'},{name:'South Korea',flag:'🇰🇷'},{name:'Spain',flag:'🇪🇸'},
@@ -308,15 +311,15 @@ export default function KYCPage() {
 
             <div className="trust-row">
               {[
-                ['Bank-grade Security', <><rect x=".5" y="3.5" width="9" height="6" rx="1" stroke="#9b8e82" strokeWidth=".9"/><path d="M3 3.5V2.5a2 2 0 014 0v1" stroke="#9b8e82" strokeWidth=".9" strokeLinecap="round"/></>],
-                ['GDPR Compliant', <><circle cx="5" cy="5" r="4" stroke="#9b8e82" strokeWidth=".9"/><path d="M3.5 5l1.2 1.2L7 3.5" stroke="#9b8e82" strokeWidth=".9" strokeLinecap="round"/></>],
-                ['End-to-End Encrypted', <><path d="M5 1L1 3v3c0 2 1.5 3.5 4 4 2.5-.5 4-2 4-4V3L5 1z" stroke="#9b8e82" strokeWidth=".9" strokeLinejoin="round"/></>],
-              ].map(([label]) => (
-                <div key={label as string} className="trust-badge">
+                'Bank-grade Security',
+                'GDPR Compliant',
+                'End-to-End Encrypted',
+              ].map((label) => (
+                <div key={label} className="trust-badge">
                   <svg width="10" height="11" viewBox="0 0 10 11" fill="none">
                     <path d="M5 1L1 3v3c0 2 1.5 3.5 4 4 2.5-.5 4-2 4-4V3L5 1z" stroke="#9b8e82" strokeWidth=".9" strokeLinejoin="round"/>
                   </svg>
-                  {label as string}
+                  {label}
                 </div>
               ))}
             </div>

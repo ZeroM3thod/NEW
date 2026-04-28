@@ -235,7 +235,7 @@ INSERT INTO platform_settings VALUES
   ('min_withdrawal', '30', NOW()),
   ('platform_name', 'ValutX', NOW()),
   ('support_email', 'support@Valutx.io', NOW()),
-  ('telegram_handle', 'ValutXOfficial', NOW());
+  ('telegram_handle', 'ValutXsupport', NOW());
 ```
 
 ### 3.10 `transactions` (unified ledger)

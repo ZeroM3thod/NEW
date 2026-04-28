@@ -188,7 +188,7 @@ export default function SupportPage() {
                   </div>
                   <span className="sp-support-opt-badge"><span className="sp-live-dot"/>Available</span>
                 </div>
-                <div className="sp-support-opt" onClick={()=>{window.open('https://t.me/ValutXOfficial','_blank');showToast('📤 Opening Telegram…')}}>
+                <div className="sp-support-opt" onClick={()=>{window.open('https://t.me/ValutXsupport','_blank');showToast('📤 Opening Telegram…')}}>
                   <div className="sp-support-opt-icon" style={{background:'rgba(184,147,90,.08)'}}>
                     <svg viewBox="0 0 24 24" style={{stroke:'var(--gold-d)'}}><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
                   </div>

@@ -275,7 +275,7 @@ export default function MaintenancePage() {
               support@Valutx.io
             </a>
             <div style={{width:3,height:3,borderRadius:'50%',background:'var(--border-h)',flexShrink:0}}/>
-            <a href="https://t.me/ValutXOfficial" target="_blank" rel="noreferrer"
+            <a href="https://t.me/ValutXsupport" target="_blank" rel="noreferrer"
               style={{display:'inline-flex',alignItems:'center',gap:7,fontSize:'.74rem',color:'var(--text-sec)',textDecoration:'none',transition:'color .2s',letterSpacing:'.03em'}}
               onMouseOver={e=>(e.currentTarget.style.color='var(--gold)')}
               onMouseOut={e=>(e.currentTarget.style.color='var(--text-sec)')}>

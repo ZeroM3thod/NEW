@@ -510,7 +510,7 @@ export default function SuspendedPage() {
             If you believe this is a mistake or would like to appeal, please contact our support team at{' '}
             <a href="mailto:valutxsupport@duck.com">valutxsupport@duck.com</a>
             {' '}or reach us on{' '}
-            <a href="https://t.me/ValutXOfficial" target="_blank" rel="noreferrer">
+            <a href="https://t.me/ValutXsupport" target="_blank" rel="noreferrer">
               Telegram @ValutXsupport
             </a>.
             Include your username and a brief explanation. Our team typically responds within 24 hours.

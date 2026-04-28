@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import './globals.css';
 import './user-sidebar.css';
-import './logo-vx-override.css';   // ← ADD THIS: applies Compact·Light VX logo to every page
+import './logo-vx-override.css';
 import StyledJsxRegistry from '@/components/StyledJsxRegistry';
 
 export const metadata: Metadata = {
@@ -10,7 +10,7 @@ export const metadata: Metadata = {
     'ValutX runs structured investment seasons with defined entry periods, transparent ROI targets, and no hidden fees.',
 
   verification: {
-    google: "google3a0401f11912ee2b",
+    google: "1Ulo01AW-qVpQwFV2jXVXc8mZe-qtl6IGXnFkH6-yHM",
   },
 
   icons: {
@@ -34,7 +34,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;0,600;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap"
           rel="stylesheet"
         />
-        {/* Inline SVG favicon as fallback for environments where /public is not served */}
         <link
           rel="icon"
           type="image/svg+xml"

@@ -19,7 +19,7 @@ const contactItems = [
       </svg>
     ),
     title: 'Email Support',
-    detail: <>support@Valutx.finance<br />Typically within 4–8 hours</>,
+    detail: <>valutxsupport@duck.com<br />Typically within 4–8 hours</>,
   },
   {
     icon: (

@@ -508,7 +508,7 @@ export default function SuspendedPage() {
           {/* Notice */}
           <div className="sp-notice">
             If you believe this is a mistake or would like to appeal, please contact our support team at{' '}
-            <a href="mailto:support@Valutx.finance">support@Valutx.finance</a>
+            <a href="mailto:valutxsupport@duck.com">valutxsupport@duck.com</a>
             {' '}or reach us on{' '}
             <a href="https://t.me/ValutXOfficial" target="_blank" rel="noreferrer">
               Telegram @ValutXOfficial
@@ -518,7 +518,7 @@ export default function SuspendedPage() {
 
           {/* Actions */}
           <div className="sp-actions">
-            <a href="mailto:support@Valutx.finance" className="sp-btn-primary">
+            <a href="mailto:valutxsupport@duck.com" className="sp-btn-primary">
               <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                 <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/>
                 <polyline points="22,6 12,13 2,6"/>

@@ -9,7 +9,7 @@ export default function Hero() {
     <>
       <section className="hero">
         <div className="hero-inner">
-          <div className="hero-badge">Season 4 Now Open — Limited Slots</div>
+          <div className="hero-badge">Season 110 Now Open — Limited Slots</div>
           <h1>Where Capital<br/>Meets <em>Discipline</em></h1>
           <p>ValutX runs structured investment seasons with defined entry periods, transparent ROI targets, and no hidden fees. Grow your wealth the intelligent way.</p>
           <div className="hero-cta">

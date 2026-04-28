@@ -19,7 +19,7 @@ export default function Footer() {
                 <div className="logo-mark"/>
                 <span className="logo-text">Valut<span>X</span></span>
               </a>
-              <p>A structured investment platform operating through seasonal cycles with full transparency and consistent returns since 2023.</p>
+              <p>A structured investment platform operating through seasonal cycles with full transparency and consistent returns since 2024.</p>
             </div>
             {footerCols.map(col=>(
               <div key={col.title} className="footer-col">

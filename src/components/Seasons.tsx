@@ -26,14 +26,14 @@ export default function Seasons() {
             {/* Season One */}
             <div className="season-card">
               <div className="season-tag">Completed</div>
-              <div className="season-name">Season 1</div>
-              <div className="season-period">1st Jan 2025 — 7th Jan 2025</div>
-              <div className="season-roi">+18.2%</div>
+              <div className="season-name">Season 107</div>
+              <div className="season-period">12 Apr 2026 — 17 Apr 2026</div>
+              <div className="season-roi">+19.6%</div>
               <div className="season-roi-label">Final ROI</div>
               <div className="season-detail">
                 <div className="season-detail-item">
                   <span>Total Pool</span>
-                  <strong>$12M</strong>
+                  <strong>$500K</strong>
                 </div>
                 <div className="season-detail-item">
                   <span>Investors</span>
@@ -41,7 +41,7 @@ export default function Seasons() {
                 </div>
                 <div className="season-detail-item">
                   <span>Duration</span>
-                  <strong>7 Days</strong>
+                  <strong>4 Days</strong>
                 </div>
               </div>
             </div>
@@ -49,14 +49,14 @@ export default function Seasons() {
             {/* Season Two */}
             <div className="season-card">
               <div className="season-tag">Completed</div>
-              <div className="season-name">Season 2</div>
-              <div className="season-period">8th Jan 2025 — 15th Jan 2025</div>
-              <div className="season-roi">+23.7%</div>
+              <div className="season-name">Season 108</div>
+              <div className="season-period">19 Apr 2026 — 24 Apr 2026</div>
+              <div className="season-roi">+13.3%</div>
               <div className="season-roi-label">Final ROI</div>
               <div className="season-detail">
                 <div className="season-detail-item">
                   <span>Total Pool</span>
-                  <strong>$31M</strong>
+                  <strong>$500K</strong>
                 </div>
                 <div className="season-detail-item">
                   <span>Investors</span>
@@ -64,22 +64,22 @@ export default function Seasons() {
                 </div>
                 <div className="season-detail-item">
                   <span>Duration</span>
-                  <strong>7 Days</strong>
+                  <strong>4 Days</strong>
                 </div>
               </div>
             </div>
 
             {/* Season Three */}
             <div className="season-card">
-              <div className="season-tag">Completed</div>
-              <div className="season-name">Season 3</div>
-              <div className="season-period">16th Jan 2025 — 23rd Jan 2025</div>
-              <div className="season-roi">+24–32%</div>
+              <div className="season-tag">Running</div>
+              <div className="season-name">Season 109</div>
+              <div className="season-period">26th Apr 2026 — 1st May 2026</div>
+              <div className="season-roi">+16–25%</div>
               <div className="season-roi-label">Final ROI</div>
               <div className="season-detail">
                 <div className="season-detail-item">
                   <span>Total Pool</span>
-                  <strong>$57M</strong>
+                  <strong>$300K</strong>
                 </div>
                 <div className="season-detail-item">
                   <span>Investors</span>
@@ -87,7 +87,7 @@ export default function Seasons() {
                 </div>
                 <div className="season-detail-item">
                   <span>Duration</span>
-                  <strong>7 Days</strong>
+                  <strong>4 Days</strong>
                 </div>
               </div>
             </div>
@@ -98,11 +98,11 @@ export default function Seasons() {
 
               <div className="season4-body">
                 <div>
-                  <div className="season-name">Season 4</div>
+                  <div className="season-name">Season 110</div>
                   <div className="season-period">
-                    24th Jan 2025 — 31st Jan 2025 · Limited entry window
+                   3rd May 2026 — 8th May 2026 · Limited entry window
                   </div>
-                  <div className="season-roi">+24–32%</div>
+                  <div className="season-roi">16%-35%</div>
                   <div className="season-roi-label">Projected ROI Range</div>
                 </div>
                 <button
@@ -120,11 +120,11 @@ export default function Seasons() {
                 </div>
                 <div className="season-detail-item">
                   <span className="detail-label-dark">Pool Cap</span>
-                  <strong>$1M</strong>
+                  <strong>$250K</strong>
                 </div>
                 <div className="season-detail-item">
                   <span className="detail-label-dark">Duration</span>
-                  <strong>7 Days</strong>
+                  <strong>4 Days</strong>
                 </div>
                 <div className="season-detail-item">
                   <span className="detail-label-dark">Referral Bonus</span>

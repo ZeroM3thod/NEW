@@ -335,7 +335,7 @@ export default function PartnerProgramPage() {
   /* ─── TOTALS ────────────────────────────────────────── */
   const totals = useMemo(() => {
     const turnover = INITIAL_USERS.reduce((s, u) => s + u.totalDeposit, 0)
-    const commission = turnover * 0.08
+    const commission = turnover * 0.15
     const totalCount = INITIAL_USERS.length
     const activeCount = INITIAL_USERS.filter(u => u.status === 'active').length
     return { turnover, commission, totalCount, activeCount }
@@ -383,12 +383,12 @@ export default function PartnerProgramPage() {
             <div>
               <span className="sec-label">Partner Program · SeasonRise Platform</span>
               <h1 className="sec-title">Referral Dashboard</h1>
-              <p className="sec-sub"><span className="live-dot"></span>Your referral network is active · Earning 8% commission</p>
+              <p className="sec-sub"><span className="live-dot"></span>Your referral network is active · Earning 15% commission</p>
             </div>
             <div style={{ alignSelf: 'flex-end' }}>
               <div className="commission-badge">
                 <span className="dot"></span>
-                8% Commission Rate — Active
+                15% Commission Rate — Active
               </div>
             </div>
           </div>
@@ -399,7 +399,7 @@ export default function PartnerProgramPage() {
               <div>
                 <div className="sec-label" style={{ marginBottom: '2px' }}>Your Partner Links</div>
                 <div style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '1.1rem', fontWeight: 400, color: 'var(--ink)' }}>Share & Earn</div>
-                <div style={{ fontSize: '.75rem', color: 'var(--text-sec)', marginTop: '3px' }}>Every user who joins through your link earns you 8% of their total deposits.</div>
+                <div style={{ fontSize: '.75rem', color: 'var(--text-sec)', marginTop: '3px' }}>Every user who joins through your link earns you 15% of their total deposits.</div>
               </div>
               <div className="qr-box">
                 <div className="qr-inner"></div>
@@ -448,7 +448,7 @@ export default function PartnerProgramPage() {
                 <svg viewBox="0 0 24 24" style={{ stroke: 'var(--sage)' }}><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
               </div>
               <div className="stat-val" style={{ color: 'var(--sage)' }}>{formatUSDT(totals.commission)}</div>
-              <div className="stat-lbl">Total Commission (8%)</div>
+              <div className="stat-lbl">Total Commission (15%)</div>
               <div className="stat-change ch-up">↑ Lifetime earnings</div>
             </div>
 
@@ -518,14 +518,14 @@ export default function PartnerProgramPage() {
                     <th>KYC</th>
                     <th>Status</th>
                     <th>Total Deposit</th>
-                    <th>Commission (8%)</th>
+                    <th>Commission (15%)</th>
                     <th>Joined</th>
                     <th>Activities</th>
                   </tr>
                 </thead>
                 <tbody>
                   {filteredUsers.map(u => {
-                    const comm = u.totalDeposit * 0.08
+                    const comm = u.totalDeposit * 0.15
                     const statusClass = u.status === 'active' ? 'b-active' : u.status === 'suspended' ? 'b-suspended' : 'b-pending'
                     const kycClass = u.kyc === 'verified' ? 'b-verified' : 'b-unverified'
                     return (
@@ -608,8 +608,8 @@ export default function PartnerProgramPage() {
                   <div className="info-val" style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '1.1rem' }}>{formatUSDTFull(selectedUser.totalDeposit)}</div>
                 </div>
                 <div className="info-cell">
-                  <div className="info-lbl">Commission Earned (8%)</div>
-                  <div className="info-val" style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '1.1rem', color: 'var(--sage)' }}>{formatUSDTFull(selectedUser.totalDeposit * 0.08)}</div>
+                  <div className="info-lbl">Commission Earned (15%)</div>
+                  <div className="info-val" style={{ fontFamily: "'Cormorant Garamond', serif", fontSize: '1.1rem', color: 'var(--sage)' }}>{formatUSDTFull(selectedUser.totalDeposit * 0.15)}</div>
                 </div>
               </div>
 

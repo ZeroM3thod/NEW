@@ -582,7 +582,7 @@ export default function ProfilePage() {
                   <span className='pf-sec-label'>Passive Income</span>
                   <h2 className='pf-sec-title' style={{ fontSize: '1.25rem', marginBottom: 6 }}>Referral Program</h2>
                   <p style={{ fontSize: '.78rem', color: 'var(--txt2)', fontWeight: 300, lineHeight: 1.75, marginBottom: 20 }}>
-                    Earn <strong style={{ color: 'var(--gold)' }}>7% commission</strong> automatically every time a referred user makes profit — no cap, no delays.
+                    Earn <strong style={{ color: 'var(--gold)' }}>15% commission</strong> automatically every time a referred user makes profit — no cap, no delays.
                   </p>
                   <span className='pf-sec-label'>Your Code</span>
                   <div className='pf-ref-code-box' style={{ marginBottom: 18 }}>
@@ -602,13 +602,13 @@ export default function ProfilePage() {
                       <div className='pf-stat-lbl'>Referred</div>
                     </div>
                     <div className='pf-stat-cell'>
-                      <div className='pf-stat-val'>{profile?.commission_rate || 7}<span>%</span></div>
+                      <div className='pf-stat-val'>15<span>%</span></div>
                       <div className='pf-stat-lbl'>Rate</div>
                     </div>
                   </div>
                   <div style={{ background: 'rgba(184,147,90,.05)', border: '1px solid var(--border)', borderRadius: 6, padding: '12px 14px', marginBottom: 20 }}>
                     <div style={{ fontSize: '.68rem', color: 'var(--txt2)', lineHeight: 1.85, fontWeight: 300 }}>
-                      📌 Share code → Friend invests → Friend Profits → <strong style={{ color: 'var(--gold)' }}>You earn 7%</strong> credited automatically.
+                      📌 Share code → Friend invests → Friend Profits → <strong style={{ color: 'var(--gold)' }}>You earn 15%</strong> credited automatically.
                     </div>
                   </div>
 

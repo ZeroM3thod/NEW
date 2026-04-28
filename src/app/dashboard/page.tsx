@@ -315,7 +315,7 @@ export default function DashboardPage() {
   const investedTotal  = Number(profile?.invested_total) || 0
   const withdrawable   = balance
   const profitsTotal   = Number(profile?.profits_total)  || 0
-  const commRate       = Number(profile?.commission_rate) || 7
+  const commRate       = 15
   const firstName      = profile?.first_name || profile?.username || 'Investor'
   const refCode        = profile?.referral_code || '—'
   const avgRoi         = computedAvgRoi

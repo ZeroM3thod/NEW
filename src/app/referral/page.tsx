@@ -98,16 +98,7 @@ export default function ReferralPage() {
 
     setReferrals(mapped)
 
-    const count = refUsers.length
-    let newRate = 7
-    if (count >= 50) newRate = 12
-    else if (count >= 25) newRate = 10
-    else if (count >= 10) newRate = 8
 
-    if (newRate !== profileData?.commission_rate) {
-      await supabase.from('profiles').update({ commission_rate: newRate }).eq('id', user.id)
-      setProfile((prev: any) => ({ ...prev, commission_rate: newRate }))
-    }
 
     setLoading(false)
   }, [router, supabase])
@@ -217,7 +208,7 @@ export default function ReferralPage() {
               <span className='rf-sec-label'>My Account</span>
               <h1 className='rf-sec-title'>Referral Program</h1>
               <p className='rf-sec-sub'>
-                Invite friends and earn {profile?.commission_rate || 7}% commission on every profit they make.
+                Invite friends and earn 15% commission on every profit they make.
               </p>
             </div>
 
@@ -288,7 +279,7 @@ export default function ReferralPage() {
                 {
                   icon: (<><circle cx='12' cy='12' r='10' /><path d='M15 9.354a4 4 0 10-4 6.292' /></>),
                   bg: 'rgba(184,147,90,.08)', sc: 'var(--gold-d)',
-                  val: `${profile?.commission_rate || 7}%`, lbl: 'Commission Rate',
+                  val: `${profile?.commission_rate || 15}%`, lbl: 'Commission Rate',
                   ch: 'Of referrals\' profits', cup: false, vc: 'var(--gold)',
                 },
                 {
@@ -321,7 +312,7 @@ export default function ReferralPage() {
                 {[
                   { n: '1', t: 'Share Your Link', d: 'Copy your unique referral link or code and share it with friends, colleagues, or your audience.' },
                   { n: '2', t: 'They Register & Invest', d: 'Your referral signs up using your link and makes their first investment into any active season.' },
-                  { n: '3', t: 'You Earn Commission', d: `Receive ${profile?.commission_rate || 7}% of every PROFIT your referral earns from their investments, credited automatically.` },
+                  { n: '3', t: 'You Earn Commission', d: `Receive 15% of every PROFIT your referral earns from their investments, credited automatically.` },
                 ].map(s => (
                   <div key={s.n} className='rf-step-item'>
                     <div className='rf-step-num'>{s.n}</div>
@@ -361,7 +352,7 @@ export default function ReferralPage() {
                       <th>User</th>
                       <th>Joined Date</th>
                       <th>Total Profits</th>
-                      <th>Commission ({profile?.commission_rate || 7}%)</th>
+                      <th>Commission (15%)</th>
                       <th>Status</th>
                     </tr>
                   </thead>
@@ -428,7 +419,7 @@ export default function ReferralPage() {
                       </span>
                     </div>
                     <div className='rf-mob-row' style={{ borderBottom: 'none' }}>
-                      <span className='rf-mob-key'>Commission ({profile?.commission_rate || 7}%)</span>
+                      <span className='rf-mob-key'>Commission (15%)</span>
                       <span style={{ fontFamily: "'Cormorant Garamond',serif", color: r.comm > 0 ? 'var(--sage)' : 'var(--ink)', fontSize: '.95rem' }}>
                         +${r.comm.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </span>

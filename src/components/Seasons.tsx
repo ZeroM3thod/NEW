@@ -16,7 +16,7 @@ export default function Seasons() {
               <h2 className="section-title">Structured cycles,<br />predictable returns</h2>
             </div>
             <button className="btn-primary" onClick={() => router.push('/auth/signup')}>
-              Join Season 4
+              Join Season 110
             </button>
           </div>
 

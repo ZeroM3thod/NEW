@@ -1,149 +1,127 @@
-Here are all the parts that need changing:
+# Deposit Page — Minimum Amount: $10 → $30
+
+Apply these 3 changes in `src/app/deposit/page.tsx`:
 
 ---
 
-## 1. Database — Update Default Rate
+## Change 1 — Validation toast message (in `goToStep2`)
 
-Run in Supabase SQL Editor:
-
-```sql
--- Update default for new users
-ALTER TABLE public.profiles ALTER COLUMN commission_rate SET DEFAULT 15.0;
-
--- Update all existing users to 15%
-UPDATE public.profiles SET commission_rate = 15.0;
-
--- Fix the trigger default
--- (already handled by the ALTER above, but update handle_new_user too)
-```
-
----
-
-## 2. `src/app/referral/page.tsx` — Remove Auto-Increment Logic
-
-Find and **delete** this entire block (~line 100–115):
-
+**Find:**
 ```tsx
-// ❌ REMOVE THIS ENTIRE BLOCK
-const count = refUsers.length
-let newRate = 7
-if (count >= 50) newRate = 12
-else if (count >= 25) newRate = 10
-else if (count >= 10) newRate = 8
-
-if (newRate !== profileData?.commission_rate) {
-  await supabase.from('profiles').update({ commission_rate: newRate }).eq('id', user.id)
-  setProfile((prev: any) => ({ ...prev, commission_rate: newRate }))
-}
+if (!amt || amt < 10) { showToast('Please enter a valid amount (min $10)'); return }
 ```
-
-Replace with nothing — just delete it entirely.
-
----
-
-## 3. `src/app/referral/page.tsx` — Fix Description Text
-
-Find:
+**Replace with:**
 ```tsx
-Invite friends and earn {profile?.commission_rate || 7}% commission on every profit they make.
-```
-
-Replace with:
-```tsx
-Invite friends and earn 15% commission on every profit they make.
-```
-
-And find:
-```tsx
-{`Receive ${profile?.commission_rate || 7}% of every PROFIT your referral earns from their investments, credited automatically.`}
-```
-
-Replace with:
-```tsx
-{`Receive 15% of every PROFIT your referral earns from their investments, credited automatically.`}
+if (!amt || amt < 30) { showToast('Please enter a valid amount (min $30)'); return }
 ```
 
 ---
 
-## 4. `src/app/dashboard/page.tsx` — Fix Commission Display
+## Change 2 — Input `min` attribute
 
-Find:
+**Find:**
 ```tsx
-const commRate = Number(profile?.commission_rate) || 7
+<input className='dp-form-input' type='number' placeholder='Enter amount e.g. 750' min='10' value={customAmt}
 ```
-
-Replace with:
+**Replace with:**
 ```tsx
-const commRate = 15
+<input className='dp-form-input' type='number' placeholder='Enter amount e.g. 750' min='30' value={customAmt}
 ```
 
 ---
 
-## 5. `src/app/profile/page.tsx` — Fix Commission Display
+## Change 3 — Helper text below input
 
-Find (two places):
+**Find:**
 ```tsx
-Earn <strong style={{ color: 'var(--gold)' }}>7% commission</strong>
+<div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 5 }}>Minimum deposit: $10 USDT</div>
 ```
+**Replace with:**
 ```tsx
-{profile?.commission_rate || 7}%
+<div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 5 }}>Minimum deposit: $30 USDT</div>
 ```
 
-Replace with:
+
+
+
+# Withdraw Page — Minimum Amount: $10 → $30
+
+Apply these 5 changes in `src/app/withdraw/page.tsx`:
+
+---
+
+## Change 1 — Validation toast message (in `openConfirm`)
+
+**Find:**
 ```tsx
-Earn <strong style={{ color: 'var(--gold)' }}>15% commission</strong>
+if (!amt || amt < 10) { showToast('Please enter a valid amount (min $10)'); return }
 ```
+**Replace with:**
 ```tsx
-15%
+if (!amt || amt < 30) { showToast('Please enter a valid amount (min $30)'); return }
 ```
 
 ---
 
-## 6. `vaultx_final_schema.sql` — Fix Trigger Default
+## Change 2 — Input `min` attribute
 
-In the `handle_new_user` function, find:
-```sql
-commission_rate,
-...
-7.0,
-```
-
-Change `7.0` to `15.0`.
-
----
-
-## 7. `src/app/referral/partner/page.tsx` — Fix Hardcoded 8%
-
-This page has hardcoded `8%` in several places. Find and replace all instances:
-
+**Find:**
 ```tsx
-// Change all of these:
-'8% Commission Rate — Active'
-'Earning 8% commission'
-'Every user who joins through your link earns you 8%'
-u.totalDeposit * 0.08
-const comm = u.totalDeposit * 0.08
-Commission (8%)
-
-// To:
-'15% Commission Rate — Active'
-'Earning 15% commission'
-'Every user who joins through your link earns you 15%'
-u.totalDeposit * 0.15
-const comm = u.totalDeposit * 0.15
-Commission (15%)
+<input className='wd-form-input' type='number' placeholder='Enter amount e.g. 300' min='10' value={wdAmt} onChange={e => onAmtChange(e.target.value)} />
+```
+**Replace with:**
+```tsx
+<input className='wd-form-input' type='number' placeholder='Enter amount e.g. 300' min='30' value={wdAmt} onChange={e => onAmtChange(e.target.value)} />
 ```
 
 ---
 
-## Summary of Changes
+## Change 3 — Helper text below input
 
-| File | Change |
-|------|--------|
-| SQL | Default `commission_rate` → `15.0`, update all existing rows |
-| `referral/page.tsx` | Remove auto-increment block, fix % text |
-| `dashboard/page.tsx` | `commRate = 15` |
-| `profile/page.tsx` | Display `15%` |
-| `referral/partner/page.tsx` | Replace all `8%` / `0.08` with `15%` / `0.15` |
+**Find:**
+```tsx
+<span>Minimum: $10</span>
+```
+**Replace with:**
+```tsx
+<span>Minimum: $30</span>
+```
 
-The key change is **removing the auto-increment block** in `referral/page.tsx` — that's what was overwriting the rate on every page load.
+---
+
+## Change 4 — Submit button `disabled` condition (and opacity)
+
+**Find (2 occurrences — update BOTH):**
+```tsx
+style={{ width: '100%', opacity: (effectiveWithdrawable < 10 || isPending) ? 0.55 : 1 }}
+onClick={openConfirm}
+disabled={effectiveWithdrawable < 10 || isPending}
+```
+**Replace with:**
+```tsx
+style={{ width: '100%', opacity: (effectiveWithdrawable < 30 || isPending) ? 0.55 : 1 }}
+onClick={openConfirm}
+disabled={effectiveWithdrawable < 30 || isPending}
+```
+
+---
+
+## Change 5 — Helper messages below submit button (2 occurrences)
+
+**Find:**
+```tsx
+{effectiveWithdrawable < 10 && effectiveLockedAmount > 0 && currentBalance > effectiveLockedAmount && (
+```
+**Replace with:**
+```tsx
+{effectiveWithdrawable < 30 && effectiveLockedAmount > 0 && currentBalance > effectiveLockedAmount && (
+```
+
+**Find:**
+```tsx
+{effectiveWithdrawable < 10 && effectiveLockedAmount > 0 && currentBalance <= effectiveLockedAmount && (
+```
+**Replace with:**
+```tsx
+{effectiveWithdrawable < 30 && effectiveLockedAmount > 0 && currentBalance <= effectiveLockedAmount && (
+```

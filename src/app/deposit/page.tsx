@@ -314,7 +314,7 @@ export default function DepositPage() {
 
   const goToStep2 = () => {
     const amt = depState.amount
-    if (!amt || amt < 10) { showToast('Please enter a valid amount (min $10)'); return }
+    if (!amt || amt < 30) { showToast('Please enter a valid amount (min $30)'); return }
     setStep(2)
   }
 
@@ -463,7 +463,7 @@ export default function DepositPage() {
 
               <div style={{ marginBottom: 8 }}>
                 <label className='dp-form-label'>Custom Amount (USDT)</label>
-                <input className='dp-form-input' type='number' placeholder='Enter amount e.g. 750' min='10' value={customAmt}
+                <input className='dp-form-input' type='number' placeholder='Enter amount e.g. 750' min='30' value={customAmt}
                   onChange={e => {
                     setCustomAmt(e.target.value)
                     const v = parseFloat(e.target.value) || 0
@@ -471,7 +471,7 @@ export default function DepositPage() {
                     setAmtDisplay(v > 0 ? '$' + v.toLocaleString() : '—')
                     setSelectedChip(null)
                   }} />
-                <div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 5 }}>Minimum deposit: $10 USDT</div>
+                <div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 5 }}>Minimum deposit: $30 USDT</div>
               </div>
 
               {/* Amount summary pill */}

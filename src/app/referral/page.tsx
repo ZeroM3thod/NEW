@@ -21,8 +21,6 @@ export default function ReferralPage() {
   const [codeCopied, setCodeCopied] = useState(false)
   const [filter, setFilter] = useState('all')
   const [page, setPage] = useState(1)
-  const [milestoneWidth, setMilestoneWidth] = useState('0%')
-  const [ringOffset, setRingOffset] = useState(188)
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const [profile, setProfile] = useState<any>(null)
@@ -48,7 +46,6 @@ export default function ReferralPage() {
       .single()
     setProfile(profileData)
 
-    // ✅ Step 1: Fetch referred user profiles (include status)
     const { data: refUsers } = await supabase
       .from('profiles')
       .select('id, first_name, last_name, username, created_at, status')
@@ -60,7 +57,6 @@ export default function ReferralPage() {
       return
     }
 
-    // ✅ Step 2: Fetch all investments for referred users with season data
     const refUserIds = refUsers.map(u => u.id)
     const { data: refInvestments } = await supabase
       .from('investments')
@@ -69,16 +65,13 @@ export default function ReferralPage() {
 
     const allInvs = refInvestments || []
 
-    // ✅ Step 3: Map each referred user with correct profit/commission
     const mapped = refUsers.map(u => {
       const userInvs = allInvs.filter(inv => inv.user_id === u.id)
 
       const totalInvested = userInvs.reduce((sum: number, inv: any) =>
         sum + Number(inv.amount || 0), 0)
 
-      // ✅ Only count profit from CLOSED seasons
       const totalProfit = userInvs.reduce((sum: number, inv: any) => {
-        // Handle both object and array response from Supabase
         const season = Array.isArray(inv.seasons) ? inv.seasons[0] : inv.seasons
         if (season && season.status === 'closed' && season.final_roi != null) {
           return sum + (Number(inv.amount) * Number(season.final_roi) / 100)
@@ -86,7 +79,6 @@ export default function ReferralPage() {
         return sum
       }, 0)
 
-      // ✅ Commission = % of profit (not invested amount)
       const commissionRate = profileData?.commission_rate || 7
       const commission = totalProfit * (commissionRate / 100)
 
@@ -106,23 +98,16 @@ export default function ReferralPage() {
 
     setReferrals(mapped)
 
-    // ✅ Step 4: Update commission rate based on milestone
     const count = refUsers.length
     let newRate = 7
-    let target = 50
-
-    if (count >= 50) { newRate = 12; target = 100 }
-    else if (count >= 25) { newRate = 10; target = 50 }
-    else if (count >= 10) { newRate = 8; target = 25 }
+    if (count >= 50) newRate = 12
+    else if (count >= 25) newRate = 10
+    else if (count >= 10) newRate = 8
 
     if (newRate !== profileData?.commission_rate) {
       await supabase.from('profiles').update({ commission_rate: newRate }).eq('id', user.id)
       setProfile((prev: any) => ({ ...prev, commission_rate: newRate }))
     }
-
-    const progress = Math.min(100, (count / target) * 100)
-    setMilestoneWidth(`${progress}%`)
-    setRingOffset(2 * Math.PI * 30 * (1 - progress / 100))
 
     setLoading(false)
   }, [router, supabase])
@@ -191,7 +176,6 @@ export default function ReferralPage() {
     <span className={`rf-badge rf-b-${status}`}>{status}</span>
   )
 
-  // ✅ Totals from actual profits
   const totalComm = referrals.reduce((sum, r) => sum + r.comm, 0)
   const totalProfit = referrals.reduce((sum, r) => sum + r.profit, 0)
   const thisMonthCount = referrals.filter(r => {
@@ -286,7 +270,7 @@ export default function ReferralPage() {
               </div>
             </div>
 
-            {/* ✅ Stats with real data */}
+            {/* Stats */}
             <div className='rf-stats-grid rf-reveal' style={{ marginBottom: 14 }}>
               {[
                 {
@@ -327,58 +311,26 @@ export default function ReferralPage() {
               ))}
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1.6fr 1fr', gap: 14, marginBottom: 14 }} className='rf-reveal' id='rf-info-grid'>
-              <div className='rf-how-card'>
-                <span className='rf-sec-label' style={{ marginBottom: 4 }}>Program Details</span>
-                <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.05rem', color: 'var(--ink)' }}>
-                  How the Referral Program Works
-                </div>
-                <div className='rf-steps-grid'>
-                  {[
-                    { n: '1', t: 'Share Your Link', d: 'Copy your unique referral link or code and share it with friends, colleagues, or your audience.' },
-                    { n: '2', t: 'They Register & Invest', d: 'Your referral signs up using your link and makes their first investment into any active season.' },
-                    { n: '3', t: 'You Earn Commission', d: `Receive ${profile?.commission_rate || 7}% of every PROFIT your referral earns from their investments, credited automatically.` },
-                  ].map(s => (
-                    <div key={s.n} className='rf-step-item'>
-                      <div className='rf-step-num'>{s.n}</div>
-                      <div>
-                        <div className='rf-step-title'>{s.t}</div>
-                        <div className='rf-step-desc'>{s.d}</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+            {/* How it works — now full width */}
+            <div className='rf-how-card rf-reveal' style={{ marginBottom: 14 }}>
+              <span className='rf-sec-label' style={{ marginBottom: 4 }}>Program Details</span>
+              <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.05rem', color: 'var(--ink)' }}>
+                How the Referral Program Works
               </div>
-
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: 14 }} id='rf-side-panels'>
-                <div className='rf-how-card' style={{ padding: '18px 16px' }}>
-                  <div style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: '1.02rem', color: 'var(--ink)', marginBottom: 14 }}>
-                    Referral Milestone
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-                    <div className='rf-milestone-ring'>
-                      <svg viewBox='0 0 70 70'>
-                        <circle className='rf-ring-bg' cx='35' cy='35' r='30' />
-                        <circle className='rf-ring-fill' cx='35' cy='35' r='30' style={{ strokeDashoffset: ringOffset }} />
-                      </svg>
-                      <div className='rf-ring-label'>
-                        <span>{referrals.length}</span>
-                        <span className='rf-ring-sublabel'>of {referrals.length >= 50 ? '100' : '50'}</span>
-                      </div>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: '.76rem', fontWeight: 500, color: 'var(--ink)', marginBottom: 3 }}>
-                        Next Reward at {referrals.length >= 50 ? '100' : '50'} Referrals
-                      </div>
-                      <div style={{ fontSize: '.68rem', color: 'var(--text-sec)', marginBottom: 8 }}>
-                        {referrals.length >= 50 ? 100 - referrals.length : 50 - referrals.length} more to unlock bonus rate.
-                      </div>
-                      <div className='rf-prog-bar'>
-                        <div className='rf-prog-fill' style={{ width: milestoneWidth }} />
-                      </div>
+              <div className='rf-steps-grid'>
+                {[
+                  { n: '1', t: 'Share Your Link', d: 'Copy your unique referral link or code and share it with friends, colleagues, or your audience.' },
+                  { n: '2', t: 'They Register & Invest', d: 'Your referral signs up using your link and makes their first investment into any active season.' },
+                  { n: '3', t: 'You Earn Commission', d: `Receive ${profile?.commission_rate || 7}% of every PROFIT your referral earns from their investments, credited automatically.` },
+                ].map(s => (
+                  <div key={s.n} className='rf-step-item'>
+                    <div className='rf-step-num'>{s.n}</div>
+                    <div>
+                      <div className='rf-step-title'>{s.t}</div>
+                      <div className='rf-step-desc'>{s.d}</div>
                     </div>
                   </div>
-                </div>
+                ))}
               </div>
             </div>
 

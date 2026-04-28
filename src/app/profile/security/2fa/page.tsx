@@ -431,7 +431,7 @@ const SuccessStep = ({ setStep, setIs2FAEnabled }: { setStep: (s: Step) => void;
 );
 
 const DisableConfirmStep = ({
-  handleDisable, disablePassword, setDisablePassword, showDisablePassword, setShowDisablePassword, disableCodeMode, setDisableCodeMode, setDisableDigits, setDisableBackupCode, disableDigits, handleDisableDigit, handleDisableKeyDown, handleDisablePaste, disableRefs, disableShake, disableLoading, setStep
+  handleDisable, disablePassword, setDisablePassword, showDisablePassword, setShowDisablePassword, disableCodeMode, setDisableCodeMode, setDisableDigits, setDisableBackupCode, disableBackupCode, disableDigits, handleDisableDigit, handleDisableKeyDown, handleDisablePaste, disableRefs, disableShake, disableLoading, setStep
 }: {
   handleDisable: (e: React.FormEvent) => void;
   disablePassword: string;
@@ -442,6 +442,7 @@ const DisableConfirmStep = ({
   setDisableCodeMode: (m: 'totp' | 'backup' | ((prev: 'totp' | 'backup') => 'totp' | 'backup')) => void;
   setDisableDigits: (d: string[]) => void;
   setDisableBackupCode: (c: string) => void;
+  disableBackupCode: string;
   disableDigits: string[];
   handleDisableDigit: (i: number, v: string) => void;
   handleDisableKeyDown: (i: number, e: React.KeyboardEvent) => void;
@@ -911,7 +912,7 @@ export default function TwoFAManagePage() {
             {step === 'verify-setup'    && <VerifySetupStep setupDigits={setupDigits} handleSetupDigit={handleSetupDigit} handleSetupKeyDown={handleSetupKeyDown} handleSetupPaste={handleSetupPaste} setupRefs={setupRefs} setupShake={setupShake} setSetupDigits={setSetupDigits} setStep={setStep} />}
             {step === 'backup-codes'    && <BackupCodesStep newBackupCodes={newBackupCodes} copyBackupCodes={copyBackupCodes} downloadBackupCodes={downloadBackupCodes} backupAcked={backupAcked} setBackupAcked={setBackupAcked} copiedBackup={copiedBackup} setStep={setStep} setIs2FAEnabled={setIs2FAEnabled} />}
             {step === 'success'         && <SuccessStep setStep={setStep} setIs2FAEnabled={setIs2FAEnabled} />}
-            {step === 'disable-confirm' && <DisableConfirmStep handleDisable={handleDisable} disablePassword={disablePassword} setDisablePassword={setDisablePassword} showDisablePassword={showDisablePassword} setShowDisablePassword={setShowDisablePassword} disableCodeMode={disableCodeMode} setDisableCodeMode={setDisableCodeMode} setDisableDigits={setDisableDigits} setDisableBackupCode={setDisableBackupCode} disableDigits={disableDigits} handleDisableDigit={handleDisableDigit} handleDisableKeyDown={handleDisableKeyDown} handleDisablePaste={handleDisablePaste} disableRefs={disableRefs} disableShake={disableShake} disableLoading={disableLoading} setStep={setStep} />}
+            {step === 'disable-confirm' && <DisableConfirmStep handleDisable={handleDisable} disablePassword={disablePassword} setDisablePassword={setDisablePassword} showDisablePassword={showDisablePassword} setShowDisablePassword={setShowDisablePassword} disableCodeMode={disableCodeMode} setDisableCodeMode={setDisableCodeMode} setDisableDigits={setDisableDigits} setDisableBackupCode={setDisableBackupCode} disableBackupCode={disableBackupCode} disableDigits={disableDigits} handleDisableDigit={handleDisableDigit} handleDisableKeyDown={handleDisableKeyDown} handleDisablePaste={handleDisablePaste} disableRefs={disableRefs} disableShake={disableShake} disableLoading={disableLoading} setStep={setStep} />}
           </div>
         </div>
       </div>

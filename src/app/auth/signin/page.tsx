@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { createClient } from '@/utils/supabase/client';
+import { createClient as createDirectClient } from '@supabase/supabase-js'
 
 type ToastType = 'ok' | 'err' | '';
 
@@ -156,28 +157,35 @@ export default function SignInPage() {
 
   const handleForgot = async (e: React.FormEvent) => {
     e.preventDefault();
-    setFEmailCls(''); setFEmailMsg('');
-    const email = fEmail.trim();
-    if (!email){setFEmailMsg('⚠ Email is required.');setFEmailCls('fi-err');return;}
-    if (!EMAIL_RX.test(email)){setFEmailMsg('⚠ Enter a valid email address.');setFEmailCls('fi-err');return;}
-    setFEmailCls('fi-good');
-    setFLoading(true);
+    setFEmailCls(''); setFEmailMsg('')
+    const email = fEmail.trim()
+    if (!email) { setFEmailMsg('⚠ Email is required.'); setFEmailCls('fi-err'); return }
+    if (!EMAIL_RX.test(email)) { setFEmailMsg('⚠ Enter a valid email address.'); setFEmailCls('fi-err'); return }
+    setFEmailCls('fi-good')
+    setFLoading(true)
 
-    const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
-    });
+    // Use vanilla client with explicit implicit flow — bypasses @supabase/ssr's forced PKCE
+    const supabaseImplicit = createDirectClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+      { auth: { flowType: 'implicit' } }
+    )
 
-    setFLoading(false);
+    const { error } = await supabaseImplicit.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/forget/password`,
+    })
+
+    setFLoading(false)
     if (error) {
-      showToast('✕ ' + error.message, 'err');
-      setFEmailCls('fi-err');
+      showToast('✕ ' + error.message, 'err')
+      setFEmailCls('fi-err')
     } else {
-      setFSentTo(email);
-      setFSuccess(true);
-      showToast('✓ Reset link sent to ' + email, 'ok');
-      startCountdown(15 * 60);
+      setFSentTo(email)
+      setFSuccess(true)
+      showToast('✓ Reset link sent to ' + email, 'ok')
+      startCountdown(15 * 60)
     }
-  };
+  }
 
 
   useEffect(()=>()=>{if(cdTimer.current)clearInterval(cdTimer.current)},[]);

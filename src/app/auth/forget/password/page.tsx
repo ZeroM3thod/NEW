@@ -41,30 +41,61 @@ function SetPasswordContent() {
 
   useEffect(() => {
     let settled = false;
+    let unsubscribe: (() => void) | null = null;
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session) || (event === 'INITIAL_SESSION' && session)) {
-        settled = true;
-        setSessionReady(true);
-        setCheckingSession(false);
+    const init = async () => {
+      // ── Priority 1: Hash fragment (implicit flow) ──────────────────
+      // Supabase puts #access_token=...&type=recovery in the URL.
+      // This works in any WebView — no PKCE verifier needed.
+      if (typeof window !== 'undefined' && window.location.hash) {
+        const params = new URLSearchParams(window.location.hash.substring(1));
+        const accessToken  = params.get('access_token');
+        const refreshToken = params.get('refresh_token');
+        const type         = params.get('type');
+
+        if (accessToken && type === 'recovery') {
+          const { error } = await supabase.auth.setSession({
+            access_token:  accessToken,
+            refresh_token: refreshToken ?? '',
+          });
+          if (!error) {
+            settled = true;
+            setSessionReady(true);
+            setCheckingSession(false);
+            // Clean up the tokens from the URL
+            window.history.replaceState({}, '', '/auth/forget/password');
+            return;
+          }
+        }
       }
-    });
 
-    // Also catch an already-active session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+      // ── Priority 2: onAuthStateChange ─────────────────────────────
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+          settled = true;
+          setSessionReady(true);
+          setCheckingSession(false);
+        }
+      });
+      unsubscribe = () => subscription.unsubscribe();
+
+      // ── Priority 3: Existing session (desktop — callback already ran) ──
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         settled = true;
         setSessionReady(true);
         setCheckingSession(false);
-      } else {
-        // Give it a bit more time for events to fire
-        setTimeout(() => {
-          if (!settled) setCheckingSession(false);
-        }, 5000);
+        return;
       }
-    });
 
-    return () => subscription.unsubscribe();
+      // ── Fallback: give up after 4s ─────────────────────────────────
+      setTimeout(() => {
+        if (!settled) setCheckingSession(false);
+      }, 4000);
+    };
+
+    init();
+    return () => { unsubscribe?.(); };
   }, [supabase]);
 
   // Once checking is done with no session, mark as invalid

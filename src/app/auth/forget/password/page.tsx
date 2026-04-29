@@ -41,33 +41,58 @@ function SetPasswordContent() {
 
   useEffect(() => {
     let settled = false;
+    let subscription: { unsubscribe: () => void } | null = null;
 
-    // Listen for auth state changes (handles both hash fragment and cookie-based sessions)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
-        settled = true;
-        setSessionReady(true);
-        setCheckingSession(false);
+    const init = async () => {
+      // ── 1. Handle PKCE code in URL (Supabase sends ?code= for password reset)
+      //       This runs client-side so it works in any WebView on mobile too.
+      const params = new URLSearchParams(window.location.search);
+      const code = params.get('code');
+
+      if (code) {
+        try {
+          const { error } = await supabase.auth.exchangeCodeForSession(code);
+          if (!error) {
+            settled = true;
+            setSessionReady(true);
+            setCheckingSession(false);
+            // Clean the URL so the code can't be reused if the page refreshes
+            window.history.replaceState({}, '', '/auth/forget/password');
+            return;
+          }
+        } catch {
+          // fall through to other checks
+        }
       }
-    });
 
-    // Also check for an existing session (set by the /auth/callback route via cookie)
-    supabase.auth.getSession().then(({ data: { session } }) => {
+      // ── 2. Listen for PASSWORD_RECOVERY (hash-based implicit flow fallback)
+      const { data } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+          settled = true;
+          setSessionReady(true);
+          setCheckingSession(false);
+        }
+      });
+      subscription = data.subscription;
+
+      // ── 3. Check for an already-active session (e.g. desktop where callback
+      //       route already exchanged the code and set the cookie)
+      const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         settled = true;
         setSessionReady(true);
         setCheckingSession(false);
-      } else {
-        // Give auth state change events a moment to fire
-        setTimeout(() => {
-          if (!settled) {
-            setCheckingSession(false);
-          }
-        }, 3000);
+        return;
       }
-    });
 
-    return () => subscription.unsubscribe();
+      // ── 4. Give auth-state events a moment to fire, then give up
+      setTimeout(() => {
+        if (!settled) setCheckingSession(false);
+      }, 3000);
+    };
+
+    init();
+    return () => { subscription?.unsubscribe(); };
   }, [supabase]);
 
   // Once checking is done with no session, mark as invalid

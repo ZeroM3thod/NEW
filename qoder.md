@@ -1,127 +1,79 @@
-# Deposit Page — Minimum Amount: $10 → $30
+File 1 — src/app/auth/signin/page.tsx
+Change the redirectTo in handleForgot so it points directly to the password page instead of /auth/callback:
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation-duration: 0.25s;
+    animation-timing-function: cubic-bezier(0.19, 1, 0.22, 1);
+  }
+VvisualizeVvisualize show_widgetNow here are the exact code changes:
 
-Apply these 3 changes in `src/app/deposit/page.tsx`:
+Change 1 — src/app/auth/signin/page.tsx
+Find this in handleForgot:
+ts// BEFORE
+const { error } = await supabase.auth.resetPasswordForEmail(email, {
+  redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
+});
+Change it to:
+ts// AFTER
+const { error } = await supabase.auth.resetPasswordForEmail(email, {
+  redirectTo: `${window.location.origin}/auth/forget/password`,
+});
 
----
+Change 2 — src/app/auth/forget/password/page.tsx
+Replace the entire session-checking useEffect (the first one) with this version that also handles the ?code= param client-side:
+tsuseEffect(() => {
+  let settled = false;
+  let subscription: { unsubscribe: () => void } | null = null;
 
-## Change 1 — Validation toast message (in `goToStep2`)
+  const init = async () => {
+    // ── 1. Handle PKCE code in URL (Supabase sends ?code= for password reset)
+    //       This runs client-side so it works in any WebView on mobile too.
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('code');
 
-**Find:**
-```tsx
-if (!amt || amt < 10) { showToast('Please enter a valid amount (min $10)'); return }
-```
-**Replace with:**
-```tsx
-if (!amt || amt < 30) { showToast('Please enter a valid amount (min $30)'); return }
-```
+    if (code) {
+      try {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!error) {
+          settled = true;
+          setSessionReady(true);
+          setCheckingSession(false);
+          // Clean the URL so the code can't be reused if the page refreshes
+          window.history.replaceState({}, '', '/auth/forget/password');
+          return;
+        }
+      } catch {
+        // fall through to other checks
+      }
+    }
 
----
+    // ── 2. Listen for PASSWORD_RECOVERY (hash-based implicit flow fallback)
+    const { data } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+        settled = true;
+        setSessionReady(true);
+        setCheckingSession(false);
+      }
+    });
+    subscription = data.subscription;
 
-## Change 2 — Input `min` attribute
+    // ── 3. Check for an already-active session (e.g. desktop where callback
+    //       route already exchanged the code and set the cookie)
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session) {
+      settled = true;
+      setSessionReady(true);
+      setCheckingSession(false);
+      return;
+    }
 
-**Find:**
-```tsx
-<input className='dp-form-input' type='number' placeholder='Enter amount e.g. 750' min='10' value={customAmt}
-```
-**Replace with:**
-```tsx
-<input className='dp-form-input' type='number' placeholder='Enter amount e.g. 750' min='30' value={customAmt}
-```
+    // ── 4. Give auth-state events a moment to fire, then give up
+    setTimeout(() => {
+      if (!settled) setCheckingSession(false);
+    }, 3000);
+  };
 
----
-
-## Change 3 — Helper text below input
-
-**Find:**
-```tsx
-<div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 5 }}>Minimum deposit: $10 USDT</div>
-```
-**Replace with:**
-```tsx
-<div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 5 }}>Minimum deposit: $30 USDT</div>
-```
-
-
-
-
-# Withdraw Page — Minimum Amount: $10 → $30
-
-Apply these 5 changes in `src/app/withdraw/page.tsx`:
-
----
-
-## Change 1 — Validation toast message (in `openConfirm`)
-
-**Find:**
-```tsx
-if (!amt || amt < 10) { showToast('Please enter a valid amount (min $10)'); return }
-```
-**Replace with:**
-```tsx
-if (!amt || amt < 30) { showToast('Please enter a valid amount (min $30)'); return }
-```
-
----
-
-## Change 2 — Input `min` attribute
-
-**Find:**
-```tsx
-<input className='wd-form-input' type='number' placeholder='Enter amount e.g. 300' min='10' value={wdAmt} onChange={e => onAmtChange(e.target.value)} />
-```
-**Replace with:**
-```tsx
-<input className='wd-form-input' type='number' placeholder='Enter amount e.g. 300' min='30' value={wdAmt} onChange={e => onAmtChange(e.target.value)} />
-```
-
----
-
-## Change 3 — Helper text below input
-
-**Find:**
-```tsx
-<span>Minimum: $10</span>
-```
-**Replace with:**
-```tsx
-<span>Minimum: $30</span>
-```
-
----
-
-## Change 4 — Submit button `disabled` condition (and opacity)
-
-**Find (2 occurrences — update BOTH):**
-```tsx
-style={{ width: '100%', opacity: (effectiveWithdrawable < 10 || isPending) ? 0.55 : 1 }}
-onClick={openConfirm}
-disabled={effectiveWithdrawable < 10 || isPending}
-```
-**Replace with:**
-```tsx
-style={{ width: '100%', opacity: (effectiveWithdrawable < 30 || isPending) ? 0.55 : 1 }}
-onClick={openConfirm}
-disabled={effectiveWithdrawable < 30 || isPending}
-```
-
----
-
-## Change 5 — Helper messages below submit button (2 occurrences)
-
-**Find:**
-```tsx
-{effectiveWithdrawable < 10 && effectiveLockedAmount > 0 && currentBalance > effectiveLockedAmount && (
-```
-**Replace with:**
-```tsx
-{effectiveWithdrawable < 30 && effectiveLockedAmount > 0 && currentBalance > effectiveLockedAmount && (
-```
-
-**Find:**
-```tsx
-{effectiveWithdrawable < 10 && effectiveLockedAmount > 0 && currentBalance <= effectiveLockedAmount && (
-```
-**Replace with:**
-```tsx
-{effectiveWithdrawable < 30 && effectiveLockedAmount > 0 && currentBalance <= effectiveLockedAmount && (
-```
+  init();
+  return () => { subscription?.unsubscribe(); };
+}, [supabase]);

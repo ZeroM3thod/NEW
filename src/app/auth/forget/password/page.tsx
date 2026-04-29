@@ -46,7 +46,6 @@ function SetPasswordContent() {
     const init = async () => {
       // ── Priority 1: Hash fragment (implicit flow) ──────────────────
       // Supabase puts #access_token=...&type=recovery in the URL.
-      // This works in any WebView — no PKCE verifier needed.
       if (typeof window !== 'undefined' && window.location.hash) {
         const params = new URLSearchParams(window.location.hash.substring(1));
         const accessToken  = params.get('access_token');
@@ -67,11 +66,20 @@ function SetPasswordContent() {
             return;
           }
         }
+
+        // Hash exists but is NOT a recovery token — block access
+        if (!accessToken || type !== 'recovery') {
+          settled = true;
+          setCheckingSession(false);
+          // setInvalidLink handled by the effect below
+          return;
+        }
       }
 
-      // ── Priority 2: onAuthStateChange ─────────────────────────────
-      const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+      // ── Priority 2: onAuthStateChange (PKCE flow after callback) ──
+      // Only PASSWORD_RECOVERY event is accepted — NOT a regular SIGNED_IN.
+      const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+        if (event === 'PASSWORD_RECOVERY') {
           settled = true;
           setSessionReady(true);
           setCheckingSession(false);
@@ -79,16 +87,19 @@ function SetPasswordContent() {
       });
       unsubscribe = () => subscription.unsubscribe();
 
-      // ── Priority 3: Existing session (desktop — callback already ran) ──
+      // ── Priority 3: Existing session — SECURITY CHECK ─────────────
+      // If someone is simply logged in and navigates here directly,
+      // redirect them away — they must arrive via a recovery email link.
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         settled = true;
-        setSessionReady(true);
         setCheckingSession(false);
+        // Redirect logged-in users who didn't come via a recovery link
+        router.replace('/dashboard');
         return;
       }
 
-      // ── Fallback: give up after 4s ─────────────────────────────────
+      // ── Fallback: give up after 4 s ────────────────────────────────
       setTimeout(() => {
         if (!settled) setCheckingSession(false);
       }, 4000);
@@ -96,9 +107,9 @@ function SetPasswordContent() {
 
     init();
     return () => { unsubscribe?.(); };
-  }, [supabase]);
+  }, [supabase, router]);
 
-  // Once checking is done with no session, mark as invalid
+  // Once checking is done with no recovery session, mark as invalid
   useEffect(() => {
     if (!checkingSession && !sessionReady) {
       setInvalidLink(true);
@@ -219,7 +230,7 @@ function SetPasswordContent() {
     );
   }
 
-  // Show error if link is invalid/expired
+  // Show error if link is invalid/expired or user arrived without a recovery token
   if (invalidLink) {
     return (
       <>
@@ -239,7 +250,7 @@ function SetPasswordContent() {
               <div className="success-icon" style={{background:'rgba(155,58,58,.1)',border:'1px solid rgba(155,58,58,.25)'}}>⚠️</div>
               <div className="success-title">Link Expired or Invalid</div>
               <p className="success-body">
-                This password reset link has expired or is invalid. Please request a new one.
+                This password reset link has expired or is invalid. Please request a new one from the sign-in page.
               </p>
               <button className="btn-primary" style={{marginTop:4}} onClick={()=>router.push('/auth/signin')}>
                 <span>Request New Link →</span>
@@ -247,7 +258,7 @@ function SetPasswordContent() {
             </div>
           </div>
         </div>
-        <div className="page-caption">© 2024 ValutX · All rights reserved</div>
+        <div className="page-caption">© {new Date().getFullYear()} ValutX · All rights reserved</div>
         <style>{`@keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }`}</style>
       </>
     );
@@ -362,7 +373,7 @@ function SetPasswordContent() {
         </div>
       </div>
 
-      <div className="page-caption">© 2024 ValutX · All rights reserved</div>
+      <div className="page-caption">© {new Date().getFullYear()} ValutX · All rights reserved</div>
 
       <style>{`
         @keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }

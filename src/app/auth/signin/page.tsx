@@ -164,7 +164,7 @@ export default function SignInPage() {
     setFLoading(true);
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth/forget/password`,
+      redirectTo: `${window.location.origin}/auth/callback?type=recovery`,
     });
 
     setFLoading(false);

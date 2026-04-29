@@ -43,23 +43,24 @@ function SetPasswordContent() {
     let settled = false;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session) || (event === 'INITIAL_SESSION' && session)) {
         settled = true;
         setSessionReady(true);
         setCheckingSession(false);
       }
     });
 
-    // Also catch an already-active session (e.g. desktop where cookie was set)
+    // Also catch an already-active session
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         settled = true;
         setSessionReady(true);
         setCheckingSession(false);
       } else {
+        // Give it a bit more time for events to fire
         setTimeout(() => {
           if (!settled) setCheckingSession(false);
-        }, 3000);
+        }, 5000);
       }
     });
 

@@ -2,10 +2,15 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@/utils/supabase/server'
 
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url)
+  const { searchParams } = new URL(request.url)
   const code = searchParams.get('code')
   const type = searchParams.get('type')
   const next = searchParams.get('next') ?? '/'
+  
+  // Use headers to determine the correct origin
+  const host = request.headers.get('host')
+  const protocol = request.headers.get('x-forwarded-proto') || new URL(request.url).protocol.replace(':', '') || 'https'
+  const origin = `${protocol}://${host}`
 
   if (code) {
     const supabase = createClient()

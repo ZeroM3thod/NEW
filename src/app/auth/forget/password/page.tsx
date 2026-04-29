@@ -14,10 +14,10 @@ function SetPasswordContent() {
   const animRef      = useRef<number>(0);
   const toastTimer   = useRef<ReturnType<typeof setTimeout>|null>(null);
 
-  const [toast, setToast]         = useState({msg:'',type:'' as ToastType,show:false});
+  const [toast, setToast]               = useState({msg:'',type:'' as ToastType,show:false});
   const [sessionReady, setSessionReady] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
-  const [invalidLink, setInvalidLink] = useState(false);
+  const [invalidLink, setInvalidLink]   = useState(false);
 
   const [pw, setPw]         = useState('');
   const [pwCls, setPwCls]   = useState('');
@@ -31,8 +31,8 @@ function SetPasswordContent() {
   const [cpwMsgType, setCpwMsgType] = useState<'ok'|'err'>('ok');
   const [cpwShow, setCpwShow] = useState(false);
 
-  const [loading, setLoading]   = useState(false);
-  const [success, setSuccess]   = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [success, setSuccess] = useState(false);
 
   const [reqLen,   setReqLen]   = useState(false);
   const [reqUpper, setReqUpper] = useState(false);
@@ -42,12 +42,16 @@ function SetPasswordContent() {
   useEffect(() => {
     let settled = false;
     let unsubscribe: (() => void) | null = null;
+    // Used to delay-redirect regular logged-in users who browse here directly
+    let redirectTimer: ReturnType<typeof setTimeout> | null = null;
 
     const init = async () => {
+
       // ── Priority 1: Hash fragment (implicit flow) ──────────────────
+      // The forgot-password email was sent with flowType:'implicit', so
       // Supabase puts #access_token=...&type=recovery in the URL.
       if (typeof window !== 'undefined' && window.location.hash) {
-        const params = new URLSearchParams(window.location.hash.substring(1));
+        const params       = new URLSearchParams(window.location.hash.substring(1));
         const accessToken  = params.get('access_token');
         const refreshToken = params.get('refresh_token');
         const type         = params.get('type');
@@ -61,25 +65,24 @@ function SetPasswordContent() {
             settled = true;
             setSessionReady(true);
             setCheckingSession(false);
-            // Clean up the tokens from the URL
             window.history.replaceState({}, '', '/auth/forget/password');
             return;
           }
         }
 
-        // Hash exists but is NOT a recovery token — block access
-        if (!accessToken || type !== 'recovery') {
-          settled = true;
-          setCheckingSession(false);
-          // setInvalidLink handled by the effect below
-          return;
-        }
+        // Hash is present but not a valid recovery token → invalid link
+        settled = true;
+        setCheckingSession(false);
+        return;
       }
 
-      // ── Priority 2: onAuthStateChange (PKCE flow after callback) ──
-      // Only PASSWORD_RECOVERY event is accepted — NOT a regular SIGNED_IN.
+      // ── Priority 2: onAuthStateChange (PKCE callback flow) ────────
+      // After /auth/callback exchanges the recovery code, Supabase fires
+      // PASSWORD_RECOVERY here.
+      // IMPORTANT: subscribe BEFORE calling getSession so we never miss the event.
       const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
         if (event === 'PASSWORD_RECOVERY') {
+          if (redirectTimer) clearTimeout(redirectTimer); // cancel any pending redirect
           settled = true;
           setSessionReady(true);
           setCheckingSession(false);
@@ -87,36 +90,44 @@ function SetPasswordContent() {
       });
       unsubscribe = () => subscription.unsubscribe();
 
-      // ── Priority 3: Existing session — SECURITY CHECK ─────────────
-      // If someone is simply logged in and navigates here directly,
-      // redirect them away — they must arrive via a recovery email link.
+      // ── Priority 3: Existing session ──────────────────────────────
+      // Session can exist for two reasons:
+      //   A) User arrived via the PKCE reset email → PASSWORD_RECOVERY will fire soon
+      //   B) Logged-in user manually typed this URL → no PASSWORD_RECOVERY will fire
+      //
+      // We give PASSWORD_RECOVERY 800 ms to arrive. If it does → show the form (case A).
+      // If it doesn't arrive in time → redirect to dashboard (case B).
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        settled = true;
-        setCheckingSession(false);
-        // Redirect logged-in users who didn't come via a recovery link
-        router.replace('/dashboard');
+        redirectTimer = setTimeout(() => {
+          if (!settled) {
+            settled = true;
+            setCheckingSession(false);
+            router.replace('/dashboard');
+          }
+        }, 800);
         return;
       }
 
-      // ── Fallback: give up after 4 s ────────────────────────────────
+      // ── Fallback: no session at all → wait then show invalid-link screen ─
       setTimeout(() => {
         if (!settled) setCheckingSession(false);
       }, 4000);
     };
 
     init();
-    return () => { unsubscribe?.(); };
+    return () => {
+      unsubscribe?.();
+      if (redirectTimer) clearTimeout(redirectTimer);
+    };
   }, [supabase, router]);
 
-  // Once checking is done with no recovery session, mark as invalid
+  // Once checking finishes without a valid recovery session → show error screen
   useEffect(() => {
-    if (!checkingSession && !sessionReady) {
-      setInvalidLink(true);
-    }
+    if (!checkingSession && !sessionReady) setInvalidLink(true);
   }, [checkingSession, sessionReady]);
 
-  /* BG Canvas */
+  /* ── BG Canvas ── */
   useEffect(()=>{
     const cvs=canvasRef.current;if(!cvs)return;
     const cx=cvs.getContext('2d')!;
@@ -182,9 +193,7 @@ function SetPasswordContent() {
     if(!valid){showToast('⚠ Please fix the errors above.','err');return;}
 
     setLoading(true);
-
     const { error } = await supabase.auth.updateUser({ password: pw });
-
     setLoading(false);
 
     if (error) {
@@ -197,19 +206,10 @@ function SetPasswordContent() {
     }
   };
 
-  const EyeOpen=()=>(
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
-    </svg>
-  );
-  const EyeClosed=()=>(
-    <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/>
-      <line x1="1" y1="1" x2="23" y2="23"/>
-    </svg>
-  );
+  const EyeOpen=()=>(<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>);
+  const EyeClosed=()=>(<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" strokeWidth="1.8"><path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>);
 
-  // Show loading while checking session
+  /* ── Loading state ── */
   if (checkingSession) {
     return (
       <>
@@ -220,17 +220,15 @@ function SetPasswordContent() {
               <div className="logo-icon"/>
               <div className="logo-name">Valut<span style={{color:'var(--gold)'}}>X</span></div>
             </div>
-            <div style={{padding:'20px 0',color:'var(--text-sec)',fontSize:'.85rem'}}>
-              Verifying reset link…
-            </div>
+            <div style={{padding:'20px 0',color:'var(--text-sec)',fontSize:'.85rem'}}>Verifying reset link…</div>
           </div>
         </div>
-        <style>{`@keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }`}</style>
+        <style>{`@keyframes fadeView{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}`}</style>
       </>
     );
   }
 
-  // Show error if link is invalid/expired or user arrived without a recovery token
+  /* ── Invalid / expired link ── */
   if (invalidLink) {
     return (
       <>
@@ -250,7 +248,7 @@ function SetPasswordContent() {
               <div className="success-icon" style={{background:'rgba(155,58,58,.1)',border:'1px solid rgba(155,58,58,.25)'}}>⚠️</div>
               <div className="success-title">Link Expired or Invalid</div>
               <p className="success-body">
-                This password reset link has expired or is invalid. Please request a new one from the sign-in page.
+                This password reset link has expired or is invalid.<br/>Please request a new one from the sign-in page.
               </p>
               <button className="btn-primary" style={{marginTop:4}} onClick={()=>router.push('/auth/signin')}>
                 <span>Request New Link →</span>
@@ -259,11 +257,12 @@ function SetPasswordContent() {
           </div>
         </div>
         <div className="page-caption">© {new Date().getFullYear()} ValutX · All rights reserved</div>
-        <style>{`@keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }`}</style>
+        <style>{`@keyframes fadeView{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}`}</style>
       </>
     );
   }
 
+  /* ── Main password-set form ── */
   return (
     <>
       <canvas ref={canvasRef} style={{position:'fixed',inset:0,width:'100%',height:'100%',pointerEvents:'none',zIndex:0,opacity:.055}}/>
@@ -281,17 +280,16 @@ function SetPasswordContent() {
             <div className="logo-name">Valut<span style={{color:'var(--gold)'}}>X</span></div>
           </div>
 
-          {!success?(
+          {!success ? (
             <>
               <h1 className="card-heading">Set new password</h1>
               <p className="card-sub">Choose a strong, unique password for your account.</p>
 
               <form className="form-stack" onSubmit={handleSubmit} noValidate>
-                {/* New Password */}
                 <div className="fg">
                   <label className="fl">New Password</label>
                   <div className="pw-wrap">
-                    <input id="np-pw" className={`fi${pwCls?' '+pwCls:''}`} type={pwShow?'text':'password'}
+                    <input className={`fi${pwCls?' '+pwCls:''}`} type={pwShow?'text':'password'}
                       placeholder="Create a strong password" autoComplete="new-password"
                       value={pw} onChange={e=>handlePwChange(e.target.value)}/>
                     <button type="button" className="pw-eye" onClick={()=>setPwShow(v=>!v)}>
@@ -308,28 +306,26 @@ function SetPasswordContent() {
                   {pwMsg&&<div className="msg msg-err">{pwMsg}</div>}
                 </div>
 
-                {/* Requirements */}
                 {pw&&(
                   <div className="req-list">
-                    {[
+                    {([
                       [reqLen,   'At least 8 characters'],
                       [reqUpper, 'One uppercase letter (A–Z)'],
                       [reqNum,   'One number (0–9)'],
                       [reqSym,   'One symbol (!@#$…)'],
-                    ].map(([met,label])=>(
-                      <div key={label as string} className="req-item">
+                    ] as [boolean,string][]).map(([met,label])=>(
+                      <div key={label} className="req-item">
                         <div className={`req-dot${met?' met':''}`}/>
-                        <span style={{color:met?'var(--sage)':'var(--text-sec)'}}>{label as string}</span>
+                        <span style={{color:met?'var(--sage)':'var(--text-sec)'}}>{label}</span>
                       </div>
                     ))}
                   </div>
                 )}
 
-                {/* Confirm Password */}
                 <div className="fg">
                   <label className="fl">Confirm New Password</label>
                   <div className="pw-wrap">
-                    <input id="np-cpw" className={`fi${cpwCls?' '+cpwCls:''}`} type={cpwShow?'text':'password'}
+                    <input className={`fi${cpwCls?' '+cpwCls:''}`} type={cpwShow?'text':'password'}
                       placeholder="Repeat your new password" autoComplete="new-password"
                       value={cpw} onChange={e=>handleCpwChange(e.target.value)}/>
                     <button type="button" className="pw-eye" onClick={()=>setCpwShow(v=>!v)}>
@@ -344,7 +340,7 @@ function SetPasswordContent() {
                 </button>
               </form>
             </>
-          ):(
+          ) : (
             <div className="success-state">
               <div className="success-icon">🔐</div>
               <div className="success-title">Password updated</div>
@@ -374,10 +370,7 @@ function SetPasswordContent() {
       </div>
 
       <div className="page-caption">© {new Date().getFullYear()} ValutX · All rights reserved</div>
-
-      <style>{`
-        @keyframes fadeView { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:none; } }
-      `}</style>
+      <style>{`@keyframes fadeView{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:none}}`}</style>
     </>
   );
 }

@@ -5,6 +5,10 @@ export function createClient() {
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
     {
+      auth: {
+        flowType: 'implicit',       // ← tokens arrive as #hash fragments, no verifier needed
+        detectSessionInUrl: true,   // ← client auto-processes the hash on load
+      },
       cookies: {
         getAll() {
           if (typeof document === 'undefined') return []

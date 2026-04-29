@@ -290,7 +290,7 @@ export default function WithdrawPage() {
     const amt = parseFloat(wdAmt)
     const addr = wdAddr.trim()
     const note = wdNote.trim()
-    if (!amt || amt < 30) { showToast('Please enter a valid amount (min $30)'); return }
+    if (!amt || amt < 10) { showToast('Please enter a valid amount (min $10)'); return }
     if (amt > effectiveWithdrawable) {
       if (lockedAmount > 0 && amt <= currentBalance) {
         showToast(`⚠ $${effectiveLockedAmount.toLocaleString()} is locked. Only profits are withdrawable: $${effectiveWithdrawable.toLocaleString()}`)
@@ -523,7 +523,7 @@ export default function WithdrawPage() {
                 </div>
                 <input className='wd-form-input' type='number' placeholder='Enter amount e.g. 300' min='30' value={wdAmt} onChange={e => onAmtChange(e.target.value)} />
                 <div style={{ fontSize: '.7rem', color: 'var(--txt3)', marginTop: 5, display: 'flex', flexWrap: 'wrap', gap: 12 }}>
-                  <span>Minimum: $30</span>
+                  <span>Minimum: $10</span>
                   <span>Available (profits): <strong style={{ color: 'var(--sage)' }}>${effectiveWithdrawable.toLocaleString(undefined, { minimumFractionDigits: 2 })}</strong></span>
                   {effectiveLockedAmount > 0 && (
                     <span style={{ color: 'rgba(155,90,58,.8)', display: 'flex', alignItems: 'center', gap: 3 }}>
@@ -593,19 +593,19 @@ export default function WithdrawPage() {
 
               <button
                 className='wd-btn wd-btn-dark'
-                style={{ width: '100%', opacity: (effectiveWithdrawable < 30 || isPending) ? 0.55 : 1 }}
+                style={{ width: '100%', opacity: (effectiveWithdrawable < 10 || isPending) ? 0.55 : 1 }}
                 onClick={openConfirm}
-                disabled={effectiveWithdrawable < 30 || isPending}
+                disabled={effectiveWithdrawable < 10 || isPending}
               >
                 <span>{isPending ? 'Account Pending — Withdrawals Disabled' : 'Request Withdrawal →'}</span>
               </button>
 
-              {effectiveWithdrawable < 30 && effectiveLockedAmount > 0 && currentBalance > effectiveLockedAmount && (
+              {effectiveWithdrawable < 10 && effectiveLockedAmount > 0 && currentBalance > effectiveLockedAmount && (
                 <div style={{ textAlign: 'center', marginTop: 10, fontSize: '.72rem', color: 'rgba(74,103,65,.8)' }}>
                   No profits to withdraw yet · Invest locked funds to earn returns
                 </div>
               )}
-              {effectiveWithdrawable < 30 && effectiveLockedAmount > 0 && currentBalance <= effectiveLockedAmount && (
+              {effectiveWithdrawable < 10 && effectiveLockedAmount > 0 && currentBalance <= effectiveLockedAmount && (
                 <div style={{ textAlign: 'center', marginTop: 10, fontSize: '.72rem', color: 'rgba(155,90,58,.8)' }}>
                   Deposit locked for 60 days · Principal available in {lockCountdowns[soonestLock?.id || ''] || '—'}
                 </div>

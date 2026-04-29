@@ -41,58 +41,29 @@ function SetPasswordContent() {
 
   useEffect(() => {
     let settled = false;
-    let subscription: { unsubscribe: () => void } | null = null;
 
-    const init = async () => {
-      // ── 1. Handle PKCE code in URL (Supabase sends ?code= for password reset)
-      //       This runs client-side so it works in any WebView on mobile too.
-      const params = new URLSearchParams(window.location.search);
-      const code = params.get('code');
-
-      if (code) {
-        try {
-          const { error } = await supabase.auth.exchangeCodeForSession(code);
-          if (!error) {
-            settled = true;
-            setSessionReady(true);
-            setCheckingSession(false);
-            // Clean the URL so the code can't be reused if the page refreshes
-            window.history.replaceState({}, '', '/auth/forget/password');
-            return;
-          }
-        } catch {
-          // fall through to other checks
-        }
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
+        settled = true;
+        setSessionReady(true);
+        setCheckingSession(false);
       }
+    });
 
-      // ── 2. Listen for PASSWORD_RECOVERY (hash-based implicit flow fallback)
-      const { data } = supabase.auth.onAuthStateChange((event, session) => {
-        if (event === 'PASSWORD_RECOVERY' || (event === 'SIGNED_IN' && session)) {
-          settled = true;
-          setSessionReady(true);
-          setCheckingSession(false);
-        }
-      });
-      subscription = data.subscription;
-
-      // ── 3. Check for an already-active session (e.g. desktop where callback
-      //       route already exchanged the code and set the cookie)
-      const { data: { session } } = await supabase.auth.getSession();
+    // Also catch an already-active session (e.g. desktop where cookie was set)
+    supabase.auth.getSession().then(({ data: { session } }) => {
       if (session) {
         settled = true;
         setSessionReady(true);
         setCheckingSession(false);
-        return;
+      } else {
+        setTimeout(() => {
+          if (!settled) setCheckingSession(false);
+        }, 3000);
       }
+    });
 
-      // ── 4. Give auth-state events a moment to fire, then give up
-      setTimeout(() => {
-        if (!settled) setCheckingSession(false);
-      }, 3000);
-    };
-
-    init();
-    return () => { subscription?.unsubscribe(); };
+    return () => subscription.unsubscribe();
   }, [supabase]);
 
   // Once checking is done with no session, mark as invalid

@@ -7,15 +7,15 @@ import { createClient } from '@/utils/supabase/client'
 import React from 'react'
 
 const ADDRESSES: Record<string, string> = {
-  'TRC-20': 'TXkPqV9sZbUmWHvCaZLfwBgY3qNxR8eKdM',
-  'ERC-20': '0x4aF3bC2e8f1D9Aa72cE63b5B87dF4e1C9Ab3D5E',
-  'BEP-20': '0x7bC9dE3F4a2B1c8Ef5A6D7e923cFb47D1aE8c9B',
+  'TRC-20': 'TWp8HQiAEygKcb6wiDSD4QJmCD7o7pdrK6',
+  'ERC-20': '0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7',
+  'BEP-20': '0xa73e4002d2bd14f11b6637934ca5ae9af7c7c0e7',
 }
 
 const QR_IMAGES: Record<string, string> = {
-  'TRC-20': '/qr/trc20.jpg',
-  'ERC-20': '/qr/erc20.jpg',
-  'BEP-20': '/qr/bep20.jpg',
+  'TRC-20': '/qr/trc20.png',
+  'ERC-20': '/qr/erc20.png',
+  'BEP-20': '/qr/bep20.png',
 }
 
 const NET_FEES: Record<string, { fee: number; time: string; feeLabel: string }> = {

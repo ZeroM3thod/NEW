@@ -15,9 +15,22 @@ interface Withdrawal {
 
 type ModalMode = 'view' | 'approve' | 'reject' | null;
 
-function fmtAmt(v: number) { return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) }
-function shortWallet(w: string) { return w.substring(0, 10) + '…' + w.slice(-4) }
-function bCls(s: WdStatus) { return s === 'approved' ? 'dm-b-conf' : s === 'rejected' ? 'dm-b-rej' : 'dm-b-pend' }
+function fmtAmt(v: number) { return v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); }
+function shortWallet(w: string) { return w.substring(0, 10) + '…' + w.slice(-4); }
+function bCls(s: WdStatus) { return s === 'approved' ? 'dm-b-conf' : s === 'rejected' ? 'dm-b-rej' : 'dm-b-pend'; }
+
+/* ── Email helper ── */
+async function sendWithdrawEmail(withdrawalId: string, action: 'approved' | 'rejected') {
+  try {
+    await fetch('/api/email/withdraw-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ withdrawalId, action }),
+    });
+  } catch (err) {
+    console.error('Failed to send withdrawal email notification:', err);
+  }
+}
 
 export default function AdminWithdrawPage() {
   const supabase = createClient();
@@ -49,7 +62,6 @@ export default function AdminWithdrawPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from('withdrawals')
-      // FIX: explicitly select note column so it's always included
       .select('*, profiles(first_name, last_name, username)')
       .order('created_at', { ascending: false });
 
@@ -66,7 +78,6 @@ export default function AdminWithdrawPage() {
         net: w.network || 'BEP-20',
         season: 'S4',
         date: new Date(w.created_at).toISOString().split('T')[0],
-        // FIX: read note from database instead of hardcoding empty string
         note: w.note || '',
         txid: w.tx_hash || '',
         reason: w.rejection_reason || '',
@@ -90,9 +101,9 @@ export default function AdminWithdrawPage() {
   }, [wds, loading]);
 
   const closeModal = () => { setModalMode(null); setModalId(''); setTxidInput(''); setRejReason(''); };
-  const openView = (id: string) => { setModalId(id); setModalMode('view'); };
+  const openView    = (id: string) => { setModalId(id); setModalMode('view'); };
   const openApprove = (id: string) => { setModalId(id); setModalMode('approve'); };
-  const openReject = (id: string) => { setModalId(id); setModalMode('reject'); };
+  const openReject  = (id: string) => { setModalId(id); setModalMode('reject'); };
 
   const curWd = wds.find(w => w.id === modalId);
 
@@ -105,11 +116,13 @@ export default function AdminWithdrawPage() {
 
   const pend = wds.filter(w => w.status === 'pending');
   const appr = wds.filter(w => w.status === 'approved');
-  const rej = wds.filter(w => w.status === 'rejected');
-  const tod = wds.filter(w => w.date === new Date().toISOString().split('T')[0] && w.status === 'approved');
-
+  const rej  = wds.filter(w => w.status === 'rejected');
+  const tod  = wds.filter(w => w.date === new Date().toISOString().split('T')[0] && w.status === 'approved');
   const fmtU = (n: number) => '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  /* ══════════════════════════════
+     APPROVE a withdrawal
+  ══════════════════════════════ */
   const doApprove = async (id: string) => {
     if (!txidInput.trim()) { showToast('Transaction ID is required.', 'err'); return; }
     const wd = wds.find(w => w.id === id);
@@ -122,18 +135,28 @@ export default function AdminWithdrawPage() {
 
     if (wdError) { showToast('✕ Failed to approve withdrawal', 'err'); return; }
 
-    const { data: profile } = await supabase.from('profiles').select('balance').eq('id', wd.user_id).single();
+    const { data: profile } = await supabase
+      .from('profiles').select('balance').eq('id', wd.user_id).single();
     if (profile) {
-      await supabase.from('profiles').update({ balance: profile.balance - wd.amt }).eq('id', wd.user_id);
+      await supabase.from('profiles')
+        .update({ balance: profile.balance - wd.amt })
+        .eq('id', wd.user_id);
     }
 
     showToast(`✓ WD ${id.slice(0, 8)} approved`, 'ok');
+    // ── Send approval email ──
+    sendWithdrawEmail(id, 'approved');
     fetchWithdrawals();
     closeModal();
   };
 
+  /* ══════════════════════════════
+     REJECT a withdrawal
+  ══════════════════════════════ */
   const doReject = async (id: string) => {
-    if (!rejReason.trim() || rejReason.trim().length < 10) { showToast('Please enter a rejection reason (min 10 chars).', 'err'); return; }
+    if (!rejReason.trim() || rejReason.trim().length < 10) {
+      showToast('Please enter a rejection reason (min 10 chars).', 'err'); return;
+    }
     const wd = wds.find(w => w.id === id);
     if (!wd) return;
 
@@ -144,12 +167,17 @@ export default function AdminWithdrawPage() {
 
     if (wdError) { showToast('✕ Failed to reject withdrawal', 'err'); return; }
 
-    const { data: profile } = await supabase.from('profiles').select('withdrawable_total').eq('id', wd.user_id).single();
+    const { data: profile } = await supabase
+      .from('profiles').select('withdrawable_total').eq('id', wd.user_id).single();
     if (profile) {
-      await supabase.from('profiles').update({ withdrawable_total: profile.withdrawable_total + wd.amt }).eq('id', wd.user_id);
+      await supabase.from('profiles')
+        .update({ withdrawable_total: profile.withdrawable_total + wd.amt })
+        .eq('id', wd.user_id);
     }
 
     showToast(`✕ WD ${id.slice(0, 8)} rejected`, 'err');
+    // ── Send rejection email ──
+    sendWithdrawEmail(id, 'rejected');
     fetchWithdrawals();
     closeModal();
   };
@@ -157,13 +185,15 @@ export default function AdminWithdrawPage() {
   const approveAllPending = () => {
     const pendIds = filtered.filter(w => w.status === 'pending');
     if (!pendIds.length) { showToast('No pending withdrawals in current view.'); return; }
-    showToast(`⚠ Please approve each withdrawal individually to enter TX IDs.`, 'err');
+    showToast('⚠ Please approve each withdrawal individually to enter TX IDs.', 'err');
   };
 
-  const copyTxt = (t: string) => { navigator.clipboard?.writeText(t).catch(() => {}); showToast('📋 Copied to clipboard!'); };
+  const copyTxt = (t: string) => {
+    navigator.clipboard?.writeText(t).catch(() => {});
+    showToast('📋 Copied to clipboard!');
+  };
 
   const exportCSV = () => {
-    // FIX: include note in CSV export
     const hdr = ['ID', 'User', 'Username', 'Amount', 'Wallet', 'Network', 'Date', 'Status', 'TxID', 'Note', 'Reason'];
     const lines = [hdr.join(','), ...filtered.map(w => [w.id, `"${w.name}"`, w.un, w.amt, `"${w.wallet}"`, w.net, w.date, w.status, `"${w.txid}"`, `"${w.note}"`, `"${w.reason}"`].join(','))];
     const a = document.createElement('a');
@@ -173,7 +203,6 @@ export default function AdminWithdrawPage() {
     showToast(`✓ Exported ${filtered.length} records`, 'ok');
   };
 
-  // FIX: Full detail grid now includes note field from DB
   const detailGrid = (w: Withdrawal) => (
     <div className="dm-dgrid">
       <div className="dm-dcell"><div className="dm-dl">Withdrawal ID</div><div className="dm-dv" style={{ fontFamily: 'monospace', fontSize: '.77rem' }}>{w.id}</div></div>
@@ -183,7 +212,6 @@ export default function AdminWithdrawPage() {
       <div className="dm-dcell"><div className="dm-dl">Amount (USDT)</div><div className="dm-dv gold">-${fmtAmt(w.amt)}</div></div>
       <div className="dm-dcell"><div className="dm-dl">Network</div><div className="dm-dv">{w.net}</div></div>
       <div className="dm-dcell"><div className="dm-dl">Requested</div><div className="dm-dv">{w.date}</div></div>
-      {/* FIX: Show note from DB — previously hardcoded to empty */}
       <div className="dm-dcell"><div className="dm-dl">User Note</div><div className="dm-dv" style={{ fontStyle: w.note ? 'italic' : 'normal', color: w.note ? 'var(--ink)' : 'var(--text-sec)' }}>{w.note || '— No note provided'}</div></div>
       <div className="dm-dcell dm-dfull"><div className="dm-dl">Wallet Address</div><div className="dm-dv mono" onClick={() => copyTxt(w.wallet)} title="Click to copy">{w.wallet}</div></div>
       {w.txid && <div className="dm-dcell dm-dfull"><div className="dm-dl">Transaction ID (Approved)</div><div className="dm-dv mono" style={{ color: 'var(--sage)' }}>{w.txid}</div></div>}
@@ -203,14 +231,15 @@ export default function AdminWithdrawPage() {
           <div className="dm-mb">
             <div className="dm-mhd">
               <span className="dm-mttl">
-                {modalMode === 'view' ? `Withdrawal Details` : modalMode === 'approve' ? 'Confirm Approval' : 'Confirm Rejection'}
+                {modalMode === 'view' ? 'Withdrawal Details' : modalMode === 'approve' ? 'Confirm Approval' : 'Confirm Rejection'}
               </span>
               <button className="dm-mcls" onClick={closeModal}>✕</button>
             </div>
 
             {modalMode === 'approve' && curWd && (
               <div className="dm-conf-note dm-cn-ok">
-                You are approving a withdrawal of <strong>${fmtAmt(curWd.amt)} USDT</strong> for <strong>{curWd.name}</strong>. Enter the blockchain transaction ID to confirm.
+                You are approving a withdrawal of <strong>${fmtAmt(curWd.amt)} USDT</strong> for <strong>{curWd.name}</strong>.
+                Enter the blockchain transaction ID to confirm. An approval email will be sent to the user.
                 {curWd.note && (
                   <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(184,147,90,.08)', borderRadius: 4, fontSize: '.72rem', color: 'var(--ink)' }}>
                     <strong>User note:</strong> {curWd.note}
@@ -220,7 +249,8 @@ export default function AdminWithdrawPage() {
             )}
             {modalMode === 'reject' && curWd && (
               <div className="dm-conf-note dm-cn-warn">
-                ⚠ You are about to <strong>reject</strong> a withdrawal of <strong>${fmtAmt(curWd.amt)} USDT</strong> from <strong>{curWd.name}</strong>. The amount will be refunded to their withdrawable balance.
+                ⚠ You are about to <strong>reject</strong> a withdrawal of <strong>${fmtAmt(curWd.amt)} USDT</strong> from <strong>{curWd.name}</strong>.
+                The amount will be refunded to their withdrawable balance. A rejection email with the reason will be sent to the user.
                 {curWd.note && (
                   <div style={{ marginTop: 8, padding: '8px 10px', background: 'rgba(155,58,58,.06)', borderRadius: 4, fontSize: '.72rem', color: 'var(--ink)' }}>
                     <strong>User note:</strong> {curWd.note}
@@ -237,7 +267,6 @@ export default function AdminWithdrawPage() {
                     <div className="dm-dcell"><div className="dm-dl">User</div><div className="dm-dv">{curWd.name}</div></div>
                     <div className="dm-dcell"><div className="dm-dl">Amount</div><div className="dm-dv gold">-${fmtAmt(curWd.amt)}</div></div>
                     <div className="dm-dcell dm-dfull"><div className="dm-dl">Wallet Address</div><div className="dm-dv mono">{curWd.wallet}</div></div>
-                    {/* FIX: Show note in approve modal */}
                     {curWd.note && (
                       <div className="dm-dcell dm-dfull">
                         <div className="dm-dl">User Note</div>
@@ -247,7 +276,8 @@ export default function AdminWithdrawPage() {
                   </div>
                   <div className="dm-fg">
                     <label className="dm-fl" htmlFor="txid-input">Transaction ID <span style={{ color: 'var(--error)' }}>*</span></label>
-                    <input className="dm-fi" type="text" id="txid-input" placeholder="Enter the blockchain transaction hash…"
+                    <input className="dm-fi" type="text" id="txid-input"
+                      placeholder="Enter the blockchain transaction hash…"
                       value={txidInput} onChange={e => setTxidInput(e.target.value)} />
                     <span style={{ fontSize: '.67rem', color: 'var(--text-sec)', marginTop: 2 }}>Required — confirms the on-chain transfer was sent.</span>
                   </div>
@@ -259,7 +289,6 @@ export default function AdminWithdrawPage() {
                     <div className="dm-dcell"><div className="dm-dl">User</div><div className="dm-dv">{curWd.name}</div></div>
                     <div className="dm-dcell"><div className="dm-dl">Amount</div><div className="dm-dv" style={{ color: 'var(--gold-d)' }}>-${fmtAmt(curWd.amt)}</div></div>
                     <div className="dm-dcell dm-dfull"><div className="dm-dl">Wallet Address</div><div className="dm-dv mono">{curWd.wallet}</div></div>
-                    {/* FIX: Show note in reject modal */}
                     {curWd.note && (
                       <div className="dm-dcell dm-dfull">
                         <div className="dm-dl">User Note</div>
@@ -268,8 +297,14 @@ export default function AdminWithdrawPage() {
                     )}
                   </div>
                   <div className="dm-fg">
-                    <label className="dm-fl" htmlFor="rej-reason">Rejection Reason <span style={{ color: 'var(--error)' }}>*</span></label>
-                    <textarea className="dm-fi-ta" id="rej-reason" placeholder="Enter a clear reason for rejection…"
+                    <label className="dm-fl" htmlFor="rej-reason">
+                      Rejection Reason <span style={{ color: 'var(--error)' }}>*</span>
+                      <span style={{ marginLeft: 6, fontSize: '.6rem', color: 'var(--text-sec)', textTransform: 'none', letterSpacing: 0, fontWeight: 400 }}>
+                        (will be emailed to the user)
+                      </span>
+                    </label>
+                    <textarea className="dm-fi-ta" id="rej-reason"
+                      placeholder="Enter a clear reason for rejection…"
                       value={rejReason} onChange={e => setRejReason(e.target.value)} />
                     <span style={{ fontSize: '.67rem', color: 'var(--text-sec)', marginTop: 2 }}>Required — minimum 10 characters.</span>
                   </div>
@@ -282,7 +317,7 @@ export default function AdminWithdrawPage() {
                 curWd.status === 'pending'
                   ? <>
                     <button className="dm-btn-conf" style={{ flex: 1, padding: 10, fontSize: '.72rem' }} onClick={() => openApprove(curWd.id)}>✓ Approve</button>
-                    <button className="dm-btn-rej" style={{ flex: 1, padding: 10, fontSize: '.72rem' }} onClick={() => openReject(curWd.id)}>✕ Reject</button>
+                    <button className="dm-btn-rej"  style={{ flex: 1, padding: 10, fontSize: '.72rem' }} onClick={() => openReject(curWd.id)}>✕ Reject</button>
                     <button className="dm-btn-ghost" style={{ padding: '10px 14px', fontSize: '.72rem' }} onClick={closeModal}>Close</button>
                   </>
                   : <>
@@ -291,11 +326,11 @@ export default function AdminWithdrawPage() {
                   </>
               )}
               {modalMode === 'approve' && curWd && <>
-                <button className="dm-btn-conf" style={{ flex: 1, padding: 10, fontSize: '.72rem' }} onClick={() => doApprove(curWd.id)}>✓ Confirm Approval</button>
+                <button className="dm-btn-conf" style={{ flex: 1, padding: 10, fontSize: '.72rem' }} onClick={() => doApprove(curWd.id)}>✓ Approve &amp; Notify User</button>
                 <button className="dm-btn-ghost" style={{ flex: 1, padding: 10, fontSize: '.72rem' }} onClick={closeModal}>Cancel</button>
               </>}
               {modalMode === 'reject' && curWd && <>
-                <button className="dm-btn-rej" style={{ flex: 1, padding: 10, fontSize: '.72rem' }} onClick={() => doReject(curWd.id)}>✕ Confirm Rejection</button>
+                <button className="dm-btn-rej" style={{ flex: 1, padding: 10, fontSize: '.72rem' }} onClick={() => doReject(curWd.id)}>✕ Reject &amp; Notify User</button>
                 <button className="dm-btn-ghost" style={{ flex: 1, padding: 10, fontSize: '.72rem' }} onClick={closeModal}>Cancel</button>
               </>}
             </div>
@@ -335,7 +370,12 @@ export default function AdminWithdrawPage() {
               <div>
                 <span className="dm-sec-label">Admin · Finance</span>
                 <h1 style={{ fontFamily: "'Cormorant Garamond',serif", fontSize: 'clamp(1.5rem,4vw,2.1rem)', fontWeight: 400, lineHeight: 1.15, color: 'var(--ink)' }}>Withdrawal Management</h1>
-                <p style={{ fontSize: '.79rem', color: 'var(--text-sec)', fontWeight: 300, marginTop: 4 }}><span className="dm-live-dot" />Live · Processing all withdrawal requests</p>
+                <p style={{ fontSize: '.79rem', color: 'var(--text-sec)', fontWeight: 300, marginTop: 4 }}>
+                  <span className="dm-live-dot" />Live · Processing all withdrawal requests
+                  <span style={{ marginLeft: 10, fontSize: '.65rem', color: 'var(--text-sec)', background: 'rgba(74,103,65,.08)', border: '1px solid rgba(74,103,65,.15)', borderRadius: 100, padding: '2px 8px' }}>
+                    ✉ Email notifications via Resend
+                  </span>
+                </p>
               </div>
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignSelf: 'flex-end' }}>
                 <input className="dm-date-in" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="From" />
@@ -391,19 +431,12 @@ export default function AdminWithdrawPage() {
                 </div>
               </div>
               <div className="dm-tscroll">
-                {/* FIX: Added "Note" column to table */}
                 <table className="dm-dt">
                   <thead>
                     <tr>
-                      <th>User</th>
-                      <th>Username</th>
-                      <th>Amount (USDT)</th>
-                      <th>Wallet Address</th>
-                      <th>Network</th>
-                      <th>Note</th>
-                      <th>Requested</th>
-                      <th>Status</th>
-                      <th>Action</th>
+                      <th>User</th><th>Username</th><th>Amount (USDT)</th>
+                      <th>Wallet Address</th><th>Network</th><th>Note</th>
+                      <th>Requested</th><th>Status</th><th>Action</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -414,27 +447,9 @@ export default function AdminWithdrawPage() {
                         <td><span className="dm-td-amt">-${fmtAmt(w.amt)}</span></td>
                         <td><span className="dm-td-mono" title={w.wallet} onClick={() => copyTxt(w.wallet)}>{shortWallet(w.wallet)}</span></td>
                         <td><span className="dm-badge" style={{ background: 'rgba(28,28,28,.06)', border: '1px solid rgba(28,28,28,.1)', color: 'var(--charcoal)', fontSize: '.56rem' }}>{w.net}</span></td>
-                        {/* FIX: Display note from DB in the table */}
                         <td>
                           {w.note
-                            ? (
-                              <span
-                                title={w.note}
-                                style={{
-                                  fontSize: '.7rem',
-                                  color: 'var(--ink)',
-                                  fontStyle: 'italic',
-                                  maxWidth: 140,
-                                  display: 'block',
-                                  overflow: 'hidden',
-                                  textOverflow: 'ellipsis',
-                                  whiteSpace: 'nowrap',
-                                  cursor: 'help',
-                                }}
-                              >
-                                "{w.note}"
-                              </span>
-                            )
+                            ? <span title={w.note} style={{ fontSize: '.7rem', color: 'var(--ink)', fontStyle: 'italic', maxWidth: 140, display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'help' }}>"{w.note}"</span>
                             : <span className="dm-td-sub">—</span>
                           }
                         </td>
@@ -443,10 +458,10 @@ export default function AdminWithdrawPage() {
                         <td>
                           {w.status === 'pending'
                             ? <div style={{ display: 'flex', gap: 5, flexWrap: 'wrap' }}>
-                              <button className="dm-btn-conf" onClick={() => openApprove(w.id)}>Approve</button>
-                              <button className="dm-btn-rej" onClick={() => openReject(w.id)}>Reject</button>
-                              <button className="dm-btn-view" onClick={() => openView(w.id)}>View</button>
-                            </div>
+                                <button className="dm-btn-conf" onClick={() => openApprove(w.id)}>Approve</button>
+                                <button className="dm-btn-rej"  onClick={() => openReject(w.id)}>Reject</button>
+                                <button className="dm-btn-view" onClick={() => openView(w.id)}>View</button>
+                              </div>
                             : <button className="dm-btn-view" onClick={() => openView(w.id)}>Details</button>
                           }
                         </td>
@@ -460,9 +475,7 @@ export default function AdminWithdrawPage() {
               </div>
               <div className="dm-pag">
                 <div className="dm-pag-info">Showing {filtered.length} of {wds.length} records</div>
-                <div className="dm-pag-btns">
-                  <button className="dm-pag-btn active">1</button>
-                </div>
+                <div className="dm-pag-btns"><button className="dm-pag-btn active">1</button></div>
               </div>
             </div>
           </div>

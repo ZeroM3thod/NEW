@@ -21,10 +21,20 @@ function fmtAmt(v: number) { return v.toLocaleString('en-US', { minimumFractionD
 function shortHash(h: string) { return h && h.length > 18 ? h.substring(0, 12) + '…' + h.slice(-4) : h || '—'; }
 function bCls(s: DepStatus) { return s === 'approved' ? 'dm-b-conf' : s === 'rejected' ? 'dm-b-rej' : 'dm-b-pend'; }
 
-/* ══════════════════════════════
-   MODAL TYPES
-══════════════════════════════ */
 type ModalMode = 'view' | 'confirm' | 'reject' | null;
+
+/* ── Email helper ── */
+async function sendDepositEmail(depositId: string, action: 'approved' | 'rejected') {
+  try {
+    await fetch('/api/email/deposit-notification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ depositId, action }),
+    });
+  } catch (err) {
+    console.error('Failed to send deposit email notification:', err);
+  }
+}
 
 export default function AdminDepositPage() {
   const supabase = createClient();
@@ -76,9 +86,7 @@ export default function AdminDepositPage() {
     setLoading(false);
   }, [supabase]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   /* ── Toast ── */
   const showToast = useCallback((msg: string, cls = '') => {
@@ -169,162 +177,156 @@ export default function AdminDepositPage() {
   const pendAmt  = pend.reduce((s,d) => s+d.amt, 0);
   const confAmt  = conf.reduce((s,d) => s+d.amt, 0);
 
-  /* ── Actions ── */
-  const openView = (id: string) => { setModalId(id); setModalMode('view'); setRejReason(''); setModalOpen(true); };
-  const openConfirmModal = (id: string) => { setModalId(id); setModalMode('confirm'); setModalOpen(true); };
-  const openRejectModal  = (id: string) => {
+  /* ── Modal helpers ── */
+  const openView          = (id: string) => { setModalId(id); setModalMode('view'); setRejReason(''); setModalOpen(true); };
+  const openConfirmModal  = (id: string) => { setModalId(id); setModalMode('confirm'); setModalOpen(true); };
+  const openRejectModal   = (id: string) => {
     const d = deposits.find(x => x.id === id);
     setModalId(id); setModalMode('reject'); setRejReason(d?.reason || ''); setModalOpen(true);
   };
   const closeModal = () => { setModalOpen(false); setModalMode(null); };
 
+  /* ══════════════════════════════
+     CONFIRM (approve) a deposit
+  ══════════════════════════════ */
   const doConfirm = async (id: string) => {
-    const d = deposits.find(x => x.id === id)
-    if (!d) return
+    const d = deposits.find(x => x.id === id);
+    if (!d) return;
 
-    // 1. Mark the deposit as approved
     const { error: depError } = await supabase
       .from('deposits')
       .update({ status: 'approved' })
-      .eq('id', id)
-    if (depError) { showToast('✕ Error confirming deposit', 'err'); return }
+      .eq('id', id);
+    if (depError) { showToast('✕ Error confirming deposit', 'err'); return; }
 
-    // 2. Fetch the user's current balance
     const { data: profile } = await supabase
       .from('profiles')
       .select('balance')
       .eq('id', d.userId)
-      .single()
+      .single();
 
-    const newBalance = (Number(profile?.balance) || 0) + d.amt
+    const newBalance = (Number(profile?.balance) || 0) + d.amt;
 
-    // 3. Determine how much of the NEW balance is still locked ─────────────
-    //    a) Check whether THIS deposit's own lock window is still active.
-    //       (The 5-min timer starts when the user submits, not when admin approves.)
-    const now = new Date().toISOString()
+    const now = new Date().toISOString();
     const { data: thisDeposit } = await supabase
       .from('deposits')
       .select('locked_until')
       .eq('id', id)
-      .single()
+      .single();
 
     const thisDepositStillLocked =
-      thisDeposit?.locked_until && thisDeposit.locked_until > now
-    const thisDepositLockedAmt = thisDepositStillLocked ? d.amt : 0
+      thisDeposit?.locked_until && thisDeposit.locked_until > now;
+    const thisDepositLockedAmt = thisDepositStillLocked ? d.amt : 0;
 
-    //    b) Any OTHER approved deposits for this user that are still locked.
     const { data: otherLocked } = await supabase
       .from('deposits')
       .select('amount')
       .eq('user_id', d.userId)
       .eq('status', 'approved')
       .gt('locked_until', now)
-      .neq('id', id)
+      .neq('id', id);
 
     const otherLockedTotal = (otherLocked || []).reduce(
-      (sum, dep) => sum + Number(dep.amount),
-      0
-    )
+      (sum, dep) => sum + Number(dep.amount), 0
+    );
 
-    // 4. withdrawable = newBalance minus everything that is still locked
-    const totalLocked    = thisDepositLockedAmt + otherLockedTotal
-    const newWithdrawable = Math.max(0, newBalance - totalLocked)
+    const totalLocked     = thisDepositLockedAmt + otherLockedTotal;
+    const newWithdrawable = Math.max(0, newBalance - totalLocked);
 
     const { error: profError } = await supabase
       .from('profiles')
-      .update({
-        balance:            newBalance,
-        withdrawable_total: newWithdrawable,
-      })
-      .eq('id', d.userId)
+      .update({ balance: newBalance, withdrawable_total: newWithdrawable })
+      .eq('id', d.userId);
 
     if (profError) {
-      showToast('✕ Error updating balance', 'err')
+      showToast('✕ Error updating balance', 'err');
     } else {
-      showToast(`✓ DEP ${id} confirmed — $${d.amt.toLocaleString()} USDT`, 'ok')
-      fetchData()
-    }
-    closeModal()
-  }
-
-  const doReject = async (id: string) => {
-    if (!rejReason.trim() || rejReason.trim().length < 5) {
-      showToast('Please enter a rejection reason.', 'err'); return;
-    }
-    
-    const { error } = await supabase.from('deposits').update({ status: 'rejected', rejection_reason: rejReason }).eq('id', id);
-    if (error) {
-      showToast('✕ Error rejecting deposit', 'err');
-    } else {
-      showToast(`✕ DEP ${id} rejected`, 'err');
+      showToast(`✓ DEP ${id.slice(0,8)} confirmed — $${d.amt.toLocaleString()} USDT`, 'ok');
+      // ── Send approval email ──
+      sendDepositEmail(id, 'approved');
       fetchData();
     }
     closeModal();
   };
 
-  const confirmAllPending = async () => {
-    const rows = getFiltered().filter(d => d.status === 'pending')
-    if (!rows.length) { showToast('No pending deposits in current view.'); return }
-    const total = rows.reduce((s, d) => s + d.amt, 0)
-    if (!confirm(`Confirm all ${rows.length} pending deposits? Total: $${total.toLocaleString()}`)) return
-
-    const now = new Date().toISOString()
-
-    for (const d of rows) {
-      // Approve the deposit row
-      await supabase.from('deposits').update({ status: 'approved' }).eq('id', d.id)
-
-      // Fetch current balance
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('balance')
-        .eq('id', d.userId)
-        .single()
-
-      const newBalance = (Number(profile?.balance) || 0) + d.amt
-
-      // Check this deposit's own lock
-      const { data: thisDeposit } = await supabase
-        .from('deposits')
-        .select('locked_until')
-        .eq('id', d.id)
-        .single()
-
-      const thisDepositStillLocked =
-        thisDeposit?.locked_until && thisDeposit.locked_until > now
-      const thisDepositLockedAmt = thisDepositStillLocked ? d.amt : 0
-
-      // Check other still-locked approved deposits for the same user
-      const { data: otherLocked } = await supabase
-        .from('deposits')
-        .select('amount')
-        .eq('user_id', d.userId)
-        .eq('status', 'approved')
-        .gt('locked_until', now)
-        .neq('id', d.id)
-
-      const otherLockedTotal = (otherLocked || []).reduce(
-        (sum, dep) => sum + Number(dep.amount),
-        0
-      )
-
-      const totalLocked     = thisDepositLockedAmt + otherLockedTotal
-      const newWithdrawable = Math.max(0, newBalance - totalLocked)
-
-      await supabase
-        .from('profiles')
-        .update({
-          balance:            newBalance,
-          withdrawable_total: newWithdrawable,
-        })
-        .eq('id', d.userId)
+  /* ══════════════════════════════
+     REJECT a deposit
+  ══════════════════════════════ */
+  const doReject = async (id: string) => {
+    if (!rejReason.trim() || rejReason.trim().length < 5) {
+      showToast('Please enter a rejection reason.', 'err'); return;
     }
 
-    showToast(`✓ ${rows.length} deposits confirmed!`, 'ok')
-    fetchData()
-  }
+    const { error } = await supabase
+      .from('deposits')
+      .update({ status: 'rejected', rejection_reason: rejReason })
+      .eq('id', id);
 
-  const copyTxt = (t: string) => { navigator.clipboard?.writeText(t).catch(() => {}); showToast('📋 Copied to clipboard!'); };
+    if (error) {
+      showToast('✕ Error rejecting deposit', 'err');
+    } else {
+      showToast(`✕ DEP ${id.slice(0,8)} rejected`, 'err');
+      // ── Send rejection email ──
+      sendDepositEmail(id, 'rejected');
+      fetchData();
+    }
+    closeModal();
+  };
+
+  /* ══════════════════════════════
+     CONFIRM ALL PENDING
+  ══════════════════════════════ */
+  const confirmAllPending = async () => {
+    const rows = getFiltered().filter(d => d.status === 'pending');
+    if (!rows.length) { showToast('No pending deposits in current view.'); return; }
+    const total = rows.reduce((s, d) => s + d.amt, 0);
+    if (!confirm(`Confirm all ${rows.length} pending deposits? Total: $${total.toLocaleString()}`)) return;
+
+    const now = new Date().toISOString();
+
+    for (const d of rows) {
+      await supabase.from('deposits').update({ status: 'approved' }).eq('id', d.id);
+
+      const { data: profile } = await supabase
+        .from('profiles').select('balance').eq('id', d.userId).single();
+
+      const newBalance = (Number(profile?.balance) || 0) + d.amt;
+
+      const { data: thisDeposit } = await supabase
+        .from('deposits').select('locked_until').eq('id', d.id).single();
+
+      const thisDepositStillLocked =
+        thisDeposit?.locked_until && thisDeposit.locked_until > now;
+      const thisDepositLockedAmt = thisDepositStillLocked ? d.amt : 0;
+
+      const { data: otherLocked } = await supabase
+        .from('deposits').select('amount')
+        .eq('user_id', d.userId).eq('status', 'approved')
+        .gt('locked_until', now).neq('id', d.id);
+
+      const otherLockedTotal = (otherLocked || []).reduce(
+        (sum, dep) => sum + Number(dep.amount), 0
+      );
+
+      const totalLocked     = thisDepositLockedAmt + otherLockedTotal;
+      const newWithdrawable = Math.max(0, newBalance - totalLocked);
+
+      await supabase.from('profiles')
+        .update({ balance: newBalance, withdrawable_total: newWithdrawable })
+        .eq('id', d.userId);
+
+      // ── Send approval email for each ──
+      sendDepositEmail(d.id, 'approved');
+    }
+
+    showToast(`✓ ${rows.length} deposits confirmed!`, 'ok');
+    fetchData();
+  };
+
+  const copyTxt = (t: string) => {
+    navigator.clipboard?.writeText(t).catch(() => {});
+    showToast('📋 Copied to clipboard!');
+  };
 
   const exportCSV = () => {
     const rows = getFiltered();
@@ -332,7 +334,8 @@ export default function AdminDepositPage() {
     const lines = [hdr.join(','), ...rows.map(d => [d.id,`"${d.name}"`,d.un,d.amt,d.network,`"${d.hash}"`,d.date,d.status,`"${d.reason}"`].join(','))];
     const a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([lines.join('\n')], { type:'text/csv' }));
-    a.download = `deposits-${new Date().toISOString().slice(0,10)}.csv`; a.click();
+    a.download = `deposits-${new Date().toISOString().slice(0,10)}.csv`;
+    a.click();
     showToast(`✓ Exported ${rows.length} records`, 'ok');
   };
 
@@ -350,24 +353,24 @@ export default function AdminDepositPage() {
         <div className="dm-mb">
           <div className="dm-mhd">
             <span className="dm-mttl">
-              {modalMode==='view' ? `Deposit · ${modalId}` : modalMode==='confirm' ? 'Confirm Deposit' : 'Reject Deposit'}
+              {modalMode==='view' ? `Deposit · ${modalId.slice(0,8).toUpperCase()}` : modalMode==='confirm' ? 'Confirm Deposit' : 'Reject Deposit'}
             </span>
             <button className="dm-mcls" onClick={closeModal}>✕</button>
           </div>
 
-          {/* Note bar */}
           {modalMode === 'confirm' && curModal && (
             <div className="dm-conf-note dm-cn-ok">
-              You are confirming a deposit of <strong>${fmtAmt(curModal.amt)} USDT</strong> via <strong>{curModal.network}</strong> from <strong>{curModal.name}</strong>. This will credit the user's balance.
+              You are confirming a deposit of <strong>${fmtAmt(curModal.amt)} USDT</strong> via <strong>{curModal.network}</strong> from <strong>{curModal.name}</strong>.
+              This will credit the user's balance and send them a confirmation email.
             </div>
           )}
           {modalMode === 'reject' && curModal && (
             <div className="dm-conf-note dm-cn-warn">
-              ⚠ You are about to <strong>reject</strong> a deposit of <strong>${fmtAmt(curModal.amt)} USDT</strong> from <strong>{curModal.name}</strong>. A reason is required.
+              ⚠ You are about to <strong>reject</strong> a deposit of <strong>${fmtAmt(curModal.amt)} USDT</strong> from <strong>{curModal.name}</strong>.
+              A rejection reason is required — it will be included in the email sent to the user.
             </div>
           )}
 
-          {/* Body */}
           {curModal && (
             <>
               {modalMode === 'view' && (
@@ -399,8 +402,14 @@ export default function AdminDepositPage() {
                     <div className="dm-dcell dm-dfull"><div className="dm-dl">Transaction Hash</div><div className="dm-dv mono">{curModal.hash}</div></div>
                   </div>
                   <div className="dm-fg">
-                    <label className="dm-fl" htmlFor="rej-reason">Rejection Reason <span style={{ color:'var(--error)' }}>*</span></label>
-                    <textarea className="dm-fi-ta" id="rej-reason" placeholder="Enter a clear reason for rejection..."
+                    <label className="dm-fl" htmlFor="rej-reason">
+                      Rejection Reason <span style={{ color:'var(--error)' }}>*</span>
+                      <span style={{ marginLeft:6, fontSize:'.6rem', color:'var(--text-sec)', textTransform:'none', letterSpacing:0, fontWeight:400 }}>
+                        (will be included in the email to the user)
+                      </span>
+                    </label>
+                    <textarea className="dm-fi-ta" id="rej-reason"
+                      placeholder="Enter a clear reason for rejection..."
                       value={rejReason} onChange={e => setRejReason(e.target.value)} />
                   </div>
                 </>
@@ -408,7 +417,6 @@ export default function AdminDepositPage() {
             </>
           )}
 
-          {/* Actions */}
           <div className="dm-mact">
             {modalMode === 'view' && curModal && (
               curModal.status === 'pending'
@@ -424,13 +432,13 @@ export default function AdminDepositPage() {
             )}
             {modalMode === 'confirm' && curModal && (
               <>
-                <button className="dm-btn-conf" style={{ flex:1, padding:10, fontSize:'.72rem' }} onClick={() => doConfirm(curModal.id)}>✓ Confirm Deposit</button>
+                <button className="dm-btn-conf" style={{ flex:1, padding:10, fontSize:'.72rem' }} onClick={() => doConfirm(curModal.id)}>✓ Confirm &amp; Notify User</button>
                 <button className="dm-btn-ghost" style={{ flex:1, padding:10, fontSize:'.72rem' }} onClick={closeModal}>Cancel</button>
               </>
             )}
             {modalMode === 'reject' && curModal && (
               <>
-                <button className="dm-btn-rej" style={{ flex:1, padding:10, fontSize:'.72rem' }} onClick={() => doReject(curModal.id)}>✕ Confirm Rejection</button>
+                <button className="dm-btn-rej" style={{ flex:1, padding:10, fontSize:'.72rem' }} onClick={() => doReject(curModal.id)}>✕ Reject &amp; Notify User</button>
                 <button className="dm-btn-ghost" style={{ flex:1, padding:10, fontSize:'.72rem' }} onClick={closeModal}>Cancel</button>
               </>
             )}
@@ -443,7 +451,6 @@ export default function AdminDepositPage() {
         <AdminSidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} onToast={showToast} />
 
         <div className="adm-main-area">
-          {/* Header */}
           <header className="adm-top-header">
             <button className="adm-ham-btn" onClick={() => setSidebarOpen(o => !o)}>
               <span/><span/><span/>
@@ -471,12 +478,16 @@ export default function AdminDepositPage() {
 
           <div className="dm-content">
 
-            {/* Page header */}
             <div className="dm-reveal" style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', flexWrap:'wrap', gap:12, marginBottom:22 }}>
               <div>
                 <span className="dm-sec-label">Admin · Finance</span>
                 <h1 style={{ fontFamily:"'Cormorant Garamond',serif", fontSize:'clamp(1.5rem,4vw,2.1rem)', fontWeight:400, lineHeight:1.15, color:'var(--ink)' }}>Deposit Management</h1>
-                <p style={{ fontSize:'.79rem', color:'var(--text-sec)', fontWeight:300, marginTop:4 }}><span className="dm-live-dot"/>Live · Monitoring all incoming deposits</p>
+                <p style={{ fontSize:'.79rem', color:'var(--text-sec)', fontWeight:300, marginTop:4 }}>
+                  <span className="dm-live-dot"/>Live · Monitoring all incoming deposits
+                  <span style={{ marginLeft:10, fontSize:'.65rem', color:'var(--text-sec)', background:'rgba(74,103,65,.08)', border:'1px solid rgba(74,103,65,.15)', borderRadius:100, padding:'2px 8px' }}>
+                    ✉ Email notifications via Resend
+                  </span>
+                </p>
               </div>
               <div style={{ display:'flex', gap:8, flexWrap:'wrap', alignSelf:'flex-end' }}>
                 <input className="dm-date-in" type="date" value={dateFrom} onChange={e => setDateFrom(e.target.value)} title="From" />
@@ -532,7 +543,9 @@ export default function AdminDepositPage() {
                   <div className="dm-table-sub">{filtered.length} record{filtered.length!==1?'s':''} · filtered</div>
                 </div>
                 <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
-                  <button className="dm-btn-ghost" style={{ fontSize:'.68rem', borderColor:'rgba(74,103,65,.25)', color:'var(--sage)' }} onClick={confirmAllPending}>Confirm All Pending</button>
+                  <button className="dm-btn-ghost" style={{ fontSize:'.68rem', borderColor:'rgba(74,103,65,.25)', color:'var(--sage)' }} onClick={confirmAllPending}>
+                    Confirm All Pending
+                  </button>
                 </div>
               </div>
               <div className="dm-tscroll">
@@ -582,8 +595,8 @@ export default function AdminDepositPage() {
               </div>
             </div>
 
-          </div>{/* /content */}
-        </div>{/* /main-area */}
+          </div>
+        </div>
       </div>
     </>
   );

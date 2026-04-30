@@ -11,26 +11,48 @@ export default function SupportManagementPage() {
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
   const [ticketDetails, setTicketDetails] = useState<any>(null);
+  const [logs, setLogs] = useState<any[]>([]);   // ← dedicated log state
   const [replyText, setReplyText] = useState('');
   const chatMessagesRef = useRef<HTMLDivElement>(null);
 
+  /* ─── helpers ─── */
+  const formatDate = (s: string) => {
+    if (!s) return '—';
+    return new Date(s).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+  };
+  const formatTime = (s: string) =>
+    new Date(s).toLocaleString('en-GB', { year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' }).replace(',', '');
+
+  const statusCls = (s: string) => s === 'open' ? 'b-open' : s === 'resolved' ? 'b-resolved' : s === 'closed' ? 'b-closed' : 'b-pending';
+  const statusDot = (s: string) => s === 'open' ? 'dot-open' : s === 'resolved' ? 'dot-resolved' : s === 'closed' ? 'dot-closed' : 'dot-pending';
+  const prioCls  = (p: string) => p === 'high' ? 'b-high' : p === 'low' ? 'b-low' : 'b-medium';
+  const prioDot  = (p: string) => p === 'high' ? 'pdot-high' : p === 'low' ? 'pdot-low' : 'pdot-medium';
+
+  /* ─── fetch ticket list ─── */
   const fetchTickets = useCallback(async () => {
-    const res = await fetch('/api/support/tickets');
+    const res  = await fetch('/api/support/tickets');
     const data = await res.json();
     if (!data.error) setTickets(data);
   }, []);
 
+  /* ─── fetch logs directly from Supabase ─── */
+  const fetchLogs = useCallback(async (ticketId: string) => {
+    const { data, error } = await supabase
+      .from('ticket_logs')
+      .select('*, performer:performed_by(first_name, last_name)')
+      .eq('ticket_id', ticketId)
+      .order('created_at', { ascending: false });
+
+    if (!error && data) setLogs(data);
+  }, [supabase]);
+
+  /* ─── global ticket list subscription ─── */
   useEffect(() => {
     fetchTickets();
 
-    // Global listener for ticket updates (to keep list/stats fresh)
     const globalChannel = supabase
       .channel('global-tickets')
-      .on('postgres_changes', {
-        event: '*',
-        schema: 'public',
-        table: 'support_tickets'
-      }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'support_tickets' }, () => {
         fetchTickets();
       })
       .subscribe();
@@ -38,152 +60,129 @@ export default function SupportManagementPage() {
     return () => { supabase.removeChannel(globalChannel); };
   }, [fetchTickets, supabase]);
 
+  /* ─── ticket detail + realtime ─── */
   useEffect(() => {
-    if (activeTicketId) {
-      const fetchDetails = async () => {
-        const res = await fetch(`/api/support/tickets/${activeTicketId}`);
-        const data = await res.json();
-        if (!data.error) setTicketDetails(data);
-      };
-      fetchDetails();
+    if (!activeTicketId) {
+      setTicketDetails(null);
+      setLogs([]);
+      return;
+    }
 
-      const channel = supabase
-        .channel(`mod-ticket-${activeTicketId}`)
-        .on('postgres_changes', { 
-          event: 'INSERT', 
-          schema: 'public', 
-          table: 'ticket_messages', 
-          filter: `ticket_id=eq.${activeTicketId}` 
-        }, async (payload) => {
-          const { data: newMsg } = await supabase
-            .from('ticket_messages')
-            .select('*, sender:sender_id(first_name, last_name, role)')
-            .eq('id', payload.new.id)
-            .single();
-          
-          if (newMsg) {
-            setTicketDetails((prev: any) => {
-              if (prev?.id !== activeTicketId) return prev;
-              // Avoid duplicates if optimistic update already added it
-              if (prev.messages?.some((m: any) => m.id === newMsg.id)) return prev;
-              
-              // Also check for optimistic message by content if ID is different
-              const isDuplicate = prev.messages?.some((m: any) => 
-                m.isOptimistic && 
-                m.message === newMsg.message && 
-                m.sender_id === newMsg.sender_id
-              );
-              if (isDuplicate) {
-                // Replace optimistic with real
-                return {
-                  ...prev,
-                  messages: prev.messages.map((m: any) => 
-                    (m.isOptimistic && m.message === newMsg.message && m.sender_id === newMsg.sender_id) ? newMsg : m
-                  )
-                };
-              }
+    // Fetch ticket details via API
+    const fetchDetails = async () => {
+      const res  = await fetch(`/api/support/tickets/${activeTicketId}`);
+      const data = await res.json();
+      if (!data.error) setTicketDetails(data);
+    };
+    fetchDetails();
 
-              return {
-                ...prev,
-                messages: [...(prev?.messages || []), newMsg]
-              };
-            });
-          }
-        })
-        .on('postgres_changes', {
-          event: 'UPDATE',
-          schema: 'public',
-          table: 'support_tickets',
-          filter: `id=eq.${activeTicketId}`
-        }, (payload) => {
+    // Fetch logs directly from Supabase (reliable, no API dependency)
+    fetchLogs(activeTicketId);
+
+    const channel = supabase
+      .channel(`mod-ticket-${activeTicketId}`)
+      /* new message */
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'ticket_messages',
+        filter: `ticket_id=eq.${activeTicketId}`
+      }, async (payload) => {
+        const { data: newMsg } = await supabase
+          .from('ticket_messages')
+          .select('*, sender:sender_id(first_name, last_name, role)')
+          .eq('id', payload.new.id)
+          .single();
+
+        if (newMsg) {
           setTicketDetails((prev: any) => {
             if (prev?.id !== activeTicketId) return prev;
-            return {
-              ...prev,
-              status: payload.new.status
-            };
-          });
-        })
-        .on('postgres_changes', {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'ticket_logs',
-          filter: `ticket_id=eq.${activeTicketId}`
-        }, async (payload) => {
-          const { data: newLog } = await supabase
-            .from('ticket_logs')
-            .select('*, performer:performed_by(first_name, last_name)')
-            .eq('id', payload.new.id)
-            .single();
+            if (prev.messages?.some((m: any) => m.id === newMsg.id)) return prev;
 
-          if (newLog) {
-            setTicketDetails((prev: any) => {
-              if (prev?.id !== activeTicketId) return prev;
-              if (prev.logs?.some((l: any) => l.id === newLog.id)) return prev;
+            const isDuplicate = prev.messages?.some((m: any) =>
+              m.isOptimistic && m.message === newMsg.message && m.sender_id === newMsg.sender_id
+            );
+            if (isDuplicate) {
               return {
                 ...prev,
-                logs: [newLog, ...(prev?.logs || [])]
+                messages: prev.messages.map((m: any) =>
+                  (m.isOptimistic && m.message === newMsg.message && m.sender_id === newMsg.sender_id)
+                    ? newMsg : m
+                )
               };
-            });
-          }
-        })
-        .subscribe();
+            }
+            return { ...prev, messages: [...(prev?.messages || []), newMsg] };
+          });
+        }
+      })
+      /* ticket status update */
+      .on('postgres_changes', {
+        event: 'UPDATE', schema: 'public', table: 'support_tickets',
+        filter: `id=eq.${activeTicketId}`
+      }, (payload) => {
+        setTicketDetails((prev: any) => {
+          if (prev?.id !== activeTicketId) return prev;
+          return { ...prev, status: payload.new.status };
+        });
+      })
+      /* new log entry — fetch fresh row with performer join */
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'ticket_logs',
+        filter: `ticket_id=eq.${activeTicketId}`
+      }, async (payload) => {
+        const { data: newLog } = await supabase
+          .from('ticket_logs')
+          .select('*, performer:performed_by(first_name, last_name)')
+          .eq('id', payload.new.id)
+          .single();
 
-      return () => { supabase.removeChannel(channel); };
-    } else {
-      setTicketDetails(null);
-    }
-  }, [activeTicketId, supabase]);
+        if (newLog) {
+          setLogs((prev) => {
+            if (prev.some((l) => l.id === newLog.id)) return prev;
+            return [newLog, ...prev];   // newest first
+          });
+        }
+      })
+      .subscribe();
 
-  const stats = useMemo(() => {
-    return {
-      total: tickets.length,
-      pending: tickets.filter(t => t.status === 'pending').length,
-      open: tickets.filter(t => t.status === 'open').length,
-      resolved: tickets.filter(t => t.status === 'resolved').length,
-      closed: tickets.filter(t => t.status === 'closed').length,
-    };
-  }, [tickets]);
+    return () => { supabase.removeChannel(channel); };
+  }, [activeTicketId, supabase, fetchLogs]);
 
+  /* ─── stats ─── */
+  const stats = useMemo(() => ({
+    total:    tickets.length,
+    pending:  tickets.filter(t => t.status === 'pending').length,
+    open:     tickets.filter(t => t.status === 'open').length,
+    resolved: tickets.filter(t => t.status === 'resolved').length,
+    closed:   tickets.filter(t => t.status === 'closed').length,
+  }), [tickets]);
+
+  /* ─── filtered list ─── */
   const filteredData = useMemo(() => {
     return tickets.filter(t => {
       const q = searchQuery.toLowerCase();
-      const matchSearch = !q || t.ticket_id.toLowerCase().includes(q) 
+      const matchSearch = !q
+        || t.ticket_id.toLowerCase().includes(q)
         || (t.profiles?.first_name + ' ' + t.profiles?.last_name).toLowerCase().includes(q)
-        || t.profiles?.username?.toLowerCase().includes(q) 
+        || t.profiles?.username?.toLowerCase().includes(q)
         || t.subject.toLowerCase().includes(q);
-      const matchStatus = statusFilter === 'all' || t.status === statusFilter;
+      const matchStatus   = statusFilter   === 'all' || t.status   === statusFilter;
       const matchPriority = priorityFilter === 'all' || t.priority === priorityFilter;
       return matchSearch && matchStatus && matchPriority;
     });
   }, [tickets, searchQuery, statusFilter, priorityFilter]);
 
-  const formatDate = (s: string) => {
-    if (!s) return '—';
-    const d = new Date(s);
-    return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
-  };
-
-  const formatTime = (s: string) => {
-    return new Date(s).toLocaleString('en-GB', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }).replace(',', '');
-  };
-
-  const statusCls = (s: string) => s === 'open' ? 'b-open' : s === 'resolved' ? 'b-resolved' : s === 'closed' ? 'b-closed' : 'b-pending';
-  const statusDot = (s: string) => s === 'open' ? 'dot-open' : s === 'resolved' ? 'dot-resolved' : s === 'closed' ? 'dot-closed' : 'dot-pending';
-  const prioCls = (p: string) => p === 'high' ? 'b-high' : p === 'low' ? 'b-low' : 'b-medium';
-  const prioDot = (p: string) => p === 'high' ? 'pdot-high' : p === 'low' ? 'pdot-low' : 'pdot-medium';
-
+  /* ─── actions ─── */
   const setStatus = async (id: string, newStatus: string) => {
     try {
-      const res = await fetch(`/api/support/tickets/${id}/status`, {
+      const res  = await fetch(`/api/support/tickets/${id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: newStatus })
+        body: JSON.stringify({ status: newStatus }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
-
       showToast(`Status updated to ${newStatus}.`, newStatus === 'resolved' ? 'ok' : 'info');
+      // Re-fetch logs after status change in case API writes a log row
+      if (id) fetchLogs(id);
     } catch (err: any) {
       showToast(err.message, 'err');
     }
@@ -199,7 +198,6 @@ export default function SupportManagementPage() {
     const msgText = replyText;
     setReplyText('');
 
-    // Optimistic Update
     const tempId = 'opt-' + Math.random().toString(36).substr(2, 9);
     const optimisticMsg = {
       id: tempId,
@@ -210,48 +208,49 @@ export default function SupportManagementPage() {
       sender: {
         id: moderator?.id,
         first_name: moderator?.first_name || 'You',
-        last_name: moderator?.last_name || '',
-        role: moderator?.role || 'moderator'
-      }
+        last_name:  moderator?.last_name  || '',
+        role:       moderator?.role       || 'moderator',
+      },
     };
 
     setTicketDetails((prev: any) => ({
       ...prev,
-      messages: [...(prev?.messages || []), optimisticMsg]
+      messages: [...(prev?.messages || []), optimisticMsg],
     }));
 
     try {
-      const res = await fetch(`/api/support/tickets/${id}/messages`, {
+      const res  = await fetch(`/api/support/tickets/${id}/messages`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ message: msgText })
+        body: JSON.stringify({ message: msgText }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
-      // Replace optimistic message with real one
       setTicketDetails((prev: any) => ({
         ...prev,
-        messages: prev.messages?.map((m: any) => m.id === tempId ? { ...data, sender: optimisticMsg.sender } : m)
+        messages: prev.messages?.map((m: any) =>
+          m.id === tempId ? { ...data, sender: optimisticMsg.sender } : m
+        ),
       }));
-
       showToast('Reply sent successfully.', 'ok');
     } catch (err: any) {
       showToast(err.message, 'err');
-      // Rollback
       setTicketDetails((prev: any) => ({
         ...prev,
-        messages: prev.messages?.filter((m: any) => m.id !== tempId)
+        messages: prev.messages?.filter((m: any) => m.id !== tempId),
       }));
     }
   };
 
+  /* ─── auto-scroll chat ─── */
   useEffect(() => {
     if (chatMessagesRef.current) {
       chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
     }
   }, [ticketDetails?.messages]);
 
+  /* ─── reveal animation ─── */
   useEffect(() => {
     const obs = new IntersectionObserver(entries => {
       entries.forEach(e => { if (e.isIntersecting) { e.target.classList.add('vis'); obs.unobserve(e.target); } });
@@ -260,26 +259,37 @@ export default function SupportManagementPage() {
     return () => obs.disconnect();
   }, [tickets]);
 
+  /* ─── log display helper ─── */
+  const getLogText = (l: any): string => {
+    try {
+      const details = typeof l.details === 'string' ? JSON.parse(l.details) : l.details;
+      if (details?.text)        return details.text;
+      if (details?.new_status)  return `Status changed to ${details.new_status}`;
+    } catch (_) { /* ignore */ }
+    return l.action.replace(/_/g, ' ');
+  };
+
+  /* ─── render ─── */
   return (
     <>
       {/* PAGE TITLE */}
-      <div className="reveal" style={{ marginBottom:28 }}>
+      <div className="reveal" style={{ marginBottom: 28 }}>
         <span className="sec-label">Help Desk · Tickets</span>
         <h1 className="sec-title">Support Management</h1>
         <p className="sec-sub">View, respond to, and manage all user support tickets.</p>
       </div>
 
       {/* STAT CARDS */}
-      <div className="stats-grid reveal" style={{ marginBottom:24 }}>
+      <div className="stats-grid reveal" style={{ marginBottom: 24 }}>
         {[
-          { icon: <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>, val: stats.total, lbl: 'Total Tickets', bg: 'rgba(184,147,90,.1)', color: 'var(--gold)' },
-          { icon: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>, val: stats.pending, lbl: 'Pending', bg: 'rgba(184,147,90,.1)', color: 'var(--gold)' },
+          { icon: <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/>, val: stats.total,    lbl: 'Total Tickets', bg: 'rgba(184,147,90,.1)',   color: 'var(--gold)' },
+          { icon: <><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></>,                  val: stats.pending,  lbl: 'Pending',       bg: 'rgba(184,147,90,.1)',   color: 'var(--gold)' },
           { icon: <><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/><line x1="9" y1="10" x2="15" y2="10"/><line x1="9" y1="14" x2="13" y2="14"/></>, val: stats.open, lbl: 'Open', bg: 'rgba(59,130,246,.08)', color: '#2563eb' },
-          { icon: <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>, val: stats.resolved, lbl: 'Resolved', bg: 'rgba(74,103,65,.1)', color: 'var(--sage)' },
-          { icon: <><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></>, val: stats.closed, lbl: 'Closed', bg: 'rgba(28,28,28,.06)', color: 'var(--text-sec)' },
+          { icon: <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>,            val: stats.resolved, lbl: 'Resolved',     bg: 'rgba(74,103,65,.1)',    color: 'var(--sage)' },
+          { icon: <><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></>,     val: stats.closed,   lbl: 'Closed',        bg: 'rgba(28,28,28,.06)',    color: 'var(--text-sec)' },
         ].map((s, i) => (
           <div className="stat-card" key={i}>
-            <div className="stat-icon" style={{ background:s.bg, color:s.color }}>
+            <div className="stat-icon" style={{ background: s.bg, color: s.color }}>
               <svg viewBox="0 0 24 24">{s.icon}</svg>
             </div>
             <div className="stat-val">{s.val}</div>
@@ -328,18 +338,21 @@ export default function SupportManagementPage() {
             <tbody>
               {filteredData.map(t => {
                 const fullName = (t.profiles?.first_name || '') + ' ' + (t.profiles?.last_name || '');
-                const ini = fullName.split(' ').map((n: string)=>n[0]).join('').slice(0,2).toUpperCase();
+                const ini = fullName.split(' ').map((n: string) => n[0]).join('').slice(0, 2).toUpperCase();
                 return (
                   <tr key={t.id}>
                     <td><span className="td-sub detail-mono">{t.ticket_id}</span></td>
                     <td>
                       <div className="td-user">
                         <div className="td-av">{ini}</div>
-                        <div><div className="td-name">{fullName}</div><div className="td-sub">@{t.profiles?.username}</div></div>
+                        <div>
+                          <div className="td-name">{fullName}</div>
+                          <div className="td-sub">@{t.profiles?.username}</div>
+                        </div>
                       </div>
                     </td>
-                    <td className="hide-sm" style={{ maxWidth:200 }}>
-                      <div style={{ fontSize:'.78rem',color:'var(--ink)',fontWeight:500,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis',maxWidth:180 }} title={t.subject}>{t.subject}</div>
+                    <td className="hide-sm" style={{ maxWidth: 200 }}>
+                      <div style={{ fontSize: '.78rem', color: 'var(--ink)', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 180 }} title={t.subject}>{t.subject}</div>
                     </td>
                     <td className="hide-md"><span className="td-sub">{t.category}</span></td>
                     <td className="hide-md"><span className={`badge ${prioCls(t.priority)}`}><span className={`prio-dot ${prioDot(t.priority)}`}></span>{t.priority}</span></td>
@@ -365,10 +378,10 @@ export default function SupportManagementPage() {
         <div className="modal-overlay show" onClick={(e) => e.target === e.currentTarget && setActiveTicketId(null)}>
           <div className="modal-box">
             <div className="modal-header">
-              <div style={{ flex:1,minWidth:0 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
                 <div className="modal-title">{ticketDetails.subject}</div>
-                <div style={{ display:'flex',alignItems:'center',gap:8,marginTop:5,flexWrap:'wrap' }}>
-                  <span style={{ fontSize:'.66rem',color:'var(--text-sec)',fontFamily:'monospace' }}>{ticketDetails.ticket_id}</span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 5, flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '.66rem', color: 'var(--text-sec)', fontFamily: 'monospace' }}>{ticketDetails.ticket_id}</span>
                   <span className={`badge ${statusCls(ticketDetails.status)}`}>{ticketDetails.status}</span>
                   <span className={`badge ${prioCls(ticketDetails.priority)}`}>{ticketDetails.priority} priority</span>
                 </div>
@@ -377,6 +390,7 @@ export default function SupportManagementPage() {
                 <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
               </button>
             </div>
+
             <div className="modal-body">
               {/* User Details */}
               <div className="detail-section">
@@ -409,11 +423,11 @@ export default function SupportManagementPage() {
                   <div className="chat-messages" ref={chatMessagesRef}>
                     {ticketDetails.messages?.map((m: any, i: number) => {
                       const isAdmin = m.sender?.role !== 'user';
-                      const sender = isAdmin ? m.sender : ticketDetails.profiles;
-                      const ini = ((sender?.first_name?.[0] || '') + (sender?.last_name?.[0] || '')).toUpperCase() || '?';
+                      const sender  = isAdmin ? m.sender : ticketDetails.profiles;
+                      const ini     = ((sender?.first_name?.[0] || '') + (sender?.last_name?.[0] || '')).toUpperCase() || '?';
                       return (
                         <div className={`bubble-wrap ${isAdmin ? 'admin' : 'user'}`} key={i}>
-                          <div className={`bubble-av ${isAdmin?'admin-av':'user-av'}`}>{ini}</div>
+                          <div className={`bubble-av ${isAdmin ? 'admin-av' : 'user-av'}`}>{ini}</div>
                           <div>
                             <div className={`bubble ${isAdmin ? 'admin' : 'user'}`}>{m.message}</div>
                             <div className="bubble-time">{formatTime(m.created_at)}{isAdmin ? ` · ${sender?.first_name} ${sender?.last_name}` : ''}</div>
@@ -423,8 +437,8 @@ export default function SupportManagementPage() {
                     })}
                   </div>
                   <div className="chat-footer">
-                    <input 
-                      className="chat-input" 
+                    <input
+                      className="chat-input"
                       type="text"
                       placeholder={ticketDetails.status === 'closed' ? 'Ticket is closed — re-open to reply…' : 'Type a reply…'}
                       disabled={ticketDetails.status === 'closed'}
@@ -441,34 +455,34 @@ export default function SupportManagementPage() {
               <div className="detail-section">
                 <div className="detail-section-title">Actions</div>
                 <div className="action-row">
-                  {ticketDetails.status === 'pending' && <button className="btn-open" onClick={() => setStatus(ticketDetails.id, 'open')}>→ Mark as Open</button>}
+                  {ticketDetails.status === 'pending' && <button className="btn-open"    onClick={() => setStatus(ticketDetails.id, 'open')}>→ Mark as Open</button>}
                   {(ticketDetails.status === 'pending' || ticketDetails.status === 'open') && <button className="btn-resolve" onClick={() => setStatus(ticketDetails.id, 'resolved')}>✓ Mark as Resolved</button>}
-                  {ticketDetails.status !== 'closed' && <button className="btn-close-ticket" onClick={() => setStatus(ticketDetails.id, 'closed')}>✕ Close Ticket</button>}
+                  {ticketDetails.status !== 'closed'   && <button className="btn-close-ticket" onClick={() => setStatus(ticketDetails.id, 'closed')}>✕ Close Ticket</button>}
                   {(ticketDetails.status === 'closed' || ticketDetails.status === 'resolved') && <button className="btn-open" onClick={() => setStatus(ticketDetails.id, 'open')}>↺ Re-open Ticket</button>}
                 </div>
               </div>
 
-              {/* Activity Log */}
+              {/* Activity Log — driven by dedicated `logs` state fetched directly from Supabase */}
               <div className="detail-section">
                 <div className="detail-section-title">Activity Log</div>
                 <div className="history-log">
-                  {ticketDetails.logs?.map((l: any, i: number) => {
-                    const logDetails = typeof l.details === 'string' ? JSON.parse(l.details) : l.details;
-                    return (
-                      <div className="log-entry" key={i}>
+                  {logs.length > 0 ? (
+                    logs.map((l: any, i: number) => (
+                      <div className="log-entry" key={l.id ?? i}>
                         <div className={`log-dot ${l.action}`}></div>
-                        <div style={{ flex:1 }}>
+                        <div style={{ flex: 1 }}>
                           <div className="log-text">
-                            <strong>{logDetails?.text || l.action.replace('_', ' ')}</strong>
-                            {l.performer && <> &mdash; <span style={{ color:'var(--gold-d)' }}>{l.performer.first_name} {l.performer.last_name}</span></>}
+                            <strong>{getLogText(l)}</strong>
+                            {l.performer && (
+                              <> &mdash; <span style={{ color: 'var(--gold-d)' }}>{l.performer.first_name} {l.performer.last_name}</span></>
+                            )}
                           </div>
                           <div className="log-time">{formatTime(l.created_at)}</div>
                         </div>
                       </div>
-                    );
-                  })}
-                  {(!ticketDetails.logs || ticketDetails.logs.length === 0) && (
-                    <div style={{ textAlign: 'center', padding: '12px', fontSize: '.7rem', color: 'var(--text-sec)' }}>
+                    ))
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '16px', fontSize: '.72rem', color: 'var(--text-sec)' }}>
                       No activity logs yet.
                     </div>
                   )}

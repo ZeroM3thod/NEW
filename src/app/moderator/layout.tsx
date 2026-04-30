@@ -70,6 +70,7 @@ export default function ModeratorLayout({ children }: { children: React.ReactNod
       toast={toast} 
       searchQuery={searchQuery} 
       setSearchQuery={setSearchQuery}
+      moderator={moderator}
     >
       <div className="moderator-body">
         <div id="toast" className={toast.show ? `show ${toast.type}` : ''}>{toast.msg}</div>

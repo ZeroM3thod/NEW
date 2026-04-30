@@ -1213,7 +1213,7 @@ table.dtbl {
   background: var(--gold);
 }
 
-.log-dot.replied {
+.log-dot.replied, .log-dot.message_sent {
   background: #2563eb;
 }
 
@@ -1225,7 +1225,7 @@ table.dtbl {
   background: var(--text-sec);
 }
 
-.log-dot.reopened {
+.log-dot.reopened, .log-dot.status_changed {
   background: #8b7355;
 }
 

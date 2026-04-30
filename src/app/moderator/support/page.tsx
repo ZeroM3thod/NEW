@@ -1,118 +1,139 @@
 'use client';
-import { useState, useEffect, useMemo, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useModerator } from '@/context/ModeratorContext';
-
-/* ══════════════════════════════════════════════
-   SAMPLE DATA
-══════════════════════════════════════════════ */
-const MODERATOR = { name:'Marcus Reid', initials:'MR', id:'mod_001' };
-
-const INITIAL_TICKETS = [
-  {
-    id:'TKT-8821', uid:'USR-50291',
-    fullName:'Alexandra Fontaine', username:'@alex.fontaine',
-    email:'alex.fontaine@gmail.com', phone:'+1 (617) 882-4491',
-    subject:'Unable to withdraw funds — transaction stuck',
-    category:'Withdrawal', priority:'high', status:'open',
-    submittedDate:'2025-04-23',
-    message:'Hi, I submitted a withdrawal request 3 days ago and it\'s still showing as "processing". The amount is $1,200 USDT. I have not received any update or confirmation email. My wallet address is correct. Please help resolve this urgently.',
-    chat:[
-      { from:'user', text:'Hi, I submitted a withdrawal request 3 days ago and it\'s still processing.', time:'2025-04-23 09:14' },
-      { from:'admin', text:'Hello Alexandra, thank you for reaching out. I\'m looking into your withdrawal request right now. Could you please confirm your transaction ID?', time:'2025-04-23 09:31', by:MODERATOR },
-      { from:'user', text:'The transaction ID is TXN-44810293. Please hurry, I need those funds.', time:'2025-04-23 09:45' }
-    ],
-    log:[
-      { type:'created', text:'Ticket submitted by user', date:'2025-04-23 09:14', by:null },
-      { type:'opened',  text:'Ticket opened and assigned to moderator', date:'2025-04-23 09:30', by:MODERATOR },
-      { type:'replied', text:'Admin replied to ticket', date:'2025-04-23 09:31', by:MODERATOR }
-    ]
-  },
-  {
-    id:'TKT-8820', uid:'USR-48823',
-    fullName:'James Okafor', username:'@j.okafor',
-    email:'james.okafor@outlook.com', phone:'+44 7700 912 341',
-    subject:'KYC rejected — documents are clear, need review',
-    category:'KYC', priority:'high', status:'pending',
-    submittedDate:'2025-04-22',
-    message:'My KYC was rejected with a reason saying my ID image is blurry, but I have uploaded a very clear and high-resolution photo of my national ID. I believe there has been an error in the review. Please re-examine my submission.',
-    chat:[
-      { from:'user', text:'My KYC was rejected but my documents are perfectly clear. I need this re-reviewed.', time:'2025-04-22 14:53' }
-    ],
-    log:[
-      { type:'created', text:'Ticket submitted by user', date:'2025-04-22 14:53', by:null }
-    ]
-  },
-  {
-    id:'TKT-8819', uid:'USR-47110',
-    fullName:'Yuki Tanaka', username:'@yuki.tanaka',
-    email:'yuki.tanaka@yahoo.co.jp', phone:'+81 90-3311-7728',
-    subject:'How do I join Season 7 investment pool?',
-    category:'Investment', priority:'low', status:'resolved',
-    submittedDate:'2025-04-20',
-    message:'Hello, I am interested in joining the Season 7 investment pool but I cannot find the option in my dashboard. My account is fully verified. Can you guide me through the process?',
-    chat:[
-      { from:'user', text:'I cannot find the Season 7 pool in my dashboard.', time:'2025-04-20 08:22' },
-      { from:'admin', text:'Hi Yuki! The Season 7 pool is accessible from the "Invest" tab in your dashboard. Make sure your wallet is funded with at least the minimum investment amount of $100 USDT. Let me know if you need further help.', time:'2025-04-20 08:55', by:{name:'Sarah Chen',initials:'SC',id:'mod_002'} },
-      { from:'user', text:'Found it! Thank you so much, that was very helpful.', time:'2025-04-20 09:10' }
-    ],
-    log:[
-      { type:'created',  text:'Ticket submitted by user', date:'2025-04-20 08:22', by:null },
-      { type:'opened',   text:'Ticket opened by moderator', date:'2025-04-20 08:50', by:{name:'Sarah Chen',initials:'SC',id:'mod_002'} },
-      { type:'replied',  text:'Admin replied to ticket', date:'2025-04-20 08:55', by:{name:'Sarah Chen',initials:'SC',id:'mod_002'} },
-      { type:'resolved', text:'Ticket marked as resolved', date:'2025-04-20 09:15', by:{name:'Sarah Chen',initials:'SC',id:'mod_002'} }
-    ]
-  },
-  {
-    id:'TKT-8818', uid:'USR-46802',
-    fullName:'Priya Sharma', username:'@priya.sharma',
-    email:'priya.sharma@protonmail.com', phone:'+91 98204 77332',
-    subject:'Account locked after too many login attempts',
-    category:'Account', priority:'medium', status:'open',
-    submittedDate:'2025-04-19',
-    message:'My account has been locked after I tried logging in multiple times while forgetting my password. I have since reset my password via email, but the account remains locked. I cannot access any of my investments.',
-    chat:[
-      { from:'user', text:'My account is locked even after resetting my password.', time:'2025-04-19 17:06' },
-      { from:'admin', text:'Hi Priya, I can see your account was temporarily locked for security. I\'ve escalated this to our technical team to unlock it manually. Please allow 1–2 hours.', time:'2025-04-19 17:40', by:MODERATOR }
-    ],
-    log:[
-      { type:'created', text:'Ticket submitted by user', date:'2025-04-19 17:06', by:null },
-      { type:'opened',  text:'Ticket opened by moderator', date:'2025-04-19 17:38', by:MODERATOR },
-      { type:'replied', text:'Admin replied to ticket', date:'2025-04-19 17:40', by:MODERATOR }
-    ]
-  },
-  {
-    id:'TKT-8817', uid:'USR-45501',
-    fullName:'Carlos Mendoza', username:'@c.mendoza',
-    email:'carlos.mendoza@icloud.com', phone:'+52 55 8811 4490',
-    subject:'Incorrect ROI calculation for Season 5',
-    category:'Investment', priority:'medium', status:'closed',
-    submittedDate:'2025-04-18',
-    message:'According to the terms, Season 5 promised a 12.5% ROI. However, my ROI shows only 11.8% in my transaction history. There seems to be a miscalculation. The invested amount was $500 USDT.',
-    chat:[
-      { from:'user', text:'The ROI on my Season 5 investment appears to be wrong — it\'s lower than what was promised.', time:'2025-04-18 10:14' },
-      { from:'admin', text:'Hello Carlos, I\'ve reviewed your account and the ROI calculation. The difference is due to the pool not reaching 100% capacity, which slightly affects the final rate as per the terms. I have sent you a detailed breakdown to your email.', time:'2025-04-18 11:02', by:{name:'Sarah Chen',initials:'SC',id:'mod_002'} },
-      { from:'user', text:'I got the email, that makes sense now. Thank you for the explanation.', time:'2025-04-18 11:45' }
-    ],
-    log:[
-      { type:'created',  text:'Ticket submitted by user', date:'2025-04-18 10:14', by:null },
-      { type:'opened',   text:'Ticket opened by moderator', date:'2025-04-18 10:58', by:{name:'Sarah Chen',initials:'SC',id:'mod_002'} },
-      { type:'replied',  text:'Admin replied to ticket', date:'2025-04-18 11:02', by:{name:'Sarah Chen',initials:'SC',id:'mod_002'} },
-      { type:'resolved', text:'Ticket marked as resolved', date:'2025-04-18 11:48', by:{name:'Sarah Chen',initials:'SC',id:'mod_002'} },
-      { type:'closed',   text:'Ticket closed', date:'2025-04-18 12:00', by:{name:'Sarah Chen',initials:'SC',id:'mod_002'} }
-    ]
-  }
-];
+import { createClient } from '@/utils/supabase/client';
 
 export default function SupportManagementPage() {
-  const { searchQuery, showToast } = useModerator();
-  const [tickets, setTickets] = useState(INITIAL_TICKETS);
+  const supabase = createClient();
+  const { searchQuery, showToast, moderator } = useModerator();
+  const [tickets, setTickets] = useState<any[]>([]);
   const [statusFilter, setStatusFilter] = useState('all');
   const [priorityFilter, setPriorityFilter] = useState('all');
   const [activeTicketId, setActiveTicketId] = useState<string | null>(null);
+  const [ticketDetails, setTicketDetails] = useState<any>(null);
   const [replyText, setReplyText] = useState('');
   const chatMessagesRef = useRef<HTMLDivElement>(null);
 
-  const activeTicket = useMemo(() => tickets.find(t => t.id === activeTicketId), [tickets, activeTicketId]);
+  const fetchTickets = useCallback(async () => {
+    const res = await fetch('/api/support/tickets');
+    const data = await res.json();
+    if (!data.error) setTickets(data);
+  }, []);
+
+  useEffect(() => {
+    fetchTickets();
+
+    // Global listener for ticket updates (to keep list/stats fresh)
+    const globalChannel = supabase
+      .channel('global-tickets')
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'support_tickets'
+      }, () => {
+        fetchTickets();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(globalChannel); };
+  }, [fetchTickets, supabase]);
+
+  useEffect(() => {
+    if (activeTicketId) {
+      const fetchDetails = async () => {
+        const res = await fetch(`/api/support/tickets/${activeTicketId}`);
+        const data = await res.json();
+        if (!data.error) setTicketDetails(data);
+      };
+      fetchDetails();
+
+      const channel = supabase
+        .channel(`mod-ticket-${activeTicketId}`)
+        .on('postgres_changes', { 
+          event: 'INSERT', 
+          schema: 'public', 
+          table: 'ticket_messages', 
+          filter: `ticket_id=eq.${activeTicketId}` 
+        }, async (payload) => {
+          const { data: newMsg } = await supabase
+            .from('ticket_messages')
+            .select('*, sender:sender_id(first_name, last_name, role)')
+            .eq('id', payload.new.id)
+            .single();
+          
+          if (newMsg) {
+            setTicketDetails((prev: any) => {
+              if (prev?.id !== activeTicketId) return prev;
+              // Avoid duplicates if optimistic update already added it
+              if (prev.messages?.some((m: any) => m.id === newMsg.id)) return prev;
+              
+              // Also check for optimistic message by content if ID is different
+              const isDuplicate = prev.messages?.some((m: any) => 
+                m.isOptimistic && 
+                m.message === newMsg.message && 
+                m.sender_id === newMsg.sender_id
+              );
+              if (isDuplicate) {
+                // Replace optimistic with real
+                return {
+                  ...prev,
+                  messages: prev.messages.map((m: any) => 
+                    (m.isOptimistic && m.message === newMsg.message && m.sender_id === newMsg.sender_id) ? newMsg : m
+                  )
+                };
+              }
+
+              return {
+                ...prev,
+                messages: [...(prev?.messages || []), newMsg]
+              };
+            });
+          }
+        })
+        .on('postgres_changes', {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'support_tickets',
+          filter: `id=eq.${activeTicketId}`
+        }, (payload) => {
+          setTicketDetails((prev: any) => {
+            if (prev?.id !== activeTicketId) return prev;
+            return {
+              ...prev,
+              status: payload.new.status
+            };
+          });
+        })
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'ticket_logs',
+          filter: `ticket_id=eq.${activeTicketId}`
+        }, async (payload) => {
+          const { data: newLog } = await supabase
+            .from('ticket_logs')
+            .select('*, performer:performed_by(first_name, last_name)')
+            .eq('id', payload.new.id)
+            .single();
+
+          if (newLog) {
+            setTicketDetails((prev: any) => {
+              if (prev?.id !== activeTicketId) return prev;
+              if (prev.logs?.some((l: any) => l.id === newLog.id)) return prev;
+              return {
+                ...prev,
+                logs: [newLog, ...(prev?.logs || [])]
+              };
+            });
+          }
+        })
+        .subscribe();
+
+      return () => { supabase.removeChannel(channel); };
+    } else {
+      setTicketDetails(null);
+    }
+  }, [activeTicketId, supabase]);
 
   const stats = useMemo(() => {
     return {
@@ -127,8 +148,10 @@ export default function SupportManagementPage() {
   const filteredData = useMemo(() => {
     return tickets.filter(t => {
       const q = searchQuery.toLowerCase();
-      const matchSearch = !q || t.id.toLowerCase().includes(q) || t.fullName.toLowerCase().includes(q)
-        || t.username.toLowerCase().includes(q) || t.subject.toLowerCase().includes(q);
+      const matchSearch = !q || t.ticket_id.toLowerCase().includes(q) 
+        || (t.profiles?.first_name + ' ' + t.profiles?.last_name).toLowerCase().includes(q)
+        || t.profiles?.username?.toLowerCase().includes(q) 
+        || t.subject.toLowerCase().includes(q);
       const matchStatus = statusFilter === 'all' || t.status === statusFilter;
       const matchPriority = priorityFilter === 'all' || t.priority === priorityFilter;
       return matchSearch && matchStatus && matchPriority;
@@ -141,8 +164,8 @@ export default function SupportManagementPage() {
     return d.toLocaleDateString('en-GB', { day:'2-digit', month:'short', year:'numeric' });
   };
 
-  const nowStr = () => {
-    return new Date().toLocaleString('en-GB', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }).replace(',', '');
+  const formatTime = (s: string) => {
+    return new Date(s).toLocaleString('en-GB', { year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit' }).replace(',', '');
   };
 
   const statusCls = (s: string) => s === 'open' ? 'b-open' : s === 'resolved' ? 'b-resolved' : s === 'closed' ? 'b-closed' : 'b-pending';
@@ -150,66 +173,84 @@ export default function SupportManagementPage() {
   const prioCls = (p: string) => p === 'high' ? 'b-high' : p === 'low' ? 'b-low' : 'b-medium';
   const prioDot = (p: string) => p === 'high' ? 'pdot-high' : p === 'low' ? 'pdot-low' : 'pdot-medium';
 
-  const setStatus = (id: string, newStatus: string) => {
-    setTickets(prev => prev.map(t => {
-      if (t.id === id) {
-        const prevStatus = t.status;
-        const logType = newStatus === 'open' ? 'opened' : newStatus === 'resolved' ? 'resolved' : newStatus === 'closed' ? 'closed' : 'opened';
-        const logText = newStatus === 'open'
-          ? (prevStatus === 'closed' || prevStatus === 'resolved' ? 'Ticket re-opened by moderator' : 'Ticket marked as open')
-          : newStatus === 'resolved' ? 'Ticket marked as resolved'
-          : 'Ticket closed';
-        
-        return {
-          ...t,
-          status: newStatus as any,
-          log: [...t.log, { type: logType, text: logText, date: nowStr(), by: MODERATOR }]
-        };
-      }
-      return t;
-    }));
-    showToast(`Status updated to ${newStatus}.`, newStatus === 'resolved' ? 'ok' : 'info');
+  const setStatus = async (id: string, newStatus: string) => {
+    try {
+      const res = await fetch(`/api/support/tickets/${id}/status`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      showToast(`Status updated to ${newStatus}.`, newStatus === 'resolved' ? 'ok' : 'info');
+    } catch (err: any) {
+      showToast(err.message, 'err');
+    }
   };
 
-  const sendChat = (id: string) => {
+  const sendChat = async (id: string) => {
     if (!replyText.trim()) return;
-    const t = tickets.find(x => x.id === id);
-    if (!t) return;
-    if (t.status === 'closed') {
+    if (ticketDetails?.status === 'closed') {
       showToast('Re-open the ticket before replying.', 'err');
       return;
     }
 
-    const msg = { from: 'admin', text: replyText, time: nowStr(), by: MODERATOR };
-    
-    setTickets(prev => prev.map(t => {
-      if (t.id === id) {
-        const newStatus = t.status === 'pending' ? 'open' : t.status;
-        const newLog = [...t.log];
-        if (t.status === 'pending') {
-          newLog.push({ type: 'opened', text: 'Ticket opened by moderator', date: nowStr(), by: MODERATOR });
-        }
-        newLog.push({ type: 'replied', text: 'Admin replied to ticket', date: nowStr(), by: MODERATOR });
-        
-        return {
-          ...t,
-          status: newStatus as any,
-          chat: [...t.chat, msg],
-          log: newLog
-        };
+    const msgText = replyText;
+    setReplyText('');
+
+    // Optimistic Update
+    const tempId = 'opt-' + Math.random().toString(36).substr(2, 9);
+    const optimisticMsg = {
+      id: tempId,
+      message: msgText,
+      created_at: new Date().toISOString(),
+      sender_id: moderator?.id,
+      isOptimistic: true,
+      sender: {
+        id: moderator?.id,
+        first_name: moderator?.first_name || 'You',
+        last_name: moderator?.last_name || '',
+        role: moderator?.role || 'moderator'
       }
-      return t;
+    };
+
+    setTicketDetails((prev: any) => ({
+      ...prev,
+      messages: [...(prev?.messages || []), optimisticMsg]
     }));
 
-    setReplyText('');
-    showToast('Reply sent successfully.', 'ok');
+    try {
+      const res = await fetch(`/api/support/tickets/${id}/messages`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ message: msgText })
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+
+      // Replace optimistic message with real one
+      setTicketDetails((prev: any) => ({
+        ...prev,
+        messages: prev.messages?.map((m: any) => m.id === tempId ? { ...data, sender: optimisticMsg.sender } : m)
+      }));
+
+      showToast('Reply sent successfully.', 'ok');
+    } catch (err: any) {
+      showToast(err.message, 'err');
+      // Rollback
+      setTicketDetails((prev: any) => ({
+        ...prev,
+        messages: prev.messages?.filter((m: any) => m.id !== tempId)
+      }));
+    }
   };
 
   useEffect(() => {
     if (chatMessagesRef.current) {
       chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
     }
-  }, [activeTicket?.chat]);
+  }, [ticketDetails?.messages]);
 
   useEffect(() => {
     const obs = new IntersectionObserver(entries => {
@@ -286,14 +327,15 @@ export default function SupportManagementPage() {
             </thead>
             <tbody>
               {filteredData.map(t => {
-                const ini = t.fullName.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+                const fullName = (t.profiles?.first_name || '') + ' ' + (t.profiles?.last_name || '');
+                const ini = fullName.split(' ').map((n: string)=>n[0]).join('').slice(0,2).toUpperCase();
                 return (
                   <tr key={t.id}>
-                    <td><span className="td-sub detail-mono">{t.id}</span></td>
+                    <td><span className="td-sub detail-mono">{t.ticket_id}</span></td>
                     <td>
                       <div className="td-user">
                         <div className="td-av">{ini}</div>
-                        <div><div className="td-name">{t.fullName}</div><div className="td-sub">{t.username}</div></div>
+                        <div><div className="td-name">{fullName}</div><div className="td-sub">@{t.profiles?.username}</div></div>
                       </div>
                     </td>
                     <td className="hide-sm" style={{ maxWidth:200 }}>
@@ -301,7 +343,7 @@ export default function SupportManagementPage() {
                     </td>
                     <td className="hide-md"><span className="td-sub">{t.category}</span></td>
                     <td className="hide-md"><span className={`badge ${prioCls(t.priority)}`}><span className={`prio-dot ${prioDot(t.priority)}`}></span>{t.priority}</span></td>
-                    <td className="hide-md"><span className="td-sub">{formatDate(t.submittedDate)}</span></td>
+                    <td className="hide-md"><span className="td-sub">{formatDate(t.created_at)}</span></td>
                     <td><span className={`badge ${statusCls(t.status)}`}><span className={`status-dot ${statusDot(t.status)}`}></span>{t.status}</span></td>
                     <td><button className="btn-view" onClick={() => setActiveTicketId(t.id)}>View →</button></td>
                   </tr>
@@ -319,16 +361,16 @@ export default function SupportManagementPage() {
       </div>
 
       {/* TICKET DETAIL MODAL */}
-      {activeTicket && (
+      {activeTicketId && ticketDetails && (
         <div className="modal-overlay show" onClick={(e) => e.target === e.currentTarget && setActiveTicketId(null)}>
           <div className="modal-box">
             <div className="modal-header">
               <div style={{ flex:1,minWidth:0 }}>
-                <div className="modal-title">{activeTicket.subject}</div>
+                <div className="modal-title">{ticketDetails.subject}</div>
                 <div style={{ display:'flex',alignItems:'center',gap:8,marginTop:5,flexWrap:'wrap' }}>
-                  <span style={{ fontSize:'.66rem',color:'var(--text-sec)',fontFamily:'monospace' }}>{activeTicket.id}</span>
-                  <span className={`badge ${statusCls(activeTicket.status)}`}>{activeTicket.status}</span>
-                  <span className={`badge ${prioCls(activeTicket.priority)}`}>{activeTicket.priority} priority</span>
+                  <span style={{ fontSize:'.66rem',color:'var(--text-sec)',fontFamily:'monospace' }}>{ticketDetails.ticket_id}</span>
+                  <span className={`badge ${statusCls(ticketDetails.status)}`}>{ticketDetails.status}</span>
+                  <span className={`badge ${prioCls(ticketDetails.priority)}`}>{ticketDetails.priority} priority</span>
                 </div>
               </div>
               <button className="modal-close" onClick={() => setActiveTicketId(null)}>
@@ -340,10 +382,10 @@ export default function SupportManagementPage() {
               <div className="detail-section">
                 <div className="detail-section-title">User Details</div>
                 <div className="detail-grid">
-                  <div className="detail-field"><div className="detail-label">Full Name</div><div className="detail-value">{activeTicket.fullName}</div></div>
-                  <div className="detail-field"><div className="detail-label">Username</div><div className="detail-value">{activeTicket.username}</div></div>
-                  <div className="detail-field"><div className="detail-label">Email</div><div className="detail-value">{activeTicket.email}</div></div>
-                  <div className="detail-field"><div className="detail-label">Phone</div><div className="detail-value">{activeTicket.phone}</div></div>
+                  <div className="detail-field"><div className="detail-label">Full Name</div><div className="detail-value">{ticketDetails.profiles?.first_name} {ticketDetails.profiles?.last_name}</div></div>
+                  <div className="detail-field"><div className="detail-label">Username</div><div className="detail-value">@{ticketDetails.profiles?.username}</div></div>
+                  <div className="detail-field"><div className="detail-label">Email</div><div className="detail-value">{ticketDetails.profiles?.email}</div></div>
+                  <div className="detail-field"><div className="detail-label">Phone</div><div className="detail-value">{ticketDetails.profiles?.phone_number}</div></div>
                 </div>
               </div>
 
@@ -351,19 +393,13 @@ export default function SupportManagementPage() {
               <div className="detail-section">
                 <div className="detail-section-title">Ticket Information</div>
                 <div className="detail-grid-3">
-                  <div className="detail-field"><div className="detail-label">Ticket ID</div><div className="detail-value detail-mono">{activeTicket.id}</div></div>
-                  <div className="detail-field"><div className="detail-label">Category</div><div className="detail-value">{activeTicket.category}</div></div>
-                  <div className="detail-field"><div className="detail-label">Priority</div><div className="detail-value">{activeTicket.priority}</div></div>
-                  <div className="detail-field"><div className="detail-label">Submitted Date</div><div className="detail-value">{formatDate(activeTicket.submittedDate)}</div></div>
-                  <div className="detail-field"><div className="detail-label">Status</div><div className="detail-value">{activeTicket.status}</div></div>
-                  <div className="detail-field"><div className="detail-label">User ID</div><div className="detail-value detail-mono">{activeTicket.uid}</div></div>
+                  <div className="detail-field"><div className="detail-label">Ticket ID</div><div className="detail-value detail-mono">{ticketDetails.ticket_id}</div></div>
+                  <div className="detail-field"><div className="detail-label">Category</div><div className="detail-value">{ticketDetails.category}</div></div>
+                  <div className="detail-field"><div className="detail-label">Priority</div><div className="detail-value">{ticketDetails.priority}</div></div>
+                  <div className="detail-field"><div className="detail-label">Submitted Date</div><div className="detail-value">{formatDate(ticketDetails.created_at)}</div></div>
+                  <div className="detail-field"><div className="detail-label">Status</div><div className="detail-value">{ticketDetails.status}</div></div>
+                  <div className="detail-field"><div className="detail-label">User ID</div><div className="detail-value detail-mono">{ticketDetails.user_id}</div></div>
                 </div>
-              </div>
-
-              {/* User Message */}
-              <div className="detail-section">
-                <div className="detail-section-title">User Message</div>
-                <div className="msg-box">{activeTicket.message}</div>
               </div>
 
               {/* Live Chat */}
@@ -371,15 +407,16 @@ export default function SupportManagementPage() {
                 <div className="detail-section-title">Live Chat</div>
                 <div className="chat-wrap">
                   <div className="chat-messages" ref={chatMessagesRef}>
-                    {activeTicket.chat.map((m, i) => {
-                      const isAdmin = m.from === 'admin';
-                      const ini = isAdmin ? (m.by ? m.by.initials : 'AD') : activeTicket.fullName.split(' ').map(n=>n[0]).join('').slice(0,2).toUpperCase();
+                    {ticketDetails.messages?.map((m: any, i: number) => {
+                      const isAdmin = m.sender?.role !== 'user';
+                      const sender = isAdmin ? m.sender : ticketDetails.profiles;
+                      const ini = ((sender?.first_name?.[0] || '') + (sender?.last_name?.[0] || '')).toUpperCase() || '?';
                       return (
-                        <div className={`bubble-wrap ${m.from}`} key={i}>
+                        <div className={`bubble-wrap ${isAdmin ? 'admin' : 'user'}`} key={i}>
                           <div className={`bubble-av ${isAdmin?'admin-av':'user-av'}`}>{ini}</div>
                           <div>
-                            <div className={`bubble ${m.from}`}>{m.text}</div>
-                            <div className="bubble-time">{m.time}{isAdmin&&m.by?' · '+m.by.name:''}</div>
+                            <div className={`bubble ${isAdmin ? 'admin' : 'user'}`}>{m.message}</div>
+                            <div className="bubble-time">{formatTime(m.created_at)}{isAdmin ? ` · ${sender?.first_name} ${sender?.last_name}` : ''}</div>
                           </div>
                         </div>
                       );
@@ -389,13 +426,13 @@ export default function SupportManagementPage() {
                     <input 
                       className="chat-input" 
                       type="text"
-                      placeholder={activeTicket.status === 'closed' ? 'Ticket is closed — re-open to reply…' : 'Type a reply…'}
-                      disabled={activeTicket.status === 'closed'}
+                      placeholder={ticketDetails.status === 'closed' ? 'Ticket is closed — re-open to reply…' : 'Type a reply…'}
+                      disabled={ticketDetails.status === 'closed'}
                       value={replyText}
                       onChange={(e) => setReplyText(e.target.value)}
-                      onKeyDown={(e) => e.key === 'Enter' && sendChat(activeTicket.id)}
+                      onKeyDown={(e) => e.key === 'Enter' && sendChat(ticketDetails.id)}
                     />
-                    <button className="btn-send" disabled={activeTicket.status === 'closed'} onClick={() => sendChat(activeTicket.id)}>Send</button>
+                    <button className="btn-send" disabled={ticketDetails.status === 'closed'} onClick={() => sendChat(ticketDetails.id)}>Send</button>
                   </div>
                 </div>
               </div>
@@ -404,10 +441,10 @@ export default function SupportManagementPage() {
               <div className="detail-section">
                 <div className="detail-section-title">Actions</div>
                 <div className="action-row">
-                  {activeTicket.status === 'pending' && <button className="btn-open" onClick={() => setStatus(activeTicket.id, 'open')}>→ Mark as Open</button>}
-                  {(activeTicket.status === 'pending' || activeTicket.status === 'open') && <button className="btn-resolve" onClick={() => setStatus(activeTicket.id, 'resolved')}>✓ Mark as Resolved</button>}
-                  {activeTicket.status !== 'closed' && <button className="btn-close-ticket" onClick={() => setStatus(activeTicket.id, 'closed')}>✕ Close Ticket</button>}
-                  {(activeTicket.status === 'closed' || activeTicket.status === 'resolved') && <button className="btn-open" onClick={() => setStatus(activeTicket.id, 'open')}>↺ Re-open Ticket</button>}
+                  {ticketDetails.status === 'pending' && <button className="btn-open" onClick={() => setStatus(ticketDetails.id, 'open')}>→ Mark as Open</button>}
+                  {(ticketDetails.status === 'pending' || ticketDetails.status === 'open') && <button className="btn-resolve" onClick={() => setStatus(ticketDetails.id, 'resolved')}>✓ Mark as Resolved</button>}
+                  {ticketDetails.status !== 'closed' && <button className="btn-close-ticket" onClick={() => setStatus(ticketDetails.id, 'closed')}>✕ Close Ticket</button>}
+                  {(ticketDetails.status === 'closed' || ticketDetails.status === 'resolved') && <button className="btn-open" onClick={() => setStatus(ticketDetails.id, 'open')}>↺ Re-open Ticket</button>}
                 </div>
               </div>
 
@@ -415,18 +452,26 @@ export default function SupportManagementPage() {
               <div className="detail-section">
                 <div className="detail-section-title">Activity Log</div>
                 <div className="history-log">
-                  {[...activeTicket.log].reverse().map((l, i) => (
-                    <div className="log-entry" key={i}>
-                      <div className={`log-dot ${l.type}`}></div>
-                      <div style={{ flex:1 }}>
-                        <div className="log-text">
-                          <strong>{l.text}</strong>
-                          {l.by && <> &mdash; <span style={{ color:'var(--gold-d)' }}>{l.by.name}</span></>}
+                  {ticketDetails.logs?.map((l: any, i: number) => {
+                    const logDetails = typeof l.details === 'string' ? JSON.parse(l.details) : l.details;
+                    return (
+                      <div className="log-entry" key={i}>
+                        <div className={`log-dot ${l.action}`}></div>
+                        <div style={{ flex:1 }}>
+                          <div className="log-text">
+                            <strong>{logDetails?.text || l.action.replace('_', ' ')}</strong>
+                            {l.performer && <> &mdash; <span style={{ color:'var(--gold-d)' }}>{l.performer.first_name} {l.performer.last_name}</span></>}
+                          </div>
+                          <div className="log-time">{formatTime(l.created_at)}</div>
                         </div>
-                        <div className="log-time">{l.date}</div>
                       </div>
+                    );
+                  })}
+                  {(!ticketDetails.logs || ticketDetails.logs.length === 0) && (
+                    <div style={{ textAlign: 'center', padding: '12px', fontSize: '.7rem', color: 'var(--text-sec)' }}>
+                      No activity logs yet.
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
             </div>

@@ -6,6 +6,7 @@ interface ModeratorContextType {
   setSearchQuery: (q: string) => void;
   showToast: (msg: string, type?: 'ok' | 'err' | 'info') => void;
   toast: { msg: string; type: string; show: boolean };
+  moderator: any;
 }
 
 const ModeratorContext = createContext<ModeratorContextType | undefined>(undefined);
@@ -16,9 +17,9 @@ export const useModerator = () => {
   return context;
 };
 
-export const ModeratorProvider = ({ children, showToast, toast, searchQuery, setSearchQuery }: any) => {
+export const ModeratorProvider = ({ children, showToast, toast, searchQuery, setSearchQuery, moderator }: any) => {
   return (
-    <ModeratorContext.Provider value={{ searchQuery, setSearchQuery, showToast, toast }}>
+    <ModeratorContext.Provider value={{ searchQuery, setSearchQuery, showToast, toast, moderator }}>
       {children}
     </ModeratorContext.Provider>
   );

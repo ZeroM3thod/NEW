@@ -32,7 +32,7 @@ export default function About() {
             <div className="aside-card">
               <span className="section-label">Season 110 is Live</span>
               <h3>Secure your position before entries close</h3>
-              <p>Only 5 days remain in the Season 110 entry window. The pool cap is $250K. Current fill rate is at 46%. Once full, no further entries are accepted.</p>
+              <p>Only 1 days remain in the Season 110 entry window. The pool cap is $250K. Current fill rate is at 87%. Once full, no further entries are accepted.</p>
               <button className="aside-cta" onClick={() => router.push('/signup')}>Open an Account</button>
               <div className="aside-note">Minimum investment: $30 USDT · No lock-in fees</div>
             </div>

@@ -71,10 +71,10 @@ export default function Seasons() {
 
             {/* Season Three */}
             <div className="season-card">
-              <div className="season-tag">Running</div>
+              <div className="season-tag">Completed</div>
               <div className="season-name">Season 109</div>
               <div className="season-period">26th Apr 2026 — 1st May 2026</div>
-              <div className="season-roi">+16–25%</div>
+              <div className="season-roi">21.6%</div>
               <div className="season-roi-label">Final ROI</div>
               <div className="season-detail">
                 <div className="season-detail-item">

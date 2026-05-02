@@ -3,7 +3,7 @@ import { Resend } from 'resend';
 import { createClient } from '@/utils/supabase/server';
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const FROM = 'ValutX Withdrawals <withdraw@support.valutx.business>';
+const FROM = 'ValutX Withdrawals <support@valutx.business>';
 
 export async function POST(req: NextRequest) {
   try {

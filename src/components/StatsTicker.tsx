@@ -3,11 +3,11 @@
 const stats = [
   { label: 'Active Investors', value: '50,000+' },
   { label: 'USDT Invested', value: '100M+' },
-  { label: 'Season 108 ROI', value: '+13.3%' },
+  { label: 'Season 109 ROI', value: '+21.6%' },
   { label: 'Paid Out', value: '$14.2M+' },
   { label: 'Referral Rate', value: '15% Of Profit' },
   { label: 'On-Time Payouts', value: '99.8%' },
-  { label: 'Season 110', value: 'Now Live' },
+  { label: 'Season 111', value: 'Now Live' },
 ];
 
 function TickerItems() {
